@@ -139,6 +139,9 @@ export class CollectionService {
     });
   }
   async save(actor: Actor, id: string, body: unknown) {
+    return this.db.transaction(tx => this.saveIn(tx, actor, id, body));
+  }
+  async saveIn(tx: Transaction, actor: Actor, id: string, body: unknown) {
     requireAdmin(actor);
     object(body);
     if (
@@ -150,26 +153,24 @@ export class CollectionService {
     )
       throw new BadRequestException("收集设置需要当前配置版本");
     const rules = parseCollectionRules(body.rules);
-    return this.db.transaction(async (tx) => {
-      // Same organization -> definition -> collection order as submissions.
-      await this.definition(tx, actor, id, true);
-      await this.lock(tx, id);
-      const current = await this.read(tx, id);
-      if (body.expectedRevision !== current.revision)
-        throw new ConflictException(
-          "收集设置已被其他人修改，请对照最新设置后合并；当前输入保留",
-        );
-      const revision = current.revision + 1;
-      await tx.query(
-        "INSERT INTO collection_rules(definition_id,revision,rules) VALUES($1,$2,$3) ON CONFLICT(definition_id) DO UPDATE SET revision=$2,rules=$3,updated_at=now()",
-        [id, revision, rules],
+    // Same organization -> definition -> collection order as submissions.
+    await this.definition(tx, actor, id, true);
+    await this.lock(tx, id);
+    const current = await this.read(tx, id);
+    if (body.expectedRevision !== current.revision)
+      throw new ConflictException(
+        "收集设置已被其他人修改，请对照最新设置后合并；当前输入保留",
       );
-      await tx.query(
-        "INSERT INTO collection_rule_events(id,definition_id,actor_id,revision,rules) VALUES($1,$2,$3,$4,$5)",
-        [randomUUID(), id, actor.id, revision, rules],
-      );
-      return this.configuration(tx, id);
-    });
+    const revision = current.revision + 1;
+    await tx.query(
+      "INSERT INTO collection_rules(definition_id,revision,rules) VALUES($1,$2,$3) ON CONFLICT(definition_id) DO UPDATE SET revision=$2,rules=$3,updated_at=now()",
+      [id, revision, rules],
+    );
+    await tx.query(
+      "INSERT INTO collection_rule_events(id,definition_id,actor_id,revision,rules) VALUES($1,$2,$3,$4,$5)",
+      [randomUUID(), id, actor.id, revision, rules],
+    );
+    return this.configuration(tx, id);
   }
   async events(actor: Actor, id: string) {
     requireAdmin(actor);

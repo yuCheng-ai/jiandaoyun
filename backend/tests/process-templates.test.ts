@@ -94,7 +94,7 @@ test("task data returns only assigned row and authorized columns, with server-en
   assert.equal(data.record.values.lines.length, 1); assert.equal(data.record.values.lines[0]._rowId, task.rowId);
   assert.equal(data.record.values.private, undefined); assert.equal(data.record.values.decision, undefined);
   assert.ok(!Object.keys(data.record.cellRevisions).some(key => key.includes(own.tasks[1].rowId)));
-  assert.deepEqual(data.rowActions.lines, { add: false, remove: false });
+  assert.deepEqual(data.rowActions.lines, { add: false, remove: false, insert: false, editExisting: true });
   await h.request(`${taskPath(task)}/record`, "GET", undefined, "reviewer", 403);
   for (const change of [ { fieldId: "name", value: "越权", expectedRevision: 1 }, { subformId: "lines", rowId: own.tasks[1].rowId, fieldId: "quantity", value: 8, expectedRevision: 1 } ]) {
     await h.request(`${taskPath(task)}/record`, "PATCH", { requestId: randomUUID(), changes: [change] }, "editor", 403);

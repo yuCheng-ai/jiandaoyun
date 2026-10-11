@@ -7,6 +7,7 @@ export function createDialogStack(doc: Document) {
     modal: boolean;
     anchor?: () => HTMLElement | undefined;
     initialFocus?: () => HTMLElement | undefined;
+    reposition?: () => void;
   };
   const layers: Layer[] = [];
   let previousOverflow = "",
@@ -93,7 +94,7 @@ export function createDialogStack(doc: Document) {
           event.target.contains(anchor) &&
           !layer.element.contains(event.target))
       )
-        layer.close();
+        (layer.reposition || layer.close)();
     }
   }
   function updateInert() {
@@ -111,6 +112,7 @@ export function createDialogStack(doc: Document) {
       modal?: boolean;
       anchor?: () => HTMLElement | undefined;
       initialFocus?: () => HTMLElement | undefined;
+      reposition?: () => void;
     } = {},
   ) {
     const layer = {
@@ -120,6 +122,7 @@ export function createDialogStack(doc: Document) {
       modal: options.modal !== false,
       anchor: options.anchor,
       initialFocus: options.initialFocus,
+      reposition: options.reposition,
     };
     if (!layers.length) {
       previousOverflow = doc.body.style.overflow;

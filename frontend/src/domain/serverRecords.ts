@@ -24,14 +24,14 @@ export function emptyServerRecord(
 ): FormValues {
   return Object.fromEntries(
     published.definition.schema.fields
-      .filter((f) => canEditField(published.access, f))
+      .filter((f) => published.access.fields[f.id] !== "hidden")
       .map((f) => [
         f.id,
         f.type === "subform"
           ? []
-          : f.type === "datetime" && f.dateDefault === "now"
+          : f.type === "datetime" && f.dateDefault === "now" && !f.defaultFormula
             ? fieldDefaultValue(f, now)
-            : (published.defaultValues?.[f.id] ?? f.defaultValue),
+            : (published.defaultValues && Object.hasOwn(published.defaultValues, f.id) ? published.defaultValues[f.id] : f.defaultValue),
       ]),
   );
 }
@@ -63,7 +63,9 @@ export function recordChanges(
         const current = rows.find((row) => row._rowId === original._rowId);
         if (!current) continue;
         for (const child of field.children)
-          if (canEditField(detail.access, child, field))
+          if (canEditField(detail.access, child, field)) {
+            if (detail.rowActions?.[field.id]?.editExisting === false && JSON.stringify(original[child.id]) !== JSON.stringify(current[child.id]))
+              throw new Error('不可编辑已有记录');
             add(
               child,
               original[child.id],
@@ -71,6 +73,7 @@ export function recordChanges(
               field.id,
               String(original._rowId),
             );
+          }
       }
     } else if (canEditField(detail.access, field))
       add(field, detail.record.values[field.id], edited[field.id]);
@@ -97,6 +100,8 @@ export function recordRowChanges(
     const currentIds = new Set(after.map((row) => String(row._rowId)));
     if (currentIds.size !== after.length)
       throw new Error("明细行身份重复，请重新检查");
+    if (JSON.stringify(before.filter(row => currentIds.has(String(row._rowId))).map(row => row._rowId)) !== JSON.stringify(after.filter(row => ids.has(String(row._rowId))).map(row => row._rowId)))
+      throw new Error('已有明细行不能直接重排，请保留原顺序');
     const expectedRevision = detail.record.rowRevisions?.[field.id] || 1;
     for (const row of before)
       if (!currentIds.has(String(row._rowId))) {
@@ -115,14 +120,16 @@ export function recordRowChanges(
           ),
         });
       }
-    for (const row of after)
+    for (const [index, row] of after.entries())
       if (!ids.has(String(row._rowId))) {
-        if (!detail.rowActions?.[field.id]?.add)
-          throw new Error("没有新增明细行的权限");
+        const beforeRowId = after.slice(index + 1).find(item => ids.has(String(item._rowId)))?._rowId;
+        const insert = beforeRowId !== undefined || !detail.rowActions?.[field.id]?.add;
+        if (insert ? !detail.rowActions?.[field.id]?.insert : !detail.rowActions?.[field.id]?.add)
+          throw new Error(insert ? '没有插入明细行的权限' : "没有新增明细行的权限");
         if (typeof row._rowId !== "string" || !row._rowId.startsWith("draft:"))
           throw new Error("新增明细行身份不合法");
         changes.push({
-          action: "add",
+          ...(insert ? { action: "insert" as const, beforeRowId: beforeRowId === undefined ? null : String(beforeRowId) } : { action: "add" as const }),
           subformId: field.id,
           expectedRevision,
           values: Object.fromEntries(

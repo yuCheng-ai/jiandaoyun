@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException } from "@nestjs/common";
 import { composeFormSchema, modelFormSchema, separateFormSchema, pagePropertyKeys, defaultPageProperties, defaultPageSettings, dateRangeErrors, dateScopeFields, choiceSettingsErrors, type DataField, type DataFieldAddition, type DataModel, type FormPageSchema, type PageControl } from "@platform/contracts";
-import { serverFieldTypes, serverDataKinds, fieldTextPropertiesErrors } from "@platform/contracts";
+import { serverFieldTypes, serverDataKinds, fieldTextPropertiesErrors, validateVisibilityRules, validateFormValidations } from "@platform/contracts";
 import { formLayoutErrors, externalStyleErrors, subformWidthErrors, subformPermissionSettingErrors, subformFixedColumnErrors, subformMobileErrors } from "@platform/contracts";
 import { identifier, object, parseSchema } from "./schema";
 
@@ -50,8 +50,7 @@ export function modelWithAdditions(model: DataModel, raw: unknown, allowIncomple
 }
 export function parsePage(raw: unknown, model: DataModel, incomplete = false): FormPageSchema {
   object(raw); object(raw.settings);
-  if (raw.settings.validations !== undefined && (!Array.isArray(raw.settings.validations) || raw.settings.validations.length)) throw new BadRequestException("表单提交校验尚未接入服务端，请保留原配置");
-  if (raw.version !== 1 || !Array.isArray(raw.controls) || !Array.isArray(raw.settings.rules) || raw.settings.rules.length) throw new BadRequestException("页面结构不合法，条件规则尚未接入服务端");
+  if (raw.version !== 1 || !Array.isArray(raw.controls)) throw new BadRequestException("页面结构不合法");
   let count = 0;
   const visit = (raw: unknown, nested: boolean): PageControl => {
     object(raw); object(raw.properties); object(raw.binding); identifier(raw.id); identifier(raw.binding.fieldId);
@@ -62,8 +61,6 @@ export function parsePage(raw: unknown, model: DataModel, incomplete = false): F
     if (rowPermissionErrors.length) throw new BadRequestException(rowPermissionErrors[0]);
     if (properties.subformQuickFill !== undefined && (raw.type !== "subform" || typeof properties.subformQuickFill !== "boolean")) throw new BadRequestException("快速填报配置无效");
     if (properties.subformQuickFill) throw new BadRequestException("快速填报暂未接通服务端，请保留原配置");
-    if (properties.subformPermissions && Object.values(properties.subformPermissions).some(value => value === false))
-      throw new BadRequestException("子表单操作权限暂未接通服务端，请保留原配置");
     const widthErrors = subformWidthErrors(properties);
     if (widthErrors.length) throw new BadRequestException(widthErrors[0]);
     const fixedErrors = subformFixedColumnErrors({ ...properties, type: raw.type } as any);
@@ -90,6 +87,14 @@ export function parsePage(raw: unknown, model: DataModel, incomplete = false): F
   const page: FormPageSchema = { version: 1, controls: raw.controls.map((control: unknown) => visit(control, false)), settings };
   try {
     const schema = composeFormSchema(model, page);
+    settings.validations = validateFormValidations(raw.settings.validations, schema.fields);
+    settings.rules = validateVisibilityRules(raw.settings.rules, schema.fields);
+    const conditional = new Set(settings.rules.flatMap(rule => rule.targetIds));
+    for (const field of model.fields) {
+      for (const candidate of [field, ...field.children]) {
+        if ((conditional.has(field.id) || conditional.has(candidate.id)) && candidate.required) throw Error(`「${candidate.name}」仍有永久必填约束，请先在表单草稿中调整后再设置条件显示`);
+      }
+    }
     const fields = schema.fields.flatMap(field => [field, ...field.children]);
     const childIds = new Set(schema.fields.flatMap(field => field.children.map(child => child.id)));
     for (const field of fields) {

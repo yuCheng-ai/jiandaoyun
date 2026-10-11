@@ -1,0 +1,129 @@
+{
+  "date": "2026-10-11",
+  "scope": "FD02 multiline input preservation and existing record list row heights. Same record-view persistence; no workflow changes.",
+  "previousGoalTurn": "progress: reusable rich image resizing, cancellation, browser verification and regression tests completed a bounded delivery.",
+  "sources": [
+    {
+      "url": "https://hc.jiandaoyun.com/doc/12291",
+      "verified": "Multiline field has no input-character limit; data management wraps lines except at low row height."
+    },
+    {
+      "url": "https://hc.jiandaoyun.com/doc/9083",
+      "verified": "Four row heights: high, medium, low, adaptive. Exact source pixel heights not verified."
+    }
+  ],
+  "behavior": [
+    "New textarea already has maxLength 0; no duplicate validation added. Legacy explicit or missing historical 200 limit retained.",
+    "Four row heights in existing record-view configuration; old and invalid settings fall back to low without losing columns or sort.",
+    "Business cell values and record titles share line-clamping rules. Adaptive mode displays the full stored cell text; title keeps existing 200-character summary.",
+    "Pending view writes visibly disable view controls; failed saves restore the committed selector and keep page position. No record values or schemas changed by row height."
+  ],
+  "checks": {
+    "frontend": {
+      "result": "passed",
+      "tests": 1484,
+      "files": 149,
+      "log": "tmp/textarea-frontend.log",
+      "note": "Before applying the same visual row-height class to the record title; no business-rule changes after full run."
+    },
+    "targeted": {
+      "result": "passed",
+      "tests": 46,
+      "files": 4,
+      "log": "tmp/textarea-targeted-final.log",
+      "note": "Final source. Includes existing multiline defaults/legacy constraints and PDF regressions, long draft/version/import-export lifecycle and row-view saving tests."
+    },
+    "build": {
+      "result": "passed",
+      "log": "tmp/textarea-build.log",
+      "warning": "Existing Vite large-chunk warning"
+    },
+    "sites": {
+      "result": "passed",
+      "tests": 4,
+      "log": "tmp/textarea-sites.log"
+    },
+    "protected": {
+      ".openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+      "worker/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+      "scripts/prepare-sites-build.mjs": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+      "tests/sites-worker.test.mjs": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf"
+    },
+    "artifacts": [
+      "dist/client/index.html",
+      "dist/server/index.js",
+      "dist/.openai/hosting.json"
+    ],
+    "backend": "Typecheck as part of build only; no runtime or database changes."
+  },
+  "browser": {
+    "form": "form_841f7287bf96",
+    "entry": "entry_1305c903c779",
+    "field": "field_e924c16c2d31",
+    "version": 1,
+    "draft": {
+      "characters": 295,
+      "lines": 8,
+      "maxlengthAttribute": null,
+      "coldReloadExact": true
+    },
+    "submitted": "Same draft ID, one record, V1",
+    "editAndReload": {
+      "characters": 312,
+      "lines": 9,
+      "exact": true,
+      "sameID": true,
+      "readonlyDetailExact": true
+    },
+    "desktopRowsAt1280": {
+      "low": 56,
+      "medium": 92.5,
+      "high": 132.5,
+      "auto": 504.5
+    },
+    "businessCellHeights": {
+      "low": 20,
+      "medium": 60,
+      "high": 100,
+      "auto": 480
+    },
+    "coldReloadSettings": {
+      "rowHeight": "high",
+      "sortField": "field_e924c16c2d31",
+      "pageSize": 10
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "selectorLeft": 105,
+      "selectorRight": 191,
+      "selectorBottom": 789.5,
+      "changedFromHighToMedium": true
+    },
+    "screenshots": [
+      {
+        "path": "docs/screenshots/jdy-textarea-row-height-desktop.jpg",
+        "width": 1280,
+        "height": 720
+      },
+      {
+        "path": "docs/screenshots/jdy-textarea-row-height-mobile.jpg",
+        "width": 390,
+        "height": 844
+      }
+    ],
+    "logs": "Latest warn/error empty",
+    "cleanup": "Viewport reset; one synthetic fixture retained; final height high."
+  },
+  "limits": [
+    "No exact source pixel-parity claim; only the existing administrative RecordList is in this batch.",
+    "Over-10000-character text preservation is repository/domain test evidence, not a browser long-file download test.",
+    "Complete print templates, Excel cell-length boundaries, member permission/output combinations and server migration remain in the original R3/R4/R5/R7 queue."
+  ],
+  "files": {
+    "frontend/src/domain/records.ts": "e094ac6f3ef3550f7c17e2d099fcfe48d56a9de86a5dcbf740999748790bdaa8",
+    "frontend/src/features/forms/components/RecordList.vue": "10a16aa3d1273908b210f97aaf4d219aa9a13da30cfc615fbbff9f25e5ffaf0b",
+    "frontend/tests/records.test.ts": "462c29a22b92636886dd99a70cd7275f5eeb9919341cfa1a0a6b5626e9178338",
+    "frontend/tests/record-multiline.test.ts": "f39186a36833096b0bda88a50f8605c4bf28862c0a5f66db0a573e1a76eb90bd"
+  }
+}

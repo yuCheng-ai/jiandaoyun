@@ -32,6 +32,9 @@ import {
   addressTypes,
   textFormatSettingsErrors,
   fieldTextPropertiesErrors,
+  numberValueIssue,
+  emptyFieldValue,
+  fieldDefaultValue,
 } from "@platform/contracts";
 import {
   choiceTypes,
@@ -228,13 +231,34 @@ export function validateFieldConfiguration(
       }
     }
     if (field.type === "number") {
+      for (const key of ["min", "max"] as const)
+        if (
+          field[key] !== undefined &&
+          (typeof field[key] !== "number" || !Number.isFinite(field[key]))
+        )
+          fail(`请填写有效的${key === "min" ? "最小值" : "最大值"}`);
       if (
         field.limitRange !== false &&
-        field.min !== undefined &&
-        field.max !== undefined &&
+        typeof field.min === "number" &&
+        typeof field.max === "number" &&
         field.min > field.max
       )
         fail("最小值不能大于最大值");
+      if (
+        !field.defaultLink?.enabled &&
+        !usesFormula(field) &&
+        !emptyFieldValue(field.defaultValue)
+      ) {
+        const issue = numberValueIssue(field, fieldDefaultValue(field));
+        if (issue)
+          fail(
+            issue === "range"
+              ? "默认值超出限定数值范围"
+              : issue === "precision"
+                ? `默认值最多保留${field.precision}位小数`
+                : "请填写有效的数字默认值",
+          );
+      }
     }
     const filters = choiceTypes.includes(field.type)
       ? field.choiceSource.filters

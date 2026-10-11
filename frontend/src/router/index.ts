@@ -5,7 +5,8 @@ export const router = createRouter({
     {
       path: "/applications/:applicationId?",
       name: "data-workspace",
-      component: () => import("../features/data/DataWorkspaceView.vue"),
+      component: () =>
+        import("../features/workspace/ServerApplicationHome.vue"),
     },
     {
       path: "/applications/:applicationId/pages/:pageId/design",
@@ -39,8 +40,7 @@ export const router = createRouter({
     },
     {
       path: "/admin/members",
-      name: "members",
-      component: () => import("../features/organization/EmployeesView.vue"),
+      redirect: "/admin/organization",
     },
     {
       path: "/admin/roles",
@@ -97,7 +97,6 @@ router.afterEach((to, _from, failure) => {
     payments: "支付管理",
     "member-view": "成员视图",
     organization: "内部组织",
-    members: "成员信息管理",
     roles: "角色管理",
     permissions: "权限查询",
     home: "工作台",

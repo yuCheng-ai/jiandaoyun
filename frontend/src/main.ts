@@ -1,6 +1,7 @@
 import { createApp } from "vue";
 import { createPinia } from "pinia";
 import { router } from "./router";
+import { installSessionGuard } from "./router/sessionGuard";
 import App from "./App.vue";
 import "@vue-flow/core/dist/style.css";
 import "@vue-flow/core/dist/theme-default.css";
@@ -17,4 +18,5 @@ import "./quick-fill.css";
 import "./workspace-recovery.css";
 import "./user-menu.css";
 
+installSessionGuard(router);
 createApp(App).use(createPinia()).use(router).mount("#app");

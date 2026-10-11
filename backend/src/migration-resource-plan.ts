@@ -1,11 +1,16 @@
+import { visibilityConditions, type VisibilityRule } from "@platform/contracts";
+import { parseFieldTrash } from "./field-recycle";
+import { validateRecordView } from "@platform/contracts";
 import { createHash } from "node:crypto";
 import { maxSubformRows } from "@platform/contracts";
 import { BadRequestException } from "@nestjs/common";
 import { isOrganizationField, isMultipleOrganization, separateFormSchema, modelFormSchema, type FormField, type FormSchema, type MigrationIdentityChoice, type MigrationIdentityReview, type MigrationResourcePlan, type MigrationResourceSource } from "@platform/contracts";
-import { object, scalar } from "./schema";
+import { object, scalar, title } from "./schema";
 import { parseModel, parsePage } from "./page-schema";
 import { legacyRecordLifecycle } from "./legacy-record";
 import { migrateAccess } from "./migration-access";
+import { parseCollectionRules } from "./collection";
+import type { MigrationRoleReview } from './migration-role-access';
 
 export const canonicalMigration = (value: any): any => Array.isArray(value) ? value.map(canonicalMigration) : value && typeof value === "object" ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalMigration(value[key])])) : value;
 export const migrationDigest = (value: unknown) => createHash("sha256").update(JSON.stringify(canonicalMigration(value))).digest("hex");
@@ -34,11 +39,16 @@ export function resourceSource(raw: unknown): MigrationResourceSource {
 }
 type Reserve = (kind: "application" | "data_object" | "page" | "record" | "row", parts: unknown[]) => Promise<string>;
 /** Exact-version projection. Raw payload remains immutable alongside this result. */
-export async function planMigrationResources(source: MigrationResourceSource, choices: MigrationIdentityChoice[], identityReview: MigrationIdentityReview, reserve: Reserve) {
+export async function planMigrationResources(source: MigrationResourceSource, choices: MigrationIdentityChoice[], identityReview: MigrationIdentityReview, reserve: Reserve, roleReview?: MigrationRoleReview) {
   const issues: MigrationResourcePlan["issues"] = [], forms: MigrationResourcePlan["forms"] = [], records: MigrationResourcePlan["records"] = [];
   const projection: { forms: any[]; records: any[] } = { forms: [], records: [] };
   const access: NonNullable<MigrationResourcePlan["access"]> = [];
   const issue = (formId: string, version: string, kind: "invalid" | "mapping" | "unsupported", message: string, extra: Partial<MigrationResourcePlan["issues"][number]> = {}) => issues.push({ formId, version, kind, message, ...extra });
+  const validTime = (value: unknown) => typeof value === "string" && Number.isFinite(Date.parse(value));
+  try { title(source.application.name); } catch { issue("", "应用设置", "invalid", "应用名称无效。"); }
+  if (Object.keys(source.application).some(key => !["id", "name", "color", "icon", "folders", "description"].includes(key))) issue("", "应用设置", "unsupported", "应用包含尚未接通的设置，不能忽略后导入。");
+  if (source.application.folders !== undefined && (!Array.isArray(source.application.folders) || source.application.folders.some(folder => typeof folder !== "string" || !folder.trim()))) issue("", "应用设置", "invalid", "应用文件夹列表无效。");
+  for (const key of ["color", "icon", "description"]) if (source.application[key] !== undefined && typeof source.application[key] !== "string") issue("", "应用设置", "invalid", "应用显示设置格式无效。");
   for (const blocker of identityReview.blockers) issue("", "身份对应", "mapping", blocker);
   if (!identityReview.confirmationCurrent) issue("", "身份对应", "mapping", "身份对应尚未确认或确认依据已变化，执行导入前需要重新核对。");
   const mapped = (kind: MigrationIdentityChoice["kind"], value: unknown): string => {
@@ -53,27 +63,41 @@ export async function planMigrationResources(source: MigrationResourceSource, ch
     if (isMultipleOrganization(field.type)) { if (!Array.isArray(value)) throw new Error("组织多选值不是身份列表"); return value.map(item => mapped(kind, item)); }
     return mapped(kind, value);
   };
+  const mapVisibility = (rules: VisibilityRule[], fields: FormField[]) => {
+    const result = structuredClone(rules);
+    const all = fields.flatMap(field => [field, ...field.children]);
+    for (const condition of result.flatMap(visibilityConditions)) {
+      const field = all.find(field => field.id === condition.sourceId);
+      if (!field || !isOrganizationField(field.type) || condition.operator === 'empty' || !condition.value) continue;
+      if (!['equals', 'notEquals', 'contains'].includes(condition.operator)) throw Error('组织字段显隐条件不能按数值比较');
+      condition.value = mapped(field.type.startsWith('department') ? 'department' : 'member', condition.value);
+    }
+    return result;
+  };
+  const mapFieldOrganization = (field: FormField) => {
+    if (!isOrganizationField(field.type)) return;
+    object(field.organization); object(field.organization.scope);
+    const config = field.organization, scope = config.scope;
+    for (const [key, kind] of [["employeeIds", "member"], ["departmentIds", "department"], ["roleIds", "role"]] as const) {
+      if (!Array.isArray(scope[key])) throw new Error("组织范围格式不合法");
+      scope[key] = scope[key].map(value => mapped(kind, value));
+    }
+    if (!Array.isArray(config.defaultIds)) throw new Error("默认组织身份格式不合法");
+    config.defaultIds = config.defaultIds.map(value => mapped(field.type.startsWith("department") ? "department" : "member", value));
+    field.defaultValue = organizationValue(field, field.defaultValue) as FormField["defaultValue"];
+  };
   const schemaProjection = (formId: string, version: string, raw: any, draft: boolean) => {
     try {
       object(raw); if (!Array.isArray(raw.fields)) throw new Error("字段列表缺失");
       const schema = structuredClone(raw) as FormSchema; let fieldCount = 0;
       const visit = (field: FormField, depth = 0) => {
         object(field); if (++fieldCount > 1000 || depth > 10 || !Array.isArray(field.children)) throw new Error("字段结构过深、过多或缺失子字段列表");
-        if (isOrganizationField(field.type)) {
-          object(field.organization); object(field.organization.scope);
-          const config = field.organization, scope = config.scope;
-          for (const [key, kind] of [["employeeIds", "member"], ["departmentIds", "department"], ["roleIds", "role"]] as const) {
-            if (!Array.isArray(scope[key])) throw new Error("组织范围格式不合法");
-            scope[key] = scope[key].map(value => mapped(kind, value));
-          }
-          if (!Array.isArray(config.defaultIds)) throw new Error("默认组织身份格式不合法");
-          config.defaultIds = config.defaultIds.map(value => mapped(field.type.startsWith("department") ? "department" : "member", value));
-          field.defaultValue = organizationValue(field, field.defaultValue) as FormField["defaultValue"];
-        }
+        mapFieldOrganization(field);
         field.children.forEach(child => visit(child, depth + 1));
       };
       schema.fields.forEach(field => visit(field));
-      const separated = separateFormSchema(schema), model = parseModel(separated.model, draft), page = parsePage(separated.page, model);
+      schema.settings.rules = mapVisibility(schema.settings.rules, schema.fields);
+      const separated = separateFormSchema(schema), model = parseModel(separated.model, draft), page = parsePage(separated.page, model, draft);
       return { model, page, runtime: modelFormSchema(model) };
     } catch (cause) { issue(formId, version, "unsupported", `字段转换未通过：${(cause as Error).message}`); return undefined; }
   };
@@ -81,6 +105,9 @@ export async function planMigrationResources(source: MigrationResourceSource, ch
   let historyEvents = 0;
   const targetApplicationId = await reserve("application", [source.applicationId]);
   for (const form of source.forms as any[]) {
+    try { title(form.title); } catch { issue(form.id, "草稿", "invalid", "表单名称无效。"); }
+    if (!validTime(form.createdAt) || !validTime(form.updatedAt) || typeof form.archived !== "boolean" || typeof form.folder !== "string") issue(form.id, "草稿", "invalid", "表单创建时间、分组或归档状态缺失，不能自动补写。");
+    if (form.kind !== "form") issue(form.id, "表单类型", "unsupported", "此表单类型的流程执行尚未接通服务端，保留原表单。");
     const definitionId = await reserve("data_object", [form.id]), pageId = await reserve("page", [form.id]);
     const catalog = new Map<number, any[]>(); sourceVersions.set(form.id, catalog);
     for (const original of [...form.versions, ...(form.published ? [form.published] : [])]) {
@@ -90,6 +117,17 @@ export async function planMigrationResources(source: MigrationResourceSource, ch
       catalog.set(original.version, variants);
     }
     const draft = schemaProjection(form.id, "草稿", form.schema, true), versionPlans: MigrationResourcePlan["forms"][number]["versions"] = [], converted: any[] = [];
+    if (!form.published && catalog.size || form.published && form.published.version !== Math.max(...catalog.keys())) issue(form.id, "发布状态", "unsupported", "当前发布版本与历史版本顺序不一致，不能自动选择另一个版本。");
+    let fieldTrash;
+    try {
+      const activeIds = form.schema.fields.flatMap((field: FormField) => [field.id, ...field.children.map(child => child.id)]);
+      fieldTrash = parseFieldTrash(form.fieldTrash ?? [], activeIds).map(item => {
+        [item.field, ...item.field.children].forEach(mapFieldOrganization);
+        return { ...item, rules: mapVisibility(item.rules, [...form.schema.fields, ...(form.fieldTrash || []).map((entry: any) => entry.field)]) };
+      });
+      // Recycle fields retain references to absent fields; validate with their own contract.
+      fieldTrash = parseFieldTrash(fieldTrash, activeIds);
+    } catch (cause) { issue(form.id, '字段回收站', 'unsupported', (cause as Error).message); }
     const contexts = [{ label: "草稿", value: form }, ...[...catalog].flatMap(([version, variants]) => variants.map(value => ({ label: `V${version}`, value })))];
     for (const context of contexts) {
       if (context.value.workflow?.nodes?.length || context.value.workflow?.enabled) issue(form.id, context.label, "unsupported", "原流程画布和运行语义保留在快照中，尚未转换为服务端流程。");
@@ -98,20 +136,37 @@ export async function planMigrationResources(source: MigrationResourceSource, ch
     for (const [version, variants] of [...catalog].sort(([a], [b]) => a - b)) {
       if (variants.length > 1) issue(form.id, `V${version}`, "invalid", "同一发布版本存在不同内容，不能为旧记录任选一个版本。");
       const result = variants.length === 1 ? schemaProjection(form.id, `V${version}`, variants[0].schema, false) : undefined;
+      if (variants.length === 1) {
+        try { title(variants[0].title); } catch { issue(form.id, `V${version}`, "invalid", "历史表单名称无效。"); }
+        if (!validTime(variants[0].publishedAt)) issue(form.id, `V${version}`, "invalid", "历史发布时间无效，不能替换成导入时间。");
+      }
       projectedVersions.set(JSON.stringify([form.id, version]), result);
       versionPlans.push({ sourceVersion: version, targetVersion: version, variants: variants.length, checked: !!result });
       if (result) converted.push({ version, title: variants[0].title, publishedAt: variants[0].publishedAt, model: result.model, page: result.page });
     }
     let accessConfig;
-    if (Object.hasOwn(source.access, form.id)) {
-      const result = migrateAccess(form.id, source.access[form.id], contexts.map(context => context.value.schema), choices,
+    {
+      const before = issues.length;
+      const result = migrateAccess(form.id, source.access[form.id] ?? {}, contexts.map(context => context.value.schema), choices,
         (kind, message, groupId, fieldId) => issue(form.id, "访问权限", kind, message, { ...(groupId ? { groupId } : {}), ...(fieldId ? { fieldId } : {}) }));
       access.push(result.summary); accessConfig = result.config;
-      issue(form.id, "访问权限", "unsupported", "访问权限的配置检查不启用授权。权限组选择／合并、分操作字段范围及仅添加入口尚需接入执行。公开填写、收集时间、限额与重复填写规则也需执行适配。");
+      if (accessConfig?.publicEnabled) issue(form.id, "访问权限", "unsupported", "公开填写尚未接通服务端，不能在导入时关闭原入口或改成成员入口。");
+      if (accessConfig?.groups.some(group => group.subjects.some(subject => subject.historical))) issue(form.id, "访问权限", "mapping", "权限组引用了独立历史身份，需要明确的当前组织对应，不能为历史档案启用授权。");
+      if (!form.published && accessConfig?.groups.length) issue(form.id, "访问权限", "unsupported", "尚未发布表单的预设权限组需先接通，不能丢弃后导入。");
+      if (accessConfig) {
+        const publishedFields = new Set(converted.flatMap(version => version.model.fields.flatMap((field: any) => [field.id, ...field.children.map((child: any) => child.id)])));
+        if (accessConfig.groups.some(group => Object.keys(group.fields).some(id => !publishedFields.has(id)))) issue(form.id, "访问权限", "unsupported", "权限组仍引用未发布字段，需保留原配置，不能忽略该字段授权。");
+      }
+      if (accessConfig) try { parseCollectionRules(accessConfig.filling); } catch (cause) { issue(form.id, "收集规则", "invalid", (cause as Error).message); }
+      result.summary.executionReady = !!accessConfig && issues.length === before;
     }
-    if (source.recordViews[form.id]) issue(form.id, "应用设置", "unsupported", "原列表视图配置已保留，尚未转换到服务端页面。");
+    let recordView;
+    if (source.recordViews[form.id] !== undefined) try {
+      const fieldIds=new Set<string>([...(draft?.model.fields || []),...converted.flatMap(version=>version.model.fields)].map(field=>field.id));
+      recordView=validateRecordView(source.recordViews[form.id],fieldIds);
+    } catch (cause) { issue(form.id,"列表设置","invalid",(cause as Error).message); }
     forms.push({ sourceId: form.id, title: String(form.title || form.id), archived: !!form.archived, definitionId, pageId, versions: versionPlans, draftChecked: !!draft });
-    projection.forms.push({ sourceId: form.id, definitionId, pageId, publishedVersion: form.published?.version ?? null, ...(draft ? { draft: { model: draft.model, page: draft.page } } : {}), ...(accessConfig ? { access: accessConfig } : {}), versions: converted });
+    projection.forms.push({ ...(fieldTrash ? { fieldTrash } : {}), ...(recordView ? { recordView } : {}), sourceId: form.id, definitionId, pageId, publishedVersion: form.published?.version ?? null, ...(draft ? { draft: { model: draft.model, page: draft.page } } : {}), ...(accessConfig ? { access: accessConfig } : {}), versions: converted });
   }
   const duplicateRecords = new Set(source.entries.filter((entry, index, all) => all.findIndex(other => other.id === entry.id) !== index).map(entry => entry.id));
   for (const entry of source.entries as any[]) {
@@ -179,7 +234,8 @@ export async function planMigrationResources(source: MigrationResourceSource, ch
     records.push({ sourceId: entry.id, formId: entry.formId, targetId, version: entry.definitionVersion, status: String(entry.status), deleted: !!entry.deletedAt, rows, checked });
     if (checked) projection.records.push({ sourceId: entry.id, targetId, definitionId: forms.find(form => form.sourceId === entry.formId)!.definitionId, version: entry.definitionVersion, values, creatorId, ...(departmentIds ? { createdDepartmentIds: departmentIds } : {}), createdAt: entry.createdAt, updatedAt: entry.updatedAt, deletedAt: entry.deletedAt, status: entry.status, history: entry.history, currentNodeId: entry.currentNodeId });
   }
-  if (source.roles.length) issue("", "应用授权", "mapping", "角色授权与跨应用范围已保留，仍需独立权限转换。");
+  if (roleReview) issues.push(...roleReview.issues);
+  else if (source.roles.length) issue("", "应用授权", "mapping", "请先核对来源角色与当前通讯录授权。");
   if (source.orders.length || source.runs.length) issue("", "运行资源", "unsupported", "支付订单与扩展运行轨迹已保留，执行适配尚未完成。");
-  return { projection, plan: { targetApplicationId, forms, records, access, issues, totals: { forms: forms.length, versions: forms.reduce((sum, form) => sum + form.versions.length, 0), records: records.length, rows: records.reduce((sum, record) => sum + record.rows.length, 0), archivedForms: forms.filter(form => form.archived).length, deletedRecords: records.filter(record => record.deleted).length, draftRecords: records.filter(record => record.status === "draft").length, historyEvents, orders: source.orders.length, runs: source.runs.length } } };
+  return { projection, plan: { ...(roleReview ? { roleAuthorization: { signature: roleReview.signature, roleCount: roleReview.roleCount } } : {}), targetApplicationId, forms, records, access, issues, totals: { forms: forms.length, versions: forms.reduce((sum, form) => sum + form.versions.length, 0), records: records.length, rows: records.reduce((sum, record) => sum + record.rows.length, 0), archivedForms: forms.filter(form => form.archived).length, deletedRecords: records.filter(record => record.deleted).length, draftRecords: records.filter(record => record.status === "draft").length, historyEvents, orders: source.orders.length, runs: source.runs.length } } };
 }

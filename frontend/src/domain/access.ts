@@ -31,7 +31,8 @@ import {
   scopeFields,
 } from "./relations";
 import { validateDynamicValues } from "./fieldValidation";
-import { blockingFormValidation, validationReferences } from "./formValidation";
+import { blockingFormValidation } from "./formValidation";
+import { readableFormValidations } from "@platform/contracts";
 import { entryDefinition } from "./collaboration";
 import { sameWorkspaceValue } from "./workspaceSync";
 import type { WorkspaceData, FormRecord, FormEntry } from "./workspace";
@@ -426,9 +427,7 @@ export function memberSchema(
       .map((field) => field.id),
   );
   // The local persistence path rechecks whole-record rules after protected values are merged.
-  result.settings.validations = (result.settings.validations || []).filter(
-    (rule) => validationReferences(rule).every((id) => visible.has(id)),
-  );
+  result.settings.validations = readableFormValidations(result.settings.validations, visible);
   result.settings.allowDraft = false;
   result.settings.cacheDraft = editing && schema.settings.cacheDraft;
   result.settings.submitLabel = "保存修改";

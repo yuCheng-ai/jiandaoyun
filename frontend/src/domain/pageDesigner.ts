@@ -1,8 +1,9 @@
-import { composeFormSchema, separateFormSchema, dataKind, dataFields, pagePropertyKeys, type PublishedDataModel, type DataField, type DataFieldAddition, type DataModel, type PageEditorData } from "@platform/contracts";
+import { composeFormSchema, separateFormSchema, modelFormSchema, dataKind, dataFields, pagePropertyKeys, type PublishedDataModel, type DataField, type DataFieldAddition, type DataModel, type PageEditorData, type RecycledField } from "@platform/contracts";
 import { copy, parseSchema, type FormSchema, type FormField } from "./form";
 
-export interface PageEditingState { title: string; schema: FormSchema }
+export interface PageEditingState { title: string; schema: FormSchema; fieldTrash?: RecycledField[] }
 export function previewDataModel(data: PageEditorData): DataModel {
+  if (data.draft.formModel) return copy(data.draft.formModel);
   const model = copy(data.model);
   for (const addition of data.draft.additions) {
     const fields = addition.parentId ? model.fields.find(field => field.id === addition.parentId)?.children : model.fields;
@@ -12,7 +13,7 @@ export function previewDataModel(data: PageEditorData): DataModel {
   return model;
 }
 export function pageEditingState(data: PageEditorData): PageEditingState {
-  return { title: data.draft.title, schema: parseSchema(composeFormSchema(previewDataModel(data), data.draft.schema)) };
+  return { title: data.draft.title, fieldTrash: copy(data.draft.fieldTrash || []), schema: parseSchema(composeFormSchema(previewDataModel(data), data.draft.schema)) };
 }
 export const modelFields = dataFields;
 /** Refresh a page's model without inserting controls or discarding its local edits. */
@@ -41,6 +42,28 @@ export function pageUpdate(data: PageEditorData, state: PageEditingState) {
     }
   };
   verify(state.schema.fields);
+  if (data.canEditFields) {
+    // Loading an older schema supplies editor defaults. Do not persist those as
+    // field changes unless the user actually changed the corresponding setting.
+    const defaults = new Map(modelFields(separateFormSchema(parseSchema(modelFormSchema(data.model))).model).map(item => [item.field.id, item.field.settings]));
+    for (const { field } of modelFields(converted.model)) {
+      const original = base.get(field.id)?.field.settings;
+      if (!original) continue;
+      const baseline = defaults.get(field.id)!;
+      for (const key of Object.keys(field.settings) as (keyof DataField["settings"])[]) {
+        if (JSON.stringify(field.settings[key]) !== JSON.stringify(baseline[key])) continue;
+        if (Object.hasOwn(original, key)) Object.assign(field.settings, { [key]: copy(original[key]) });
+        else delete field.settings[key];
+      }
+    }
+    return {
+      title: state.title, fieldTrash: copy(state.fieldTrash || []), definitionId: data.draft.definitionId,
+      definitionVersion: data.draft.definitionVersion,
+      expectedRevision: data.draft.revision,
+      baseDefinitionRevision: data.draft.baseDefinitionRevision ?? data.object.revision,
+      schema: converted.page, additions: [], formModel: converted.model,
+    };
+  }
   const makeOptional = (field: DataField): DataField => ({ ...copy(field), required: false, children: field.children.map(makeOptional) });
   for (const field of converted.model.fields) {
     if (!base.has(field.id)) additions.push({ field: makeOptional(field) });
@@ -52,7 +75,7 @@ export function pageUpdate(data: PageEditorData, state: PageEditingState) {
     if (id && base.has(id)) control.properties.label = labels.get(id) === base.get(id)!.field.name ? null : labels.get(id)!;
   }
   return {
-    title: state.title, definitionId: data.draft.definitionId,
+    title: state.title, fieldTrash: copy(state.fieldTrash || []), definitionId: data.draft.definitionId,
     definitionVersion: data.draft.definitionVersion,
     expectedRevision: data.draft.revision,
     baseDefinitionRevision: additions.length ? data.draft.baseDefinitionRevision ?? data.object.revision : null,
@@ -60,12 +83,13 @@ export function pageUpdate(data: PageEditorData, state: PageEditingState) {
   };
 }
 export function pageFieldNames(data: PageEditorData, state: PageEditingState, parentId?: string) {
-  const names = modelFields(data.model).filter(item => item.parentId === parentId).map(item => item.field.name);
+  const names = data.canEditFields ? [] : modelFields(data.model).filter(item => item.parentId === parentId).map(item => item.field.name);
   const current = parentId ? state.schema.fields.find(field => field.id === parentId)?.children || [] : state.schema.fields;
   return new Set([...names, ...current.map(field => field.label)]);
 }
 
 export function pageFieldConflicts(data: PageEditorData, state: PageEditingState) {
+  if (data.canEditFields) return [];
   const base = modelFields(data.model), known = new Set(base.map(item => item.field.id));
   const current = state.schema.fields.flatMap(field => [{ field, parentId: undefined as string | undefined }, ...field.children.map(child => ({ field: child, parentId: field.id }))]);
   return current.filter(item => !known.has(item.field.id)).flatMap(item => {

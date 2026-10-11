@@ -1,0 +1,104 @@
+{
+  "updatedAt": "2026-10-11",
+  "scope": "FD04 existing date range configuration and four default sources. Workflow unchanged. R2/R3 advanced combinations and R4–R8 remain open.",
+  "previousGoalTurn": "Progress: shared calendar year/month selection and interaction changes verified. This turn advances configuration and defaults rather than repeating calendar work.",
+  "source": {
+    "url": "https://hc.jiandaoyun.com/doc/9018",
+    "checked": "2026-10-11",
+    "facts": "Four granularities/default modes; weekday, fixed/dynamic/field boundaries intersect; date selection-panel limits only. Typed/backfilled values are not newly rejected."
+  },
+  "change": {
+    "file": "packages/contracts/src/date-range.ts",
+    "problem": "The shared reader rejected inverted fixed limits even in incomplete mode, so designers could not save/reopen an unfinished range.",
+    "solution": "Skip ordering validation only in incomplete/draft mode. Shape/type checks remain. Publication still requires correctly ordered fixed limits.",
+    "before": "New regression failed in parseSchema with 最早可选时间不能晚于最晚可选时间; 16 prior range tests passed. See tmp/date-settings-before.log.",
+    "after": "Same incomplete range round-trips in local and server drafts; publication rejects until repaired; existing immutable published page remains intact.",
+    "implementationSize": "One condition in the existing shared validator; no alternate draft system, UI component, endpoint or dependency."
+  },
+  "automated": {
+    "frontend": "1504 tests /149 files passed; tmp/date-settings-frontend.log",
+    "dateAndDefaults": "81 tests in date-range, date-fields, default-links and formula-defaults included in full pass.",
+    "newCoverage": [
+      "Inverted fixed range draft round-trip and publication repair.",
+      "All seven dynamic presets, plus past/future day/week/month/quarter/year, leap/year boundaries and month projection; existing current-period tests retained.",
+      "All four date granularities through linked/formula/current/custom modes and JSON re-read; inactive settings retained.",
+      "Native committed quantity survives current/past switching."
+    ],
+    "backend": "7 date range/date fields tests passed in isolated platform_test_<uuid> schemas; harness checked before importing app. Restart, rejected publication, unchanged current and historical version, repair/publish verified. tmp/date-settings-backend.log",
+    "build": "Complete contracts/frontend/backend build passed; tmp/date-settings-build.log. Existing Vite large-chunk warning remains.",
+    "sites": "4 tests passed; tmp/date-settings-sites.log"
+  },
+  "browser": {
+    "formId": "form_a78291bd58bf",
+    "title": "日期设置 · 对标验收",
+    "publishedVersion": 1,
+    "publishedAt": "2026/10/11 16:32:45",
+    "recordId": "entry_5042f4467456",
+    "values": {
+      "填报时间": "2026-10-11T16:32:50",
+      "基准日期": "2026-10-11",
+      "联动日期": "2026-10-09",
+      "计算日期": "2026-10-13"
+    },
+    "checks": [
+      "Created one independent local synthetic form in 入口验收. No existing form schemas or source records edited.",
+      "Saved earliest2026-11-30 / latest2026-11-01, cold reload retained both; publish blocked with actionable configuration dialog.",
+      "Repaired by selecting dynamic earliest past2months and latest future1quarter; save/cold reload and first V1 publish succeeded.",
+      "Switch current/past and toggle earliest off/on retain amount2. Native number ArrowUp was used: automation fill() alone did not commit the change-only control; this is not claimed as a production defect.",
+      "Custom→current→custom retains2026-10-11. Linked→custom→linked retains source form 常用默认值来源 · 对标验收 and 出厂日期. Formula→custom→formula retains DATEDELTA(DATE(2026,10,11), 2).",
+      "Field boundary offers other same-granularity main fields 基准日期 and 联动日期, excludes current 计算日期 and second-granularity 填报时间.",
+      "Fill initially resolves current time at opening, custom11, existing linked9 and formula13.",
+      "Dynamic range enables2026-08-01 /2027-03-31 and disables2026-07-31 /2027-04-01.",
+      "Changing base to2027-03-31 disables formula date2026-10-13 in its picker while retaining the filled value. Restored base11 before save.",
+      "Saved draft, cold reload retained original opening timestamp; same draft submitted, record list shows one entry. Cold record read preserves exact four values and readonly controls."
+    ],
+    "viewport": "1280×720. No new mobile visual claim; shared calendar390 verification remains in prior evidence.",
+    "scopeLimit": "This UI uses existing local storage and same-application source. Server draft rule verified by isolated API tests, not claimed as complete UI migration."
+  },
+  "remaining": [
+    "FD04 broader cross-application/source-child conditions and complete date formula catalogue remain R2/R3.",
+    "Complete output formats, permissions/history combinations, exact source visuals, existing server entry migration and final unified journeys remain R4–R8."
+  ],
+  "next": "FD06/FD08 selection-count and temporary-option boundaries. FD05/FD07 closed static behavior is reused; outstanding source/visual checks remain R2/R6.",
+  "screenshots": [
+    {
+      "path": "docs/screenshots/jdy-date-defaults-record.jpg",
+      "width": 1280,
+      "height": 720,
+      "sha256": "bbf6a208f3caaf7a75d3664b7fc9295a957b38a3aa750ea233c2079ddd6a0b90",
+      "visuallyReviewed": true
+    }
+  ],
+  "protectedFiles": [
+    {
+      "path": ".openai/hosting.json",
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947"
+    },
+    {
+      "path": "worker/index.js",
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389"
+    },
+    {
+      "path": "scripts/prepare-sites-build.mjs",
+      "sha256": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6"
+    },
+    {
+      "path": "tests/sites-worker.test.mjs",
+      "sha256": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "dist/client/index.html",
+      "sha256": "39833bf01b08a8c19e105026282c37e92130047b2099e20773ed50a3503bfa6f"
+    },
+    {
+      "path": "dist/server/index.js",
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389"
+    },
+    {
+      "path": "dist/.openai/hosting.json",
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947"
+    }
+  ]
+}

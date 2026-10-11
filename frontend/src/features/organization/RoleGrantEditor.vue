@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { computed } from "vue";
 import AppIcon from "../../components/AppIcon.vue";
-import { useWorkspaceStore } from "../../stores/workspace";
+import { useRoleApplications } from "../../composables/useRoleApplications";
 import type { RoleGrant, GrantAction } from "../../domain/organization";
 const props = defineProps<{ modelValue: RoleGrant[] }>();
 const emit = defineEmits<{ "update:modelValue": [grants: RoleGrant[]] }>();
-const store = useWorkspaceStore();
+const catalog = useRoleApplications();
 function patch(index: number, value: Partial<RoleGrant>) {
   emit(
     "update:modelValue",
@@ -32,7 +31,16 @@ function form(index: number, id: string, checked: boolean) {
 <template>
   <div class="role-grants">
     <p class="field-hint">
-      配置此角色可操作的应用、表单和数据范围。同一成员的多个角色权限合并。
+      每条授权分别限定操作和数据范围。管理数据允许查看、编辑和删除；表单已启用权限组时，以表单权限组为准。
+    </p>
+    <p v-if="catalog.loading.value" class="field-hint" role="status">
+      正在读取应用…
+    </p>
+    <p v-if="catalog.error.value" class="field-error" role="alert">
+      {{ catalog.error.value }}
+      <button type="button" class="text-button" @click="catalog.load">
+        重新读取
+      </button>
     </p>
     <article
       v-for="(grant, index) in modelValue"
@@ -69,11 +77,17 @@ function form(index: number, id: string, checked: boolean) {
           >
             <option value="*">全部应用</option>
             <option
-              v-for="app in store.data.apps"
+              v-for="app in catalog.applications.value"
               :key="app.id"
-              :value="app.id"
+              :value="app.sourceId === grant.appId ? app.sourceId : app.id"
             >
               {{ app.name }}
+            </option>
+            <option
+              v-if="grant.appId !== '*' && !catalog.find(grant.appId)"
+              :value="grant.appId"
+            >
+              原应用（暂不可用）
             </option>
           </select></label
         ><label
@@ -124,9 +138,7 @@ function form(index: number, id: string, checked: boolean) {
           }}
         </summary>
         <p class="field-hint">不勾选表示该应用全部表单。</p>
-        <label
-          v-for="f in store.activeForms.filter((f) => f.appId === grant.appId)"
-          :key="f.id"
+        <label v-for="f in catalog.forms(grant.appId)" :key="f.id"
           ><input
             type="checkbox"
             :checked="grant.formIds.includes(f.id)"
@@ -136,6 +148,24 @@ function form(index: number, id: string, checked: boolean) {
           />{{ f.title }}</label
         >
       </details>
+      <p
+        v-if="
+          grant.appId !== '*' && catalog.find(grant.appId)?.connected === false
+        "
+        class="field-hint"
+      >
+        此应用尚未接入账号访问，原授权保留。
+      </p>
+      <p
+        v-if="
+          grant.formIds.some(
+            (id) => !catalog.forms(grant.appId).some((form) => form.id === id),
+          )
+        "
+        class="field-hint"
+      >
+        部分原表单暂不可用，已保留其授权选择。
+      </p>
     </article>
     <div v-if="!modelValue.length" class="empty-grants">
       暂无授权，成员仍可能通过其他角色获得权限。

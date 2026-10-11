@@ -1,10 +1,12 @@
+import { RecordViewService } from "./record-views";
+import { parseFieldTrash } from './field-recycle';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
-import { composeFormSchema, dataFields, modelFormSchema, pageForModel, type DataFieldAddition, type DataModel, type DataObjectDraft, type PageDraft, type PageEditorData, type PendingPageFields, type PublishedPage } from "@platform/contracts";
+import { composeFormSchema, dataFields, dataModelChanges, modelFormSchema, pageForModel, type DataFieldAddition, type DataModel, type DataObjectDraft, type PageDraft, type PageEditorData, type PendingPageFields, type PublishedPage } from "@platform/contracts";
 import { Actor, requireAdmin } from "./auth";
 import { Database, Transaction } from "./database";
 import { definitionDto, PlatformService } from "./platform";
-import { masked, object, title, uuid } from "./schema";
+import { masked, object, rowActions, title, uuid } from "./schema";
 import { pageAccess, pageAcceptsVersion, type RecordPageScope } from "./page-runtime";
 import { RecordEvolutionService } from "./record-evolution";
 import { modelWithAdditions, pageBindings, parseModel, parsePage } from "./page-schema";
@@ -13,12 +15,14 @@ import { applicationId } from "./applications";
 import { once } from "./commands";
 import { pagePublishImpact } from "./page-impact";
 import { assertPageActive, pageLifecycleImpact } from "./page-lifecycle";
+import { dataModelImpact } from "./model-impact";
+import { OrganizationService } from "./organization";
 
-const draftDto = (row: any): PageDraft => ({ id: row.id, applicationId: row.application_id, title: row.title, definitionId: row.definition_id, definitionVersion: row.definition_version, revision: row.revision, latestVersion: row.latest_version, archivedAt: row.archived_at ? new Date(row.archived_at).toISOString() : null, schema: row.draft, additions: row.additions, baseDefinitionRevision: row.base_definition_revision });
+const draftDto = (row: any): PageDraft => ({ id: row.id, applicationId: row.application_id, title: row.title, definitionId: row.definition_id, definitionVersion: row.definition_version, revision: row.revision, latestVersion: row.latest_version, archivedAt: row.archived_at ? new Date(row.archived_at).toISOString() : null, schema: row.draft, additions: row.additions, baseDefinitionRevision: row.base_definition_revision, formModel: row.form_model || null, fieldTrash: row.field_trash || [] });
 const publishedDto = (row: any): PublishedPage => ({ id: row.page_id, title: row.title, version: row.version, definitionId: row.definition_id, definitionVersion: row.definition_version, schema: row.schema });
 @Injectable()
 export class PageService {
-  constructor(private readonly db: Database, private readonly platform: PlatformService, private readonly evolution: RecordEvolutionService) {}
+  constructor(private readonly db: Database, private readonly platform: PlatformService, private readonly evolution: RecordEvolutionService, private readonly organizations: OrganizationService, private readonly recordViews: RecordViewService) {}
   async objectDraft(actor: Actor, id: string): Promise<DataObjectDraft> {
     requireAdmin(actor);
     const row = await this.platform.definition(this.db, actor, id);
@@ -103,13 +107,14 @@ export class PageService {
     if (appId) await applicationId(this.db, actor, appId);
     return this.db.transaction(async tx => {
     const ids = await this.platform.accessibleDefinitions(tx, actor);
-    const rows = (await tx.query(`SELECT p.*,d.application_id,v.title AS public_title,v.definition_version AS public_definition_version FROM pages p
+    const rows = (await tx.query(`SELECT p.*,d.application_id,v.title AS public_title,v.definition_version AS public_definition_version,
+      ARRAY(SELECT pv.version FROM page_versions pv WHERE pv.page_id=p.id ORDER BY pv.version) AS versions FROM pages p
       JOIN definitions d ON d.id=p.definition_id
       LEFT JOIN page_versions v ON v.page_id=p.id AND v.version=p.latest_version
       WHERE p.workspace_id=$1 AND ($2::uuid IS NULL OR p.definition_id=$2) AND ($5::uuid IS NULL OR d.application_id=$5)
       AND ((p.archived_at IS NOT NULL)=$6) AND ($3='admin' OR (p.latest_version>0 AND p.definition_id=ANY($4::uuid[]))) ORDER BY p.created_at,p.id`, [actor.workspaceId, definitionId || null, actor.role, ids, appId || null, state === "archived"])).rows;
     if (actor.role !== "admin") for (const row of rows) { row.title = row.public_title; row.definition_version = row.public_definition_version; }
-    return rows.map(row => { const { schema, additions, baseDefinitionRevision, ...summary } = draftDto(row); return summary; });
+    return rows.map(row => { const { schema, additions, baseDefinitionRevision, formModel, fieldTrash, ...summary } = draftDto(row); return { ...summary, folder: row.folder, versions: row.versions }; });
     });
   }
   private async page(tx: Pick<Database, "query">, actor: Actor, id: string, lock = false) {
@@ -125,8 +130,19 @@ export class PageService {
       const meta = await this.page(tx, actor, id);
       const definition = await this.platform.definition(tx, actor, meta.definition_id, "FOR SHARE");
       const page = await this.page(tx, actor, id);
-      return { draft: draftDto(page), object: await this.objectDto(tx, definition), model: await this.pageModel(tx, actor, page) };
+      return this.editorData(tx, actor, definition, page);
     });
+  }
+  private async editorData(tx: Transaction, actor: Actor, definition: any, page: any): Promise<PageEditorData> {
+    return { draft: draftDto(page), object: await this.objectDto(tx, definition), model: await this.pageModel(tx, actor, page), canEditFields: await this.canEditFields(tx, actor, page) };
+  }
+  private async canEditFields(tx: Transaction, actor: Actor, page: any) {
+    // Legacy pages may share a model or deliberately omit fields. Never take ownership
+    // of those fields just because the old modelling UI is no longer a product entry.
+    const sibling = (await tx.query("SELECT 1 FROM pages WHERE definition_id=$1 AND id<>$2 LIMIT 1", [page.definition_id, page.id])).rowCount;
+    if (sibling) return false;
+    const model = page.form_model || await this.pageModel(tx, actor, page), bindings = pageBindings(page.draft);
+    return dataFields(model).every(item => bindings.has(item.field.id));
   }
   private async pageModel(tx: Pick<Database, "query">, actor: Actor, page: any): Promise<DataModel> {
     if (page.definition_version !== 0) return this.model(tx, actor, page.definition_id, page.definition_version);
@@ -143,9 +159,12 @@ export class PageService {
       if (page.revision !== body.expectedRevision) throw new ConflictException("页面草稿已被修改，请重新读取后决定是否放弃；当前输入已保留");
       if (!page.latest_version) throw new BadRequestException("此页面尚未发布，没有可恢复的发布版本");
       const previous = (await tx.query("SELECT * FROM page_versions WHERE page_id=$1 AND version=$2", [id, page.latest_version])).rows[0];
-      await tx.query("UPDATE pages SET title=$2,draft=$3,definition_version=$4,additions='[]',base_definition_revision=NULL,managed=false,revision=revision+1 WHERE id=$1", [id, previous.title, previous.schema, previous.definition_version]);
+      await tx.query("UPDATE pages SET title=$2,draft=$3,definition_version=$4,additions='[]',form_model=NULL,base_definition_revision=NULL,managed=false,revision=revision+1 WHERE id=$1", [id, previous.title, previous.schema, previous.definition_version]);
+      const restoredIds = pageBindings(previous.schema);
+      const fieldTrash = (page.field_trash || []).filter((item: any) => ![item.field.id, ...item.field.children.map((field: any) => field.id)].some((id: string) => restoredIds.has(id)));
+      await tx.query("UPDATE pages SET field_trash=$2 WHERE id=$1", [id, JSON.stringify(fieldTrash)]);
       await tx.query("INSERT INTO configuration_events(id,workspace_id,actor_id,resource_kind,resource_id,action,revision,detail) VALUES($1,$2,$3,'page',$4,'discard_draft',$5,$6)", [randomUUID(), actor.workspaceId, actor.id, id, page.revision + 1, { restoredVersion: page.latest_version, cancelledFieldIds: (page.additions as DataFieldAddition[]).flatMap(addition => [addition.field.id, ...addition.field.children.map(field => field.id)]) }]);
-      return { draft: draftDto(await this.page(tx, actor, id)), object: await this.objectDto(tx, definition), model: await this.model(tx, actor, definition.id, previous.definition_version) };
+      return this.editorData(tx, actor, definition, await this.page(tx, actor, id));
     });
   }
   async lifecyclePreview(actor: Actor, id: string, body: unknown) {
@@ -186,14 +205,26 @@ export class PageService {
   private async pendingModel(tx: Transaction, actor: Actor, definition: any, version: number, additions: unknown, baseRevision: unknown, allowIncomplete = false, page?: any) {
     const initial = version === 0 && page?.definition_version === 0;
     const model = initial ? await this.pageModel(tx, actor, page) : await this.model(tx, actor, definition.id, version);
-    const merged = modelWithAdditions(model, additions, allowIncomplete);
-    if (!allowIncomplete && (merged.additions.length || version === 0)) {
+    const merged = page?.form_model
+      ? { model: parseModel(page.form_model, allowIncomplete), additions: [] as DataFieldAddition[] }
+      : modelWithAdditions(model, additions, allowIncomplete);
+    if (page?.form_model) {
+      if (!allowIncomplete && !(await this.canEditFields(tx, actor, page))) throw new ConflictException("此表单的字段已被其他表单共用，当前草稿已保留，请先处理共用配置");
+      const known = new Set(dataFields(model).map(item => item.field.id));
+      for (const field of merged.model.fields) {
+        if (!known.has(field.id)) merged.additions.push({ field });
+        else for (const child of field.children) if (!known.has(child.id)) merged.additions.push({ parentId: field.id, field: child });
+      }
+    }
+    const changes = dataModelChanges(model, merged.model);
+    const publishesModel = version === 0 || Object.values(changes).some(items => items.length > 0);
+    if (!allowIncomplete && (page?.form_model || merged.additions.length || version === 0)) {
       const expectedRevision = initial ? page.initial_model_revision : baseRevision;
-      if (expectedRevision !== definition.revision || version !== definition.latest_version) throw new ConflictException("数据模型已更新，页面草稿已保留；请从“数据字段”检查并采用已发布字段后重试");
+      if (expectedRevision !== definition.revision || version !== definition.latest_version) throw new ConflictException("表单字段已在其他编辑中更新，当前草稿已保留，请重新读取后核对修改");
       // Do not overwrite a separately edited unpublished model draft.
       if (JSON.stringify(parseModel(definition.model_draft, true)) !== JSON.stringify(parseModel(model, true))) throw new ConflictException("数据对象另有未发布修改，请先处理数据草稿");
     }
-    return { ...merged, baseModel: model };
+    return { ...merged, baseModel: model, publishesModel };
   }
   async save(actor: Actor, body: unknown, id?: string) {
     requireAdmin(actor); object(body); title(body.title); uuid(body.definitionId);
@@ -203,16 +234,27 @@ export class PageService {
       if (id) await assertPageActive(tx, actor, id);
       if (old && old.revision !== body.expectedRevision) throw new ConflictException("页面已被修改，当前编辑内容已保留");
       if (old && old.definition_id !== body.definitionId) throw new BadRequestException("页面所属数据对象不能直接变更");
-      const merged = await this.pendingModel(tx, actor, definition, body.definitionVersion, body.additions || [], body.baseDefinitionRevision, true, old);
+      const formModel = body.formModel === undefined ? null : parseModel(body.formModel, true);
+      if (formModel && (!old || !(await this.canEditFields(tx, actor, old)))) throw new ConflictException("共用字段不能由当前表单单独修改，当前输入已保留");
+      if (formModel && body.definitionVersion !== old.definition_version) throw new ConflictException("表单版本已变化，请重新读取后核对修改");
+      if (old?.form_model && !formModel) throw new ConflictException("当前草稿包含字段修改，请重新读取后继续编辑");
+      const merged = await this.pendingModel(tx, actor, definition, body.definitionVersion, body.additions || [], body.baseDefinitionRevision, true, old && { ...old, form_model: formModel });
+      if (formModel) await this.platform.validateStableFields(tx, definition.id, modelFormSchema(formModel));
       if (merged.additions.length && (!Number.isInteger(body.baseDefinitionRevision) || body.baseDefinitionRevision < 1)) throw new BadRequestException("新增字段缺少有效的数据基线，请重新读取数据字段");
+      if (formModel && (!Number.isInteger(body.baseDefinitionRevision) || body.baseDefinitionRevision < 1)) throw new BadRequestException("缺少表单字段版本，请重新读取后重试");
+      if (old?.form_model && body.baseDefinitionRevision !== old.base_definition_revision) throw new ConflictException("当前草稿的字段版本不能静默变更，请重新读取后核对");
       const schema = parsePage(body.schema, merged.model, true);
       const bindings = pageBindings(schema);
+      if (formModel && dataFields(formModel).some(item => !bindings.has(item.field.id))) throw new BadRequestException("表单字段与画布不一致，请重新读取后核对");
       for (const addition of merged.additions) if (!bindings.has(addition.field.id)) throw new BadRequestException("新增字段已不在页面中，请同步移除该草稿字段");
-      const pageId = id || randomUUID(), base = merged.additions.length ? body.baseDefinitionRevision : null;
+      const pageId = id || randomUUID(), base = formModel || merged.additions.length ? body.baseDefinitionRevision : null;
       const initialModel = body.definitionVersion === 0 ? merged.baseModel : null;
       const initialRevision = initialModel ? old?.initial_model_revision ?? definition.revision : null;
       if (!old) await tx.query("INSERT INTO pages(id,workspace_id,definition_id,definition_version,title,draft,additions,base_definition_revision,initial_model,initial_model_revision) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)", [pageId, actor.workspaceId, body.definitionId, body.definitionVersion, body.title.trim(), schema, JSON.stringify(merged.additions), base, initialModel, initialRevision]);
       else await tx.query("UPDATE pages SET definition_version=$2,title=$3,draft=$4,additions=$5,base_definition_revision=$6,initial_model=$7,initial_model_revision=$8,managed=false,revision=revision+1 WHERE id=$1", [pageId, body.definitionVersion, body.title.trim(), schema, JSON.stringify(merged.additions), base, initialModel, initialRevision]);
+      if (formModel) await tx.query("UPDATE pages SET form_model=$2 WHERE id=$1", [pageId, formModel]);
+      const fieldTrash = parseFieldTrash(body.fieldTrash ?? old?.field_trash ?? [], bindings.keys());
+      await tx.query("UPDATE pages SET field_trash=$2 WHERE id=$1", [pageId, JSON.stringify(fieldTrash)]);
       return draftDto(await this.page(tx, actor, pageId));
     });
   }
@@ -220,7 +262,7 @@ export class PageService {
     requireAdmin(actor); object(body);
     return this.db.transaction(async tx => {
       const meta = await this.page(tx, actor, id);
-      const definition = await this.platform.definition(tx, actor, meta.definition_id, "FOR SHARE");
+      const definition = await this.platform.definition(tx, actor, meta.definition_id, "FOR UPDATE");
       const page = await this.page(tx, actor, id);
       await assertPageActive(tx, actor, id);
       if (page.revision !== body.expectedRevision) throw new ConflictException("页面已被修改，请重新读取草稿后检查");
@@ -229,7 +271,7 @@ export class PageService {
       if (!schema.controls.some(control => control.properties.visible)) throw new BadRequestException("发布页面至少需要一个可见字段");
       await this.platform.validateOrganizationModel(tx, actor, modelFormSchema(merged.model));
       await this.platform.validateStableFields(tx, definition.id, modelFormSchema(merged.model));
-      return pagePublishImpact(tx, definition, page, merged.model, schema);
+      return this.publicationImpact(tx, actor, definition, page, merged.model, schema, merged.publishesModel);
     });
   }
   async publish(actor: Actor, id: string, body: unknown) {
@@ -243,10 +285,11 @@ export class PageService {
       const merged = await this.pendingModel(tx, actor, definition, page.definition_version, page.additions, page.base_definition_revision, false, page);
       const schema = parsePage(page.draft, merged.model);
       if (!schema.controls.length || !schema.controls.some(control => control.properties.visible)) throw new BadRequestException("发布页面至少需要一个可见字段");
-      if (body.impactToken !== undefined && body.impactToken !== (await pagePublishImpact(tx, definition, page, merged.model, schema)).token) throw new ConflictException("发布预览已变化，请重新检查使用情况后发布；当前草稿已保留");
+      const impact = await this.publicationImpact(tx, actor, definition, page, merged.model, schema, merged.publishesModel);
+      if ((page.form_model || body.impactToken !== undefined) && body.impactToken !== impact.token) throw new ConflictException("发布预览已变化，请重新检查使用情况后发布；当前草稿已保留");
       await this.platform.validateOrganizationModel(tx, actor, modelFormSchema(merged.model));
       let dataVersion = page.definition_version;
-      if (merged.additions.length || page.definition_version === 0) {
+      if (merged.publishesModel) {
         dataVersion = definition.latest_version + 1;
         const runtime = modelFormSchema(merged.model);
         await this.platform.validateStableFields(tx, definition.id, runtime);
@@ -257,10 +300,17 @@ export class PageService {
       }
       const version = page.latest_version + 1;
       const row = (await tx.query("INSERT INTO page_versions(page_id,version,title,definition_id,definition_version,schema) VALUES($1,$2,$3,$4,$5,$6) RETURNING *", [id, version, page.title, page.definition_id, dataVersion, schema])).rows[0];
-      await tx.query("UPDATE pages SET definition_version=$2,latest_version=$3,revision=revision+1,additions='[]',base_definition_revision=NULL,initial_model=NULL,initial_model_revision=NULL,managed=false WHERE id=$1", [id, dataVersion, version]);
+      await tx.query("UPDATE pages SET definition_version=$2,latest_version=$3,revision=revision+1,additions='[]',form_model=NULL,base_definition_revision=NULL,initial_model=NULL,initial_model_revision=NULL,managed=false WHERE id=$1", [id, dataVersion, version]);
       await tx.query("INSERT INTO configuration_events(id,workspace_id,actor_id,resource_kind,resource_id,action,revision,detail) VALUES($1,$2,$3,'page',$4,'publish',$5,$6)", [randomUUID(), actor.workspaceId, actor.id, id, page.revision + 1, { version, dataVersion }]);
       return publishedDto(row);
     });
+  }
+  private async publicationImpact(tx: Transaction, actor: Actor, definition: any, page: any, model: DataModel, schema: PageDraft["schema"], publishesModel: boolean) {
+    const fields = page.form_model ? await dataModelImpact(tx, definition, model, false, {
+      organization: await this.organizations.snapshot(tx, actor), actorId: actor.id, publishingPageId: page.id,
+    }) : undefined;
+    if (fields?.blockers.length) throw new ConflictException(fields.blockers.join("；"));
+    return pagePublishImpact(tx, definition, page, model, schema, publishesModel, fields);
   }
   async published(actor: Actor, id: string, version?: number) {
     requireAdmin(actor);
@@ -289,6 +339,23 @@ export class PageService {
   async record(actor: Actor, id: string, recordId: string, version?: number) {
     return this.db.transaction(tx => this.recordIn(tx, actor, id, recordId, version));
   }
+  async records(actor: Actor, id: string, version?: number, state = 'active') {
+    return this.db.transaction(async tx => {
+      const { scope } = await this.scope(tx, actor, id, version);
+      return this.platform.records(actor, scope.definitionId, state, scope, tx);
+    });
+  }
+  async recordList(actor: Actor, id: string, version?: number, state='active', pageNumber=1) {
+    if (!Number.isSafeInteger(pageNumber) || pageNumber<1) throw new BadRequestException('页码无效');
+    return this.db.transaction(async tx=>{
+      const {scope}=await this.scope(tx,actor,id,version);
+      const view=await this.recordViews.read(tx,scope.definitionId,scope.schema);
+      const result=await this.platform.recordList(actor,scope.definitionId,state,scope,tx,{settings:view.settings,page:pageNumber});
+      // Member responses expose only columns present in already-masked data.
+      const visible=new Set(result.fields.map(field=>field.id));
+      return {...result,view:actor.role==='admin' ? view : {...view,settings:{...view.settings,fieldIds:view.settings.fieldIds.filter(id=>visible.has(id)),sortField:visible.has(view.settings.sortField) ? view.settings.sortField : '$createdAt'}}};
+    });
+  }
   private async recordIn(tx: Transaction, actor: Actor, id: string, recordId: string, version?: number) {
     const { scope } = await this.scope(tx, actor, id, version);
     return this.platform.detailIn(tx, actor, recordId, scope);
@@ -309,7 +376,7 @@ export class PageService {
       const visible = masked(scope.schema, defaults, {}, access);
       const definition = (await tx.query("SELECT * FROM definition_versions WHERE definition_id=$1 AND version=$2", [page.definitionId, page.definitionVersion])).rows[0];
       const versions = (await tx.query("SELECT version,schema FROM definition_versions WHERE definition_id=$1 AND version>=$2", [page.definitionId, page.definitionVersion])).rows;
-      return { ...(access.create ? { collection: await this.platform.collectionStatus(tx, actor, page.definitionId) } : {}), defaultValues: visible.values, identities: await this.platform.identityLabels(tx, actor, visible.schema, visible.values), page: { id: page.id, title: page.title, version: page.version }, access, definition: { ...definitionDto(definition), title: page.title, schema: visible.schema }, compatibleVersions: versions.filter(row => pageAcceptsVersion(scope, row.schema, row.version)).map(row => row.version) };
+      return { ...(access.create ? { collection: await this.platform.collectionStatus(tx, actor, page.definitionId) } : {}), rowActions: rowActions(definition.schema, { ...access, edit: access.create }, scope.schema), defaultValues: visible.values, identities: await this.platform.identityLabels(tx, actor, visible.schema, visible.values), page: { id: page.id, title: page.title, version: page.version }, access, definition: { ...definitionDto(definition), title: page.title, schema: visible.schema }, compatibleVersions: versions.filter(row => pageAcceptsVersion(scope, row.schema, row.version)).map(row => row.version) };
     });
   }
   async recordUpgrade(actor: Actor, id: string, recordId: string, body: unknown, preview = false) {

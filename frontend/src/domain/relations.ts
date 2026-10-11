@@ -16,7 +16,7 @@ import {
   type FormSchema,
 } from "./form";
 import { formulaReferences, usesFormula } from "./formula";
-import { richTextPlainText } from "./richText";
+import { displayFieldValue, valueText as text } from "./fieldDisplay";
 import { conditionValues, fieldConditionValues } from "./conditionValues";
 import {
   defaultLinkTypes,
@@ -40,7 +40,6 @@ import {
   selectionSourceValue,
 } from "./frontendSelections";
 import {
-  formatNumberValue,
   choiceValueLabel,
   choiceConditionValue,
   isChoiceTextValue,
@@ -171,71 +170,22 @@ export function scopeFields(
       : [f],
   );
 }
-function text(value: unknown): string {
-  if (isChoiceTextValue(value)) return value.text || "其他";
-  return value == null
-    ? ""
-    : typeof value === "object"
-      ? Array.isArray(value)
-        ? value.map(text).join("、")
-        : Object.values(value).map(text).filter(Boolean).join(" ")
-      : String(value);
-}
 export function displayValue(
   field: FormField | undefined,
   value: unknown,
   data: WorkspaceData,
   depth = 0,
 ): string {
-  if (field?.type === "richtext")
-    return typeof value === "string" ? richTextPlainText(value) : "";
-  if (value == null || value === "") return "—";
-  if (!field) return text(value);
-  if (field.type === "location")
-    return locationText(value, field.location?.showCoordinates) || "—";
-  if (field.type === "address")
-    return addressText(value, "", addressParts(field)) || "—";
-  if (isNumericField(field)) return formatNumberValue(field, value);
-  if (organizationTypes.includes(field.type))
-    return (
-      idsOf(value)
-        .map((id) => identityLabel(data.organization, id))
-        .join("、") || "—"
-    );
-  if (choiceTypes.includes(field.type)) {
-    const options = resolveChoices(
-      { ...field, choiceSource: { ...field.choiceSource, filters: [] } },
-      data,
-      {},
-    );
-    return (
-      (Array.isArray(value) ? value : [value])
-        .map((item) => choiceValueLabel(options, item))
-        .join("、") || "—"
-    );
-  }
-  if (relationTypes.includes(field.type) && depth < 2)
-    return (
-      idsOf(value)
-        .map((id) => {
-          const entry = data.entries.find(
-            (e) =>
-              e.id === id && e.formId === field.referenceFormId && !e.deletedAt,
-          );
-          return entry
-            ? recordLabel(field, entry, data, depth + 1)
-            : "记录已移除";
-        })
-        .join("、") || "—"
-    );
-  if (field.type === "signature") return value ? "已签名" : "—";
-  if (field.type === "file" || field.type === "image")
-    return Array.isArray(value)
-      ? value.map((f) => f?.name || "文件").join("、")
-      : "—";
-  if (field.type === "subform")
-    return Array.isArray(value) ? `${value.length} 行明细` : "—";
-  return text(value) || "—";
+  return displayFieldValue(field, value, {
+    identity: id => identityLabel(data.organization, id),
+    choices: field && choiceTypes.includes(field.type) ? resolveChoices(
+      { ...field, choiceSource: { ...field.choiceSource, filters: [] } }, data, {},
+    ) : undefined,
+    relation: field && relationTypes.includes(field.type) && depth < 2 ? id => {
+      const entry = data.entries.find(e => e.id === id && e.formId === field.referenceFormId && !e.deletedAt);
+      return entry ? recordLabel(field, entry, data, depth + 1) : "记录已移除";
+    } : undefined,
+  });
 }
 export function recordFilterFields(data: WorkspaceData, entry: FormEntry): FormField[] {
   const form = data.forms.find(form => form.id === entry.formId);

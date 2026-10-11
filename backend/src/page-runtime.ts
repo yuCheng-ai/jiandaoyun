@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException } from "@nestjs/common";
-import { dataModelChanges, separateFormSchema, selectionCountMessage, type DataModel, type AccessGrant, type FormField, type FormSchema, type FormValues } from "@platform/contracts";
-import { permission, scalar } from "./schema";
+import { dataModelChanges, separateFormSchema, formValidationResults, displayPlainFieldValue, selectionCountMessage, ruleFieldVisible, type DataModel, type AccessGrant, type FormField, type FormSchema, type FormValues } from "@platform/contracts";
+import { permission, scalar, masked } from "./schema";
 
 export interface RecordPageScope {
   id: string;
@@ -37,17 +37,31 @@ export function pageAccess(scope: RecordPageScope | undefined, definitionId: str
 }
 export function validatePageSubmission(scope: RecordPageScope | undefined, values: FormValues, access: AccessGrant) {
   if (!scope) return;
+  const readable = masked(scope.schema, values, {}, access);
   const validate = (field: FormField, value: unknown) => {
     scalar(field, value, !scope.deferRequired);
     const issue = !scope.deferRequired && selectionCountMessage(field, value);
     if (issue) throw new BadRequestException(`「${field.label}」${issue}`);
   };
-  for (const field of scope.schema.fields) {
-    if (permission(access, field) === "hidden") continue;
+  for (const field of readable.schema.fields) {
+    if (!ruleFieldVisible(field, readable.schema, readable.values)) continue;
     if (field.type === "subform") {
       const rows = (values[field.id] as FormValues[]).filter(row => !scope.row || row._rowId === scope.row.rowId);
       if (field.required && !scope.deferRequired && !rows.length) throw new BadRequestException(`请填写${field.label}`);
-      for (const row of rows) for (const child of field.children) if (permission(access, child, field) !== "hidden") validate(child, row[child.id]);
+      for (const row of rows) {
+        const visibleRow = (readable.values[field.id] as FormValues[]).find(item => item._rowId === row._rowId) || {};
+        for (const child of field.children) if (ruleFieldVisible(child, readable.schema, { ...readable.values, ...visibleRow })) validate(child, row[child.id]);
+      }
     } else validate(field, values[field.id]);
   }
+  // Whole-form submission rules do not change the existing workflow task path.
+  if (scope.taskId) return;
+  const readableRules = new Set(readable.schema.settings.validations?.map(rule => rule.id));
+  // Evaluate the complete merged record; permission-hidden inputs cannot bypass constraints.
+  const issue = formValidationResults(scope.schema, values, {
+    displaySchema: readable.schema,
+    display: displayPlainFieldValue,
+  }).find(issue => issue.mode === "block");
+  if (issue) throw new BadRequestException(readableRules.has(issue.ruleId)
+    ? issue.message : "数据不符合表单校验条件，请联系表单管理员。");
 }

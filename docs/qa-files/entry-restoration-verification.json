@@ -1,0 +1,259 @@
+{
+  "date": "2026-10-11",
+  "scope": "恢复原工作台与应用、组织入口；删除弃用开发界面；统一请求日志",
+  "verificationMethod": "用户要求后未新增或扩写测试文件；采用运行中界面实际操作、API功能检查、日志核对与构建",
+  "restored": [
+    "工作台六项菜单按参考恢复；发起、待办、已办按当前登录账号分别筛选",
+    "应用卡片复用原应用首页布局，服务端表单内嵌原记录编辑组件",
+    "组织入口到原部门树和10位原成员，原角色分组保留；真实登录账号显式打开",
+    "独立开发管理、数据模型、迁移检查页面及其专用测试删除；源数据与后端迁移服务保留"
+  ],
+  "browserVerified": [
+    "管理员工作台菜单顺序、返回应用、应用卡片",
+    "我的待办为空；我发起的和我处理的分别显示本人流程；发起流程列出已发布流程",
+    "协作应用直接显示协作登记填写界面，可打开原记录列表",
+    "未保存输入切到数据管理时提示；继续编辑保留输入；放弃后切换，重新填写恢复空值和原默认值",
+    "组织入口保留原部门成员，登录账号单独显示3个真实账号，角色分组保留",
+    "构建导致后端热重启时出现读取失败，服务恢复后点击重试恢复原登录工作台",
+    "最终从工作台打开原OA：原分组、表单、日期默认值和提交／草稿操作仍显示；返回工作台成功，最后一轮无新浏览器错误"
+  ],
+  "apiFunctionalChecks": [
+    {
+      "name": "health",
+      "status": 200,
+      "requestId": "ab5f25ba-3e4b-43dd-a007-f9e345686893",
+      "logMatches": 1,
+      "logStatusMatches": true
+    },
+    {
+      "name": "unauthenticated",
+      "status": 401,
+      "requestId": "a2912636-b7ff-4654-8d01-bc6872070e56",
+      "bodyRequestId": "a2912636-b7ff-4654-8d01-bc6872070e56",
+      "logMatches": 1,
+      "logStatusMatches": true
+    },
+    {
+      "name": "origin-rejected",
+      "status": 403,
+      "requestId": "c018dc0d-e850-4411-924a-33c2377bd0ef",
+      "bodyRequestId": "c018dc0d-e850-4411-924a-33c2377bd0ef",
+      "logMatches": 1,
+      "logStatusMatches": true
+    },
+    {
+      "name": "malformed-json",
+      "status": 400,
+      "requestId": "791bb3ff-5c33-443b-af19-211b135f8f13",
+      "bodyRequestId": "791bb3ff-5c33-443b-af19-211b135f8f13",
+      "logMatches": 1,
+      "logStatusMatches": true
+    },
+    {
+      "name": "missing-route",
+      "status": 404,
+      "requestId": "468c64d5-e346-4cd6-a8ec-7a629312059e",
+      "bodyRequestId": "468c64d5-e346-4cd6-a8ec-7a629312059e",
+      "logMatches": 1,
+      "logStatusMatches": true
+    },
+    {
+      "name": "oversize-body",
+      "status": 413,
+      "requestId": "b96d660c-f9c2-491a-81f2-62df1f283b10",
+      "bodyRequestId": "b96d660c-f9c2-491a-81f2-62df1f283b10",
+      "logMatches": 1,
+      "logStatusMatches": true
+    },
+    {
+      "name": "admin-todo",
+      "status": 200,
+      "count": 0,
+      "requestId": "7d24c144-9feb-4bad-ac86-64e8bd5070d6",
+      "logMatches": 1,
+      "logStatusMatches": true
+    },
+    {
+      "name": "admin-started",
+      "status": 200,
+      "count": 4,
+      "requestId": "42f32598-bcd0-45be-9de7-4bb414db4ec3",
+      "logMatches": 1,
+      "logStatusMatches": true
+    },
+    {
+      "name": "admin-handled",
+      "status": 200,
+      "count": 4,
+      "requestId": "71d8b237-3ce9-4f9b-9b7d-e3cbf4471276",
+      "logMatches": 1,
+      "logStatusMatches": true
+    },
+    {
+      "name": "admin-invalid-scope",
+      "status": 400,
+      "requestId": "b964367b-e94e-4b23-9e3e-f40e647fcf24",
+      "logMatches": 1,
+      "logStatusMatches": true
+    },
+    {
+      "name": "editor-todo",
+      "status": 200,
+      "count": 0,
+      "requestId": "e306b72d-50c7-42b8-b175-7548bc3ada56",
+      "logMatches": 1,
+      "logStatusMatches": true
+    },
+    {
+      "name": "editor-started",
+      "status": 200,
+      "count": 0,
+      "requestId": "1172587b-4bd1-4b3a-8239-e5e95b3ef80b",
+      "logMatches": 1,
+      "logStatusMatches": true
+    },
+    {
+      "name": "editor-handled",
+      "status": 200,
+      "count": 3,
+      "requestId": "c70609bd-69ec-45c1-9711-1071dbc8667a",
+      "logMatches": 1,
+      "logStatusMatches": true
+    },
+    {
+      "name": "editor-invalid-scope",
+      "status": 400,
+      "requestId": "872af4dc-7be9-4899-8d46-4307b6225210",
+      "logMatches": 1,
+      "logStatusMatches": true
+    },
+    {
+      "name": "reviewer-todo",
+      "status": 200,
+      "count": 0,
+      "requestId": "90131cfe-7811-4f40-8da5-ef1d95c23c61",
+      "logMatches": 1,
+      "logStatusMatches": true
+    },
+    {
+      "name": "reviewer-started",
+      "status": 200,
+      "count": 0,
+      "requestId": "544b7760-9172-4fd8-9f10-c05a8695ac97",
+      "logMatches": 1,
+      "logStatusMatches": true
+    },
+    {
+      "name": "reviewer-handled",
+      "status": 200,
+      "count": 1,
+      "requestId": "626cfe88-e063-419d-9595-ec40394ee789",
+      "logMatches": 1,
+      "logStatusMatches": true
+    },
+    {
+      "name": "reviewer-invalid-scope",
+      "status": 400,
+      "requestId": "0041b0d5-9a58-4f19-824e-42e3fb0f26a0",
+      "logMatches": 1,
+      "logStatusMatches": true
+    },
+    {
+      "name": "unsupported-request-encoding",
+      "status": 415,
+      "requestId": "55e10f0a-6efa-4de8-94a5-2434ad99dac6",
+      "bodyRequestId": "55e10f0a-6efa-4de8-94a5-2434ad99dac6",
+      "logMatches": 1,
+      "logStatusMatches": true
+    }
+  ],
+  "loggingFaultChecks": [
+    {
+      "timestamp": "2026-10-11T10:36:14.831Z",
+      "level": "error",
+      "event": "http.completed",
+      "requestId": "ace91377-900b-4da7-92c5-aa5f7e1022be",
+      "method": "GET",
+      "route": "/functional-log-check/fault",
+      "status": 500,
+      "durationMs": 2.25,
+      "failure": {
+        "kind": "InternalError",
+        "locations": [
+          "at FaultCheck.fault ([stdin]:5:34)",
+          "at file:///Users/dingshaoxiong/yuCheng-ai/%E6%B5%81%E7%A8%8B%E5%BC%95%E6%93%8E/node_modules/@nestjs/core/router/router-execution-context.js:44:37",
+          "at InterceptorsConsumer.intercept (file:///Users/dingshaoxiong/yuCheng-ai/%E6%B5%81%E7%A8%8B%E5%BC%95%E6%93%8E/node_modules/@nestjs/core/interceptors/interceptors-consumer.js:9:20)",
+          "at file:///Users/dingshaoxiong/yuCheng-ai/%E6%B5%81%E7%A8%8B%E5%BC%95%E6%93%8E/node_modules/@nestjs/core/router/router-execution-context.js:67:64",
+          "at FaultCheck.fault (file:///Users/dingshaoxiong/yuCheng-ai/%E6%B5%81%E7%A8%8B%E5%BC%95%E6%93%8E/node_modules/@nestjs/core/router/router-proxy.js:6:23)",
+          "at Layer.handleRequest (/Users/dingshaoxiong/yuCheng-ai/流程引擎/node_modules/router/lib/layer.js:152:17)",
+          "at next (/Users/dingshaoxiong/yuCheng-ai/流程引擎/node_modules/router/lib/route.js:157:13)",
+          "at Route.dispatch (/Users/dingshaoxiong/yuCheng-ai/流程引擎/node_modules/router/lib/route.js:117:3)"
+        ]
+      }
+    },
+    {
+      "event": "functional-check",
+      "status": 500,
+      "requestId": "ace91377-900b-4da7-92c5-aa5f7e1022be",
+      "bodyRequestId": "ace91377-900b-4da7-92c5-aa5f7e1022be",
+      "genericMessage": "服务暂时不可用，请稍后重试。"
+    },
+    {
+      "timestamp": "2026-10-11T10:36:14.876Z",
+      "level": "warn",
+      "event": "http.aborted",
+      "requestId": "c15f0d9d-2e1f-4fe3-b89d-b6615498aa1e",
+      "method": "GET",
+      "route": "/functional-log-check/slow",
+      "status": 499,
+      "durationMs": 41.87
+    }
+  ],
+  "loggingSafety": "500异常消息、查询参数、Cookie标记未出现在日志；请求正文和响应正文不进入请求日志；每项HTTP检查仅有一条对应日志",
+  "build": "npm run build通过（前端、后端、contracts）；现有大包体提示仍在",
+  "sourceChecks": "git diff --check通过；main.ts起点的静态相对导入检查未发现孤立前端源文件",
+  "removedTrackedFiles": [
+    "frontend/src/domain/applicationMigration.ts",
+    "frontend/src/domain/applicationNavigation.ts",
+    "frontend/src/features/collaboration/ApplicationMigrationDialog.vue",
+    "frontend/src/features/collaboration/MigrationIdentityDialog.vue",
+    "frontend/src/features/collaboration/MigrationResourcesDialog.vue",
+    "frontend/src/features/collaboration/OrganizationDialog.vue",
+    "frontend/src/features/data/ApplicationMigrationEntry.vue",
+    "frontend/src/features/data/DataModelPublishDialog.vue",
+    "frontend/src/features/data/DataObjectEditor.vue",
+    "frontend/src/features/data/DataWorkspaceView.vue",
+    "frontend/src/features/data/PendingPageFields.vue",
+    "frontend/src/features/data/data-workspace.css",
+    "frontend/src/repositories/applicationMigrationSource.ts",
+    "frontend/src/repositories/migrationIdentities.ts",
+    "frontend/src/repositories/migrationResources.ts",
+    "frontend/tests/application-data-navigation.test.ts",
+    "frontend/tests/application-migration-dialog.test.ts",
+    "frontend/tests/application-migration-source.test.ts",
+    "frontend/tests/application-migration.test.ts",
+    "frontend/tests/migration-identities-dialog.test.ts",
+    "frontend/tests/migration-identities-source.test.ts",
+    "frontend/tests/migration-resources-dialog.test.ts",
+    "frontend/tests/migration-resources-source.test.ts",
+    "frontend/tests/model-publication.test.ts",
+    "frontend/tests/pending-page-fields.test.ts"
+  ],
+  "screenshots": [
+    "screenshots/workbench-menu-restored.png",
+    "screenshots/application-entry-restored.png",
+    "screenshots/organization-directory-restored.png",
+    "screenshots/organization-roles-restored.png"
+  ],
+  "dataSafety": {
+    "businessDataDeleted": false,
+    "priorIsolatedSubformFixtureRemoved": true
+  },
+  "unfinished": [
+    "抄送与待办委托执行尚未接通，入口如实显示未接通，不伪造委托成功",
+    "原组织成员与登录账号身份未统一，真实映射不能按同名猜测",
+    "原本地表单记录、版本、权限和流程完整服务端迁移未完成",
+    "恢复界面不代表原应用已有服务端授权；管理员原入口仍为兼容范围",
+    "本轮未重新执行全量测试文件；清理前已有分项验证作为历史证据"
+  ]
+}

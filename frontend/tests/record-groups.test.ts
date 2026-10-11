@@ -4,7 +4,7 @@ import { createApp, defineComponent, h, nextTick } from "vue";
 import { createField, emptySchema } from "../src/domain/form";
 import RecordGroupDialog from "../src/features/collaboration/RecordGroupDialog.vue";
 import RecordGroupSelector from "../src/features/collaboration/RecordGroupSelector.vue";
-import DataWorkspaceView from "../src/features/data/DataWorkspaceView.vue";
+import ServerApplicationHome from "../src/features/workspace/ServerApplicationHome.vue";
 import {
   accessGroupActor,
   accessGroupSelections,
@@ -17,6 +17,7 @@ import {
 import { platformApi, PlatformError } from "../src/repositories/platformApi";
 vi.mock("vue-router", () => ({
   onBeforeRouteLeave: vi.fn(),
+  onBeforeRouteUpdate: vi.fn(),
   useRoute: () => ({ params: { applicationId: "app" }, query: {} }),
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   RouterLink: defineComponent({
@@ -34,6 +35,7 @@ vi.mock("../src/stores/platformSession", () => ({
     restore: vi.fn(),
   }),
 }));
+vi.mock("../src/components/shared/UserMenu.vue", () => ({ default: { render: () => null } }));
 vi.mock("../src/features/processes/ProcessWorkspace.vue", () => ({
   default: { render: () => null },
 }));
@@ -200,8 +202,8 @@ it("opening a form does not fetch its record content until a permission group is
       };
     throw new Error(`unexpected ${path}`);
   });
-  await mount(DataWorkspaceView);
-  await click("打开表单");
+  await mount(ServerApplicationHome);
+
   expect(
     vi
       .mocked(platformApi)
@@ -315,6 +317,7 @@ it("a create-only form opens its own drafts without requesting submitted records
         access: {
           create: accessGroupSelections.value.object === "register",
           read: accessGroupSelections.value.object === "review",
+          fields: { name: "edit", owner: "hidden" },
           groupSelection: {
             definitionId: "object",
             selection: accessGroupSelections.value.object,
@@ -325,9 +328,10 @@ it("a create-only form opens its own drafts without requesting submitted records
     if (path.includes("/records?")) return [];
     throw new Error(path);
   });
-  await mount(DataWorkspaceView);
-  await click("打开表单");
+  await mount(ServerApplicationHome);
+
   await input(".record-group-choice select", "register");
+  await click("数据管理");
   expect(document.body.textContent).toContain("提交后由有查看权限的成员处理");
   expect(button("新增记录")).toBeDefined();
   expect(

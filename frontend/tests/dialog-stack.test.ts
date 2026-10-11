@@ -34,6 +34,12 @@ function browserFixture() {
     getElementById: () => app,
     addEventListener: vi.fn((name, handler) => listeners.set(name, handler)),
     removeEventListener: vi.fn((name) => listeners.delete(name)),
+    defaultView: {
+      addEventListener: vi.fn((name, handler) =>
+        listeners.set(`window:${name}`, handler),
+      ),
+      removeEventListener: vi.fn((name) => listeners.delete(`window:${name}`)),
+    },
   };
   const dialog = () => {
     const root = element(),
@@ -67,6 +73,33 @@ function browserFixture() {
 }
 
 describe("shared dialog keyboard and focus ownership", () => {
+  it("repositions supported popovers on layout changes and retains the default close policy", () => {
+    const f = browserFixture(),
+      first = f.dialog(),
+      second = f.dialog();
+    const closeFirst = vi.fn(),
+      closeSecond = vi.fn(),
+      reposition = vi.fn();
+    const a = f.stack.register(first.root, closeFirst, {
+      modal: false,
+      anchor: () => f.trigger,
+    });
+    const b = f.stack.register(second.root, closeSecond, {
+      modal: false,
+      anchor: () => first.first,
+      reposition,
+    });
+    f.listeners.get("window:resize")?.({ type: "resize" });
+    expect(reposition).toHaveBeenCalledOnce();
+    expect(closeFirst).toHaveBeenCalledOnce();
+    expect(closeSecond).not.toHaveBeenCalled();
+    expect(f.active()).toBe(second.first);
+    f.key("Escape");
+    expect(closeSecond).toHaveBeenCalledOnce();
+    b.dispose();
+    a.dispose();
+    expect(f.listeners.size).toBe(0);
+  });
   it("leaving nested nonmodal pickers closes the whole abandoned branch without moving destination focus", () => {
     const f = browserFixture(),
       parent = f.dialog(),

@@ -24,6 +24,7 @@ export interface MigrationResourceIssue {
   message: string;
 }
 export interface MigrationResourcePlan {
+  roleAuthorization?: { signature: string; roleCount: number };
   id: string;
   revision: number;
   batchId: string;
@@ -33,8 +34,9 @@ export interface MigrationResourcePlan {
   createdAt: string;
   current: boolean;
   identityConfirmed: boolean;
-  /** Preparation only: no runtime resource has been inserted. */
-  importAvailable: false;
+  /** Execution still rechecks the snapshot, confirmed identities and runtime rules. */
+  importAvailable: boolean;
+  imported?: { applicationId: string; importedAt: string };
   targetApplicationId: string;
   forms: { sourceId: string; title: string; archived: boolean; definitionId: string; pageId: string; versions: { sourceVersion: number; targetVersion: number; variants: number; checked: boolean }[]; draftChecked: boolean }[];
   records: { sourceId: string; formId: string; targetId: string; version: number; status: string; deleted: boolean; rows: { fieldId: string; sourceRowId?: string; index: number; targetId: string }[]; checked: boolean }[];

@@ -21,6 +21,7 @@ const props = defineProps<{
   field: FormField;
   schema: FormSchema;
   formId: string;
+  allowLinked?: boolean;
 }>();
 const emit = defineEmits<{ update: [patch: Partial<FormField>] }>();
 const store = useWorkspaceStore();
@@ -221,7 +222,7 @@ function apply() {
         <option v-if="fileField" value="none">无</option>
         <option v-if="field.type === 'datetime'" value="now">填写当时</option>
         <option v-if="!fileField" value="custom">自定义</option>
-        <option value="linked">数据联动</option>
+        <option v-if="allowLinked !== false" value="linked">数据联动</option>
         <option v-if="formulaTypes.includes(field.type)" value="formula">
           公式编辑
         </option></select

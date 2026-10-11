@@ -293,15 +293,18 @@ it("temporary options remain scoped to their rows and a completed fill resets th
   expect(control("明细 第1行 部门 次行临时")).toBeNull();
 });
 
-it("1000 predefined options do not disable adding a temporary option", async () => {
-  const field = createField("checkbox", {
+for (const type of ["checkbox", "multiselect"] as const)
+it(`${type} counts temporary selections against configured bounds, independently of the predefined-option limit`, async () => {
+  const field = createField(type, {
     allowCustomChoices: true,
+    selectionLimit: { enabled: true, min: 1001, max: 1001 },
     options: Array.from({ length: 1000 }, (_, i) => ({
       id: `a${i}`,
       label: `选项${i}`,
     })),
   });
-  const value = ref<unknown>([]);
+  const predefined = field.options.map(option => option.id);
+  const value = ref<unknown>(predefined);
   await mount({
     render: () =>
       h(ChoiceFieldControl, {
@@ -311,12 +314,25 @@ it("1000 predefined options do not disable adding a temporary option", async () 
         "onUpdate:modelValue": (next) => (value.value = next),
       }),
   });
+  expect(selectionCountMessage(field, value.value)).toBe("需选择1001~1001项");
+  if (type === "multiselect") {
+    control("部门").click();
+    await settle();
+  }
   control("部门添加选项").click();
   await settle();
   await fill("部门新增选项", "临时部门");
   button("确定").click();
   await settle();
-  expect(value.value).toEqual([{ text: "临时部门" }]);
+  expect(value.value).toEqual([...predefined, { text: "临时部门" }]);
+  expect(choiceValueIssue(field, value.value)).toBeUndefined();
+  expect(selectionCountMessage(field, value.value)).toBeUndefined();
+  const restored = JSON.parse(JSON.stringify(value.value));
+  expect(choiceValueIssue(field, restored)).toBeUndefined();
+  expect(selectionCountMessage(field, [...restored, { text: "超出项数" }])).toBe("需选择1001~1001项");
+  expect(choiceValueIssue(field, [...restored, { text: "临时部门" }])).toBe("不能重复选择同一选项");
+  expect(choiceValueIssue(field, [...restored, "missing"])).toBe("包含无效选项，请重新选择");
+  expect(choiceValueIssue({ ...field, allowCustomChoices: false }, restored)).toBe("包含无效选项，请重新选择");
   expect(field.options).toHaveLength(1000);
 });
 

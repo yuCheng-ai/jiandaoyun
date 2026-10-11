@@ -36,11 +36,8 @@ export interface PublishedDefinition {
   workflow: FlowDocument;
   publishedAt: string;
 }
-export interface RecycledField {
-  field: FormField;
-  parentId: string | null;
-  rules: VisibilityRule[];
-}
+import type { RecycledField } from '@platform/contracts';
+export type { RecycledField } from '@platform/contracts';
 export interface FormRecord {
   fieldTrash?: RecycledField[];
   extensions?: FormExtensions;

@@ -9,6 +9,10 @@ import { copy } from "../../domain/form";
 import { restoreProfileDraft } from "../../domain/editorDraftAdapters";
 import { identityLabel, type Employee } from "../../domain/organization";
 import { useWorkspaceStore } from "../../stores/workspace";
+import type { SessionUser } from "@platform/contracts";
+
+const props = defineProps<{ account?: SessionUser; busy?: boolean }>();
+const emit = defineEmits<{ organization: []; logout: [] }>();
 
 const store = useWorkspaceStore(),
   router = useRouter();
@@ -24,7 +28,9 @@ const member = computed(() =>
     (e) => e.id === store.data.organization.currentUserId,
   ),
 );
-const displayName = computed(() => member.value?.name || "当前成员");
+const displayName = computed(
+  () => props.account?.name || member.value?.name || "当前成员",
+);
 const department = computed(() =>
   member.value?.primaryDepartmentId
     ? identityLabel(store.data.organization, member.value.primaryDepartmentId)
@@ -186,33 +192,63 @@ async function switchMember() {
         <span class="avatar">{{ displayName.slice(0, 1) }}</span>
         <div>
           <strong>{{ displayName }}</strong
-          ><small>{{ department }} · {{ member?.position || "成员" }}</small>
+          ><small>{{
+            account
+              ? `${account.username} · ${account.role === "admin" ? "管理员" : "普通成员"}`
+              : `${department} · ${member?.position || "成员"}`
+          }}</small>
         </div>
       </div>
-      <div class="user-menu-organization">
+      <div v-if="!account" class="user-menu-organization">
         <AppIcon name="department" /><span>{{
           store.data.organization.name
-        }}</span
-        >
+        }}</span>
       </div>
       <div role="menu" aria-label="用户菜单">
-        <button role="menuitem" type="button" @click="action('profile')">
-          <AppIcon name="approval" />个人信息<AppIcon name="right" />
-        </button>
-        <button role="menuitem" type="button" @click="action('switch')">
-          <AppIcon name="people" />切换体验成员<AppIcon name="right" />
-        </button>
-        <div class="user-menu-divider" role="separator" />
-        <button role="menuitem" type="button" @click="action('admin')">
-          <AppIcon name="settings" />企业管理<AppIcon name="right" />
-        </button>
-        <button role="menuitem" type="button" @click="action('home')">
-          <AppIcon name="home" />返回工作台<AppIcon name="right" />
-        </button>
-        <div class="user-menu-divider" role="separator" />
-        <button role="menuitem" type="button" @click="action('about')">
-          <AppIcon name="info" />关于工作台<AppIcon name="right" />
-        </button>
+        <template v-if="account">
+          <button
+            v-if="account.role === 'admin'"
+            role="menuitem"
+            type="button"
+            @click="
+              closeMenu();
+              emit('organization');
+            "
+          >
+            <AppIcon name="people" />组织与成员<AppIcon name="right" />
+          </button>
+          <button
+            role="menuitem"
+            type="button"
+            :disabled="busy"
+            @click="
+              closeMenu();
+              emit('logout');
+            "
+          >
+            <AppIcon name="back" />{{ busy ? "正在退出…" : "退出登录"
+            }}<AppIcon name="right" />
+          </button>
+        </template>
+        <template v-else>
+          <button role="menuitem" type="button" @click="action('profile')">
+            <AppIcon name="approval" />个人信息<AppIcon name="right" />
+          </button>
+          <button role="menuitem" type="button" @click="action('switch')">
+            <AppIcon name="people" />切换体验成员<AppIcon name="right" />
+          </button>
+          <div class="user-menu-divider" role="separator" />
+          <button role="menuitem" type="button" @click="action('admin')">
+            <AppIcon name="settings" />企业管理<AppIcon name="right" />
+          </button>
+          <button role="menuitem" type="button" @click="action('home')">
+            <AppIcon name="home" />返回工作台<AppIcon name="right" />
+          </button>
+          <div class="user-menu-divider" role="separator" />
+          <button role="menuitem" type="button" @click="action('about')">
+            <AppIcon name="info" />关于工作台<AppIcon name="right" />
+          </button>
+        </template>
       </div>
     </div>
   </div>

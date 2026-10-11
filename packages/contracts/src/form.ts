@@ -198,8 +198,9 @@ export interface FormField {
   dateRange?: DateRange;
   /** Missing in historical schemas: keep their optional, partial addresses valid. */
   addressComplete?: boolean;
-  min?: number;
-  max?: number;
+  /** Design drafts retain unfinished text; published numeric rules require numbers. */
+  min?: number | string;
+  max?: number | string;
   precision: number;
   retainPrecision?: boolean;
   numberGrouping?: boolean;

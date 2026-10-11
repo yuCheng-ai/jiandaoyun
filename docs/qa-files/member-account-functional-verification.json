@@ -1,0 +1,163 @@
+{
+  "checkedAt": "2026-10-11T11:17:47.085Z",
+  "scope": "Isolated synthetic members/accounts; original OA members not automatically linked",
+  "api": {
+    "results": [
+      {
+        "method": "GET",
+        "path": "/organization/member-accounts",
+        "status": 200,
+        "requestId": "5180b74d-5ed1-4934-8073-4d452694edb0"
+      },
+      {
+        "method": "GET",
+        "path": "/organization/member-accounts",
+        "status": 403,
+        "requestId": "5a42bf62-9125-4186-b3e0-14f7eead56a2"
+      },
+      {
+        "method": "GET",
+        "path": "/organization/member-accounts",
+        "status": 401,
+        "requestId": "293a849d-11d9-4c24-bab9-5818fdf15820"
+      },
+      {
+        "method": "PUT",
+        "path": "/organization/member-accounts",
+        "status": 409,
+        "requestId": "ce7001b5-34ac-426a-aa35-b6131116cf32"
+      },
+      {
+        "method": "PUT",
+        "path": "/organization/member-accounts",
+        "status": 409,
+        "requestId": "57ec8049-0c33-4e4e-ae58-a628f4b2ff82"
+      },
+      {
+        "method": "POST",
+        "path": "/organization/accounts",
+        "status": 201,
+        "requestId": "8bf5e703-77b8-440f-b48e-dee70640550c"
+      },
+      {
+        "method": "POST",
+        "path": "/organization/accounts",
+        "status": 201,
+        "requestId": "ce154b50-99ef-4c14-8bfa-a88df8a934d3"
+      },
+      {
+        "method": "POST",
+        "path": "/organization/accounts",
+        "status": 409,
+        "requestId": "58319d72-35e1-4d64-b20a-78929d623ae4"
+      },
+      {
+        "method": "PUT",
+        "path": "/organization/member-accounts",
+        "status": 404,
+        "requestId": "ddfe35e1-f85e-4e49-b9f6-2e25d0197584"
+      },
+      {
+        "method": "PUT",
+        "path": "/organization/member-accounts",
+        "status": 409,
+        "requestId": "1b31503d-4d13-4a08-8434-af42fdd1f9eb"
+      },
+      {
+        "method": "POST",
+        "path": "/migration-batches",
+        "status": 201,
+        "requestId": "98a0f40d-02e7-4b57-bc9c-99e84cef54f5"
+      },
+      {
+        "method": "PUT",
+        "path": "/migration-batches/c3b1de39-497a-4fe7-91e2-0cfa8e07d988",
+        "status": 200,
+        "requestId": "6e153a4f-8f87-4c8c-b71f-3e077e74acdc"
+      },
+      {
+        "method": "POST",
+        "path": "/migration-batches/c3b1de39-497a-4fe7-91e2-0cfa8e07d988/review",
+        "status": 201,
+        "requestId": "3b73d7c4-42a9-4838-ba25-10b04a9eb729"
+      },
+      {
+        "method": "GET",
+        "path": "/organization/member-accounts",
+        "status": 200,
+        "requestId": "2d8c366c-05c3-450b-b13b-fadc15c9470a"
+      }
+    ],
+    "checks": {
+      "uniqueAccount": true,
+      "staleLinkRejected": true,
+      "staleAccountRejected": true,
+      "creationRetryIdempotent": true,
+      "atomicCreationRollback": true,
+      "newMemberLogin": true,
+      "memberForbidden": true,
+      "anonymousUnauthorized": true,
+      "migrationConflictBlocked": true,
+      "passwordAbsentFromLogs": true
+    },
+    "namespace": "8754f11b-a023-4941-a79a-8c24a6fc000f",
+    "newAccountId": "c92e025c-4ffa-431c-a48d-66ba3d78cf90"
+  },
+  "boundaries": {
+    "unrelatedLinkKeepsReviewToken": true,
+    "confirmedIdentityCannotBeOverwritten": true,
+    "failedIdentityAssociationRollsBackAccount": true,
+    "associationRetryIdempotent": true,
+    "concurrentDuplicateAssociationRejected": true,
+    "crossWorkspaceAccountRejected": true
+  },
+  "browser": {
+    "existingAssociationSavedAndReopened": true,
+    "createDialogPrefillsOriginalName": true,
+    "emptyAccountValidationVisible": true,
+    "newCredentialsEntered": false,
+    "accountCreationVerifiedViaApi": true,
+    "linkedAccountDisableReflected": true,
+    "disabledAccountSessionsRemoved": true,
+    "staleAssociationKeepsSelection": true,
+    "explicitDiscardReloadsLatest": true,
+    "concurrentMemberProfileChangeRejected": true,
+    "originalMemberProfileRestoredAfterCheck": true,
+    "originalOrganizationUiPreserved": true,
+    "actualOaMappingsUnchanged": true,
+    "expectedConflictWarnings": 1,
+    "unexpectedErrors": 0,
+    "nestedAccountEditorRouteGuard": {
+      "verifiedAfterFreshLoad": true,
+      "unsavedNamePreserved": true,
+      "explicitDiscard": true
+    }
+  },
+  "screenshots": [
+    "../screenshots/member-account-directory.png",
+    "../screenshots/member-account-dialog.png"
+  ],
+  "logs": [
+    "tmp/member-accounts-functional-server.log",
+    "tmp/member-account-boundary.log"
+  ],
+  "limitations": [
+    "Original departments, roles and form grants are not yet migrated to server identities",
+    "Real OA member-account pairs still need explicit choices",
+    "Browser credential entry and submission were not performed; account creation was functionally verified through its API"
+  ],
+  "cleanup": {
+    "isolatedServerStopped": true,
+    "isolatedSchemaRemoved": true
+  },
+  "build": {
+    "command": "npm run build",
+    "exitCode": 0,
+    "log": "tmp/member-accounts-delivery-build.log",
+    "finalFrontendBuild": {
+      "exitCode": 0,
+      "log": "tmp/member-accounts-final-frontend-build.log"
+    },
+    "warning": "Existing Vite chunks exceed 500 kB"
+  }
+}

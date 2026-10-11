@@ -134,6 +134,7 @@ export function dateRangeErrors(
       errors.push(`${label}请选择同一范围内、类型相同的其他日期字段`);
   }
   if (
+    !incomplete &&
     !errors.length &&
     range.earliest.enabled &&
     range.latest.enabled &&

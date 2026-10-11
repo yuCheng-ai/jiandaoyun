@@ -1,15 +1,11 @@
 <script setup lang="ts">
 import { useRuntimeData } from "../../../composables/useRuntimeData";
 import { computed, ref, watch, onBeforeUnmount } from "vue";
-import {
-  formatNumberValue,
-  parseNumberInput,
-  isNumericField,
-  supportsFieldPlaceholder,
-} from "@platform/contracts";
+import { isNumericField, supportsFieldPlaceholder } from "@platform/contracts";
 import ChoiceFieldControl from "./ChoiceFieldControl.vue";
 import FormDivider from "./FormDivider.vue";
 import AppIcon from "../../../components/AppIcon.vue";
+import NumberInput from "../../../components/NumberInput.vue";
 import RichTextEditor from "./RichTextEditor.vue";
 import DateFieldControl from "./DateFieldControl.vue";
 import LocationFieldControl from "./LocationFieldControl.vue";
@@ -115,33 +111,6 @@ watch(
 );
 watch(scalar, resizeTextarea, { flush: "post" });
 onBeforeUnmount(() => textareaObserver?.disconnect());
-const numberEditing = ref(false),
-  numberText = ref("");
-const displayedNumber = computed(() =>
-  numberEditing.value
-    ? numberText.value
-    : formatNumberValue(props.field, props.modelValue, {
-        percentSuffix: false,
-      }),
-);
-function focusNumber() {
-  if (disabled.value || props.field.type === "calculated") return;
-  numberText.value = formatNumberValue(props.field, props.modelValue, {
-    editing: true,
-  });
-  numberEditing.value = true;
-}
-function updateNumber(event: Event) {
-  if (disabled.value || props.field.type === "calculated") return;
-  numberText.value = (event.target as HTMLInputElement).value;
-  emit("update:modelValue", parseNumberInput(props.field, numberText.value));
-}
-watch(
-  [() => props.field.id, () => props.field.format, () => disabled.value],
-  () => {
-    numberEditing.value = false;
-  },
-);
 function update(event: Event) {
   if (props.field.type === "calculated") return;
   const input = event.target as HTMLInputElement;
@@ -290,26 +259,17 @@ function update(event: Event) {
       @input="update"
     />
   </div>
-  <div v-else-if="isNumericField(field)" class="number-control">
-    <input
-      type="text"
-      inputmode="decimal"
-      :value="displayedNumber"
-      :aria-label="label"
-      :placeholder="placeholder"
-      :disabled="disabled"
-      :readonly="field.type === 'calculated'"
-      @focus="focusNumber"
-      @input="updateNumber"
-      @blur="numberEditing = false"
-    />
-    <span
-      v-if="field.format === 'percent'"
-      class="number-suffix"
-      aria-hidden="true"
-      >%</span
-    >
-  </div>
+  <NumberInput
+    v-else-if="isNumericField(field)"
+    :key="field.id"
+    :settings="field"
+    :model-value="modelValue"
+    :aria-label="label"
+    :placeholder="placeholder"
+    :disabled="disabled"
+    :readonly="field.type === 'calculated'"
+    @update:model-value="emit('update:modelValue', $event)"
+  />
   <DateFieldControl
     v-else-if="field.type === 'datetime'"
     :field="field"

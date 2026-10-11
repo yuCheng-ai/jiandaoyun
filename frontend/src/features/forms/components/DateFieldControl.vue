@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import {
   civilDate,
   civilDay,
@@ -33,6 +33,7 @@ const input = ref<HTMLInputElement>(),
   panel = ref<HTMLElement>(),
   open = ref(false),
   month = ref(""),
+  view = ref<"day" | "month" | "year">("day"),
   draft = ref(""),
   openedAt = ref(new Date()),
   position = ref({ left: "0px", top: "0px" });
@@ -84,6 +85,47 @@ const selectable = (day: string) =>
 const canApply = computed(() =>
   selectableDateValue(props.field, draft.value, props.values, openedAt.value),
 );
+const year = computed(() => Number(month.value.slice(0, 4)));
+const decade = computed(() => Math.floor(year.value / 10) * 10);
+const years = computed(() =>
+  Array.from({ length: 12 }, (_, index) => decade.value - 1 + index),
+);
+const yearStep = computed(() => (view.value === "year" ? 120 : 12));
+function positionPanel() {
+  if (!panel.value || !input.value) return;
+  const rect = input.value.getBoundingClientRect(),
+    size = panel.value.getBoundingClientRect();
+  position.value = {
+    left: `${Math.max(8, Math.min(rect.left, window.innerWidth - size.width - 8))}px`,
+    top: `${Math.max(
+      8,
+      Math.min(
+        rect.bottom + size.height + 8 <= window.innerHeight
+          ? rect.bottom + 4
+          : rect.top - size.height - 4,
+        window.innerHeight - size.height - 8,
+      ),
+    )}px`,
+  };
+}
+async function focusCell(value?: string) {
+  await nextTick();
+  const selector =
+    view.value === "year"
+      ? `[data-year="${value ?? year.value}"]`
+      : view.value === "month"
+        ? `[data-month="${value ?? month.value}"]`
+        : `[data-day="${value ?? draft.value.slice(0, 10)}"]`;
+  (
+    panel.value?.querySelector<HTMLButtonElement>(
+      `${selector}:not([disabled])`,
+    ) ||
+    panel.value?.querySelector<HTMLButtonElement>(
+      "[data-cell]:not([disabled])",
+    ) ||
+    panel.value
+  )?.focus({ preventScroll: true });
+}
 async function show() {
   if (props.disabled) return;
   if (open.value) {
@@ -95,20 +137,27 @@ async function show() {
     ? text.value
     : dateValueAt(props.field.format, openedAt.value);
   month.value = draft.value.slice(0, 7);
-  const rect = input.value!.getBoundingClientRect(),
-    height = timed.value ? 450 : monthly.value ? 300 : 400;
-  position.value = {
-    left: `${Math.max(8, Math.min(rect.left, window.innerWidth - Math.min(351, window.innerWidth - 16) - 8))}px`,
-    top: `${Math.max(8, rect.bottom + height + 8 <= window.innerHeight ? rect.bottom + 4 : rect.top - height - 4)}px`,
-  };
+  view.value = monthly.value ? "month" : "day";
   open.value = true;
-  await nextTick();
-  panel.value
-    ?.querySelector<HTMLButtonElement>(
-      `[data-day="${draft.value.slice(0, monthly.value ? 7 : 10)}"]:not([disabled])`,
-    )
-    ?.focus();
+  await focusCell();
 }
+function showView(value: "year" | "month") {
+  view.value = value;
+  void focusCell();
+}
+function chooseYear(value: number) {
+  month.value = `${String(value).padStart(4, "0")}-${month.value.slice(5)}`;
+  showView("month");
+}
+function chooseMonth(value: string) {
+  if (monthly.value) choose(value);
+  else {
+    month.value = value;
+    view.value = "day";
+    void focusCell(`${value}-01`);
+  }
+}
+watch([open, view, month], positionPanel, { flush: "post" });
 function apply() {
   if (!canApply.value || props.disabled) return;
   emit(
@@ -120,6 +169,11 @@ function apply() {
 function choose(day: string) {
   draft.value = candidate(day);
   if (!timed.value) apply();
+  else {
+    month.value = draft.value.slice(0, 7);
+    view.value = "day";
+    void focusCell();
+  }
 }
 function navigate(amount: number) {
   const date = civilDate(month.value);
@@ -129,27 +183,37 @@ function navigate(amount: number) {
 }
 async function keys(event: KeyboardEvent) {
   if (
-    monthly.value ||
     !(event.target instanceof HTMLElement) ||
-    !event.target.dataset.day
+    !event.target.hasAttribute("data-cell")
   )
     return;
-  const delta = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[
-    event.key as "ArrowLeft"
-  ];
+  const delta = {
+    ArrowLeft: -1,
+    ArrowRight: 1,
+    ArrowUp: view.value === "day" ? -7 : -3,
+    ArrowDown: view.value === "day" ? 7 : 3,
+  }[event.key as "ArrowLeft"];
   if (!delta) return;
   event.preventDefault();
-  const date = civilDate(event.target.dataset.day);
+  if (view.value === "year") {
+    const target = Number(event.target.dataset.year) + delta;
+    if (target < 1 || target > 9999) return;
+    month.value = `${String(target).padStart(4, "0")}-${month.value.slice(5)}`;
+    await focusCell(String(target));
+    return;
+  }
+  const date = civilDate(
+    event.target.dataset.month || event.target.dataset.day!,
+  );
   for (let count = 0; count < 62; count++) {
-    date.setUTCDate(date.getUTCDate() + delta);
-    const day = civilDay(date);
+    if (view.value === "month") date.setUTCMonth(date.getUTCMonth() + delta);
+    else date.setUTCDate(date.getUTCDate() + delta);
     if (date.getUTCFullYear() < 1 || date.getUTCFullYear() > 9999) return;
-    if (!selectable(day)) continue;
+    const day = civilDay(date),
+      value = view.value === "month" ? day.slice(0, 7) : day;
+    if ((view.value === "day" || monthly.value) && !selectable(value)) continue;
     month.value = day.slice(0, 7);
-    await nextTick();
-    panel.value
-      ?.querySelector<HTMLButtonElement>(`[data-day="${day}"]`)
-      ?.focus();
+    await focusCell(value);
     return;
   }
 }
@@ -159,32 +223,12 @@ function inputKey(event: KeyboardEvent) {
     void show();
   }
 }
-function leave(event: Event) {
-  if (
-    open.value &&
-    !(event.target instanceof Node && panel.value?.contains(event.target))
-  )
-    open.value = false;
-}
-watch(open, (value) => {
-  if (value) {
-    window.addEventListener("resize", leave);
-    window.addEventListener("scroll", leave, true);
-  } else {
-    window.removeEventListener("resize", leave);
-    window.removeEventListener("scroll", leave, true);
-  }
-});
 watch(
-  [() => props.field.id, () => props.field.format, () => props.disabled],
+  [() => props.field.id, () => props.field.format, () => props.disabled, text],
   () => {
     open.value = false;
   },
 );
-onBeforeUnmount(() => {
-  window.removeEventListener("resize", leave);
-  window.removeEventListener("scroll", leave, true);
-});
 </script>
 <template>
   <div class="date-field-control">
@@ -238,14 +282,14 @@ onBeforeUnmount(() => {
       <header>
         <button
           type="button"
-          :disabled="Number(month.slice(0, 4)) <= 1"
-          aria-label="上一年"
-          @click="navigate(-12)"
+          :disabled="view === 'year' ? decade < 10 : year <= 1"
+          :aria-label="view === 'year' ? '前十年' : '上一年'"
+          @click="navigate(-yearStep)"
         >
           <AppIcon name="back" :size="13" /><AppIcon name="back" :size="13" />
         </button>
         <button
-          v-if="!monthly"
+          v-if="view === 'day'"
           type="button"
           :disabled="month === '0001-01'"
           aria-label="上个月"
@@ -253,14 +297,28 @@ onBeforeUnmount(() => {
         >
           <AppIcon name="back" :size="16" />
         </button>
-        <span
-          >{{ month.slice(0, 4)
-          }}<template v-if="!monthly"
-            >　{{ Number(month.slice(5)) }}月</template
-          ></span
-        >
+        <div class="date-calendar-heading" aria-live="polite">
+          <span v-if="view === 'year'">{{ decade }}～{{ decade + 9 }}</span>
+          <template v-else>
+            <button
+              type="button"
+              aria-label="选择年份"
+              @click="showView('year')"
+            >
+              {{ year }}
+            </button>
+            <button
+              v-if="view === 'day'"
+              type="button"
+              aria-label="选择月份"
+              @click="showView('month')"
+            >
+              {{ Number(month.slice(5)) }}月
+            </button>
+          </template>
+        </div>
         <button
-          v-if="!monthly"
+          v-if="view === 'day'"
           type="button"
           :disabled="month === '9999-12'"
           aria-label="下个月"
@@ -270,23 +328,43 @@ onBeforeUnmount(() => {
         </button>
         <button
           type="button"
-          :disabled="Number(month.slice(0, 4)) >= 9999"
-          aria-label="下一年"
-          @click="navigate(12)"
+          :disabled="view === 'year' ? decade >= 9990 : year >= 9999"
+          :aria-label="view === 'year' ? '后十年' : '下一年'"
+          @click="navigate(yearStep)"
         >
           <AppIcon name="right" :size="13" /><AppIcon name="right" :size="13" />
         </button>
       </header>
-      <div v-if="monthly" class="date-month-grid">
+      <div v-if="view === 'year'" class="date-month-grid">
+        <button
+          v-for="value in years"
+          :key="value"
+          type="button"
+          data-cell
+          :data-year="value"
+          :aria-label="`${value}年`"
+          :disabled="value < 1 || value > 9999"
+          :class="{
+            selected: Number(draft.slice(0, 4)) === value,
+            outside: value < decade || value > decade + 9,
+          }"
+          @click="chooseYear(value)"
+        >
+          {{ value }}
+        </button>
+      </div>
+      <div v-else-if="view === 'month'" class="date-month-grid">
         <button
           v-for="value in months"
           :key="value"
           type="button"
-          :data-day="value"
+          :data-day="monthly ? value : undefined"
+          data-cell
+          :data-month="value"
           :aria-label="value"
-          :disabled="!selectable(value)"
+          :disabled="monthly && !selectable(value)"
           :class="{ selected: draft.slice(0, 7) === value }"
-          @click="choose(value)"
+          @click="chooseMonth(value)"
         >
           {{ Number(value.slice(5)) }}月
         </button>
@@ -304,6 +382,7 @@ onBeforeUnmount(() => {
             v-for="day in days"
             :key="day.value"
             type="button"
+            data-cell
             :data-day="day.value"
             :aria-label="day.value"
             :disabled="!selectable(day.value)"
@@ -317,7 +396,7 @@ onBeforeUnmount(() => {
           </button>
         </div>
       </template>
-      <div v-if="timed" class="date-calendar-time">
+      <div v-if="timed && view === 'day'" class="date-calendar-time">
         <label
           >时间<input
             aria-label="选择时间"
@@ -331,7 +410,7 @@ onBeforeUnmount(() => {
           确定
         </button>
       </div>
-      <footer>
+      <footer v-if="view === 'day' || (monthly && view === 'month')">
         <button
           type="button"
           :disabled="!selectable(dateValueAt(field.format, openedAt))"
@@ -392,7 +471,8 @@ onBeforeUnmount(() => {
 }
 .date-calendar-panel {
   position: fixed;
-  width: min(351px, calc(100vw - 16px));
+  width: min(280px, calc(100vw - 16px));
+  box-sizing: border-box;
   max-height: calc(100vh - 16px);
   overflow: auto;
   background: white;
@@ -400,12 +480,12 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   box-shadow: 0 4px 20px #0002;
   color: #272e3b;
-  font-size: 16px;
+  font-size: 14px;
 }
 .date-calendar-panel header {
   display: flex;
   align-items: center;
-  height: 50px;
+  height: 40px;
   padding: 0 12px;
   gap: 6px;
   border-bottom: 1px solid #edf0f3;
@@ -429,10 +509,17 @@ onBeforeUnmount(() => {
 .date-calendar-panel header button .app-icon + .app-icon {
   margin-left: -8px;
 }
-.date-calendar-panel header span {
+.date-calendar-heading {
+  display: flex;
   flex: 1;
-  text-align: center;
-  font-weight: 400;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.date-calendar-panel .date-calendar-heading button {
+  width: auto;
+  padding: 0 4px;
+  color: inherit;
 }
 .date-calendar-week,
 .date-calendar-grid {
@@ -442,8 +529,8 @@ onBeforeUnmount(() => {
 }
 .date-calendar-week span {
   text-align: center;
-  height: 50px;
-  line-height: 50px;
+  height: 40px;
+  line-height: 40px;
 }
 .date-calendar-grid {
   padding-bottom: 10px;
@@ -451,10 +538,10 @@ onBeforeUnmount(() => {
 .date-calendar-grid button {
   height: 30px;
   width: 30px;
-  margin: 5px auto;
+  margin: 1px auto;
   border-radius: 4px;
 }
-.date-calendar-grid button.outside {
+.date-calendar-panel button.outside {
   color: #c2c6ce;
 }
 .date-calendar-panel button:disabled {
@@ -462,9 +549,10 @@ onBeforeUnmount(() => {
   cursor: default;
   opacity: 1;
 }
-.date-calendar-panel button:hover:not(:disabled),
-.date-calendar-panel button:focus-visible {
+.date-calendar-panel button:hover:not(:disabled) {
   background: #eaf7f6;
+}
+.date-calendar-panel button:focus-visible {
   outline: 2px solid #0db3a6;
   outline-offset: -2px;
 }
@@ -474,7 +562,7 @@ onBeforeUnmount(() => {
 }
 .date-calendar-panel footer {
   border-top: 1px solid #edf0f3;
-  height: 49px;
+  height: 40px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -505,16 +593,19 @@ onBeforeUnmount(() => {
   border: 1px solid #dce0e6;
   border-radius: 4px;
   padding: 4px 6px;
-  width: 140px;
+  width: 120px;
 }
 .date-month-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  padding: 8px 16px;
-  gap: 8px;
+  padding: 16px 8px;
+  grid-auto-rows: 62px;
 }
 .date-month-grid button {
-  height: 38px;
+  height: 32px;
+  width: 62px;
+  align-self: center;
+  justify-self: center;
   border-radius: 4px;
 }
 </style>

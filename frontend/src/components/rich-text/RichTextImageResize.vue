@@ -5,6 +5,7 @@ const props = defineProps<{ image: HTMLImageElement }>();
 const emit = defineEmits<{
   resize: [width: string];
   resizing: [active: boolean];
+  measure: [bounds: DOMRect];
 }>();
 const bounds = ref({ left: 0, top: 0, width: 0, height: 0 });
 const corners = [
@@ -36,7 +37,9 @@ function measure() {
     width: rect.width,
     height: rect.height,
   };
+  emit("measure", rect);
 }
+defineExpose({ measure });
 function limit(width: number) {
   let container = props.image.parentElement;
   while (container && getComputedStyle(container).display === "inline")

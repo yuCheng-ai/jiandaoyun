@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createApp, defineComponent, h, nextTick } from 'vue';
-import OrganizationDialog from '../src/features/collaboration/OrganizationDialog.vue';
 import PermissionDialog from '../src/features/collaboration/PermissionDialog.vue';
 import { platformApi, PlatformError } from '../src/repositories/platformApi';
 vi.mock('vue-router', async original => ({ ...await original<typeof import('vue-router')>(), onBeforeRouteLeave: vi.fn() }));
@@ -27,27 +26,6 @@ it('saves an explicit creation-department basis and explains that missing snapsh
   expect(vi.mocked(platformApi).mock.calls.find(call=>call[1]==='PUT')?.[2]).toMatchObject({scope:'department',departmentBasis:'record-created'});
 });
 
-it('membership edits update the primary department and retain the organization revision', async () => {
-  vi.mocked(platformApi).mockImplementation(async (_path, method, body: any) => method === 'PUT' ? { ...clone(), revision: 4, spec: body.spec } : clone());
-  app = createApp({ render: () => h(OrganizationDialog) }); app.mount('#mount'); await settle();
-  await click('成员归属');
-  const first = document.querySelector<HTMLInputElement>('[aria-label="办理人属于业务部"]')!;
-  first.click(); await settle();
-  document.querySelector<HTMLInputElement>('[aria-label="办理人属于复核部"]')!.click(); await settle();
-  await click('保存组织配置');
-  const saved = vi.mocked(platformApi).mock.calls.find(call => call[1] === 'PUT')![2] as any;
-  expect(saved.expectedRevision).toBe(3); expect(saved.spec.assignments).toEqual([{ userId: 'member', departmentIds: ['b'], primaryDepartmentId: 'b' }]);
-  expect(document.body.textContent).toContain('组织配置已保存'); expect(document.body.textContent).not.toContain('有未保存的修改');
-});
-it('an organization conflict preserves input until an explicit discard-and-reload decision', async () => {
-  let reads = 0; vi.mocked(platformApi).mockImplementation(async (_path, method) => { if (method === 'PUT') throw new PlatformError('组织已修改', 409); reads++; return clone(); });
-  app = createApp({ render: () => h(OrganizationDialog) }); app.mount('#mount'); await settle();
-  await input('[aria-label="部门 1 名称"]', '我的未保存部门'); await click('保存组织配置');
-  expect((document.querySelector('[aria-label="部门 1 名称"]') as HTMLInputElement).value).toBe('我的未保存部门');
-  await click('重新读取组织'); expect(reads).toBe(1); await click('继续编辑'); expect(reads).toBe(1);
-  await click('重新读取组织'); await click('放弃修改并读取'); expect(reads).toBe(2);
-  expect((document.querySelector('[aria-label="部门 1 名称"]') as HTMLInputElement).value).toBe('业务部');
-});
 it('role grants send the role identity and revision, and safely recover a stale policy', async () => {
   const policy = { read: true, create: false, edit: false, scope: 'all', fields: { name: 'read' } };
   let writes = 0;

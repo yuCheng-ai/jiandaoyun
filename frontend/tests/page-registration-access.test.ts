@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vitest";
 import { createApp, defineComponent, h, nextTick } from "vue";
+import { createPinia } from "pinia";
 import { createMemoryHistory, createRouter, RouterView } from "vue-router";
-import DataWorkspaceView from "../src/features/data/DataWorkspaceView.vue";
+import ServerApplicationHome from "../src/features/workspace/ServerApplicationHome.vue";
 import { platformApi } from "../src/repositories/platformApi";
 import { accessGroupActor } from "../src/repositories/accessGroupState";
 vi.mock("../src/stores/platformSession", () => ({
@@ -29,7 +30,8 @@ vi.mock("../src/components/BaseDialog.vue", () => ({
 vi.mock("../src/features/collaboration/RecordEditor.vue", () => ({
   default: defineComponent({
     emits: ["saved"],
-    setup(_, { emit }) {
+    setup(_, { emit, expose }) {
+      expose({ runAfterLeave: (action: () => void) => action() });
       return () =>
         h(
           "button",
@@ -89,7 +91,7 @@ it("using a create-only page stays on own drafts before and after a successful s
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
-      { path: "/applications/:applicationId", component: DataWorkspaceView },
+      { path: "/applications/:applicationId", component: ServerApplicationHome },
       { path: "/:pathMatch(.*)*", component: { render: () => null } },
     ],
   });
@@ -97,6 +99,7 @@ it("using a create-only page stays on own drafts before and after a successful s
   await router.isReady();
   app = createApp({ render: () => h(RouterView) });
   app.use(router);
+  app.use(createPinia());
   app.mount("#mount");
   await settle();
   const click = async (label: string) => {
@@ -105,7 +108,7 @@ it("using a create-only page stays on own drafts before and after a successful s
       .click();
     await settle();
   };
-  await click("打开表单");
+  await click("数据管理");
   expect(document.body.textContent).toContain("提交后由有查看权限的成员处理");
   expect(document.querySelector('option[value="active"]')).toBeNull();
   expect(callPaths().filter((path) => path.includes("/records?"))).toEqual([

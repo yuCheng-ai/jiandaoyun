@@ -25,7 +25,10 @@ import {
   restoreAccessSettingsDraft,
 } from "../src/domain/accessDraftAdapters";
 
-vi.mock("../src/stores/workspace", () => ({ useWorkspaceStore: vi.fn() }));
+vi.mock("../src/stores/workspace", () => ({
+  useWorkspaceStore: vi.fn(),
+  syncFormWorkflow: vi.fn(),
+}));
 vi.mock("../src/components/WorkspaceStorageNotice.vue", () => ({
   default: { render: () => null },
 }));
@@ -39,6 +42,7 @@ function makeStore() {
     storageError: "",
     notify: vi.fn(),
     saveFormAccess: vi.fn(),
+    publishForm: vi.fn(),
     drafts: shallowReactive({} as Record<string, FormRecord>),
     openForm: vi.fn(),
     consumePrefill: vi.fn(),
@@ -243,7 +247,14 @@ it.each([false, true])(
     expect(form.versions[0]!.schema.fields).toHaveLength(2);
     succeed();
     await click("保存发布设置");
-    await vi.waitFor(() => expect(store.saveFormAccess).toHaveBeenCalledOnce());
+    if (edited)
+      await vi.waitFor(() =>
+        expect(store.saveFormAccess).toHaveBeenCalledOnce(),
+      );
+    else {
+      expect(button("保存发布设置").disabled).toBe(true);
+      expect(store.saveFormAccess).not.toHaveBeenCalled();
+    }
     expect(
       memberSchema(
         form.published!.schema,
@@ -556,4 +567,169 @@ it("validates recovery shapes without converting malformed permissions or unfini
   expect(() =>
     restoreAccessSettingsDraft({ ...config, groups: [group, group] }),
   ).toThrow();
+});
+
+it("hides disabled member configuration without erasing groups or publishing unsaved switches", async () => {
+  publish(1);
+  await mount();
+  const toggle = () =>
+    document.querySelector<HTMLButtonElement>('[aria-label="启用成员访问"]')!;
+  expect(button("保存发布设置").disabled).toBe(true);
+  toggle().click();
+  await nextTick();
+  expect(document.querySelector(".access-group-card")).toBeNull();
+  expect(document.querySelector('[aria-label="成员入口链接"]')).toBeNull();
+  expect(store.data.formAccess![form.id]!.membersEnabled).toBe(true);
+  expect(store.saveFormAccess).not.toHaveBeenCalled();
+  succeed();
+  await click("保存发布设置");
+  await vi.waitFor(() =>
+    expect(store.data.formAccess![form.id]!.membersEnabled).toBe(false),
+  );
+  expect(store.data.formAccess![form.id]!.groups[0]!.id).toBe("existing-group");
+  toggle().click();
+  await nextTick();
+  expect(document.querySelector(".access-group-card")!.textContent).toContain(
+    "原权限组",
+  );
+  expect(button("保存发布设置").disabled).toBe(false);
+  expect(store.data.formAccess![form.id]!.membersEnabled).toBe(false);
+});
+
+it("retains collection limits while paused and opens their controls when validation fails", async () => {
+  await mount();
+  const details =
+    document.querySelector<HTMLDetailsElement>(".access-collection")!;
+  expect(details.open).toBe(false);
+  await edit("收集数量上限", "20");
+  document
+    .querySelector<HTMLButtonElement>('[aria-label="允许收集新数据"]')!
+    .click();
+  await nextTick();
+  expect(document.body.textContent).toContain("已暂停新提交");
+  expect(input("收集数量上限").value).toBe("20");
+  succeed();
+  await click("保存发布设置");
+  await vi.waitFor(() =>
+    expect(store.data.formAccess![form.id]!.filling.enabled).toBe(false),
+  );
+  expect(store.data.formAccess![form.id]!.filling.limit).toBe(20);
+  await edit("收集数量上限", "-1");
+  await click("保存发布设置");
+  expect(document.body.textContent).toContain("收集上限应为非负整数");
+  expect(details.open).toBe(true);
+  expect(store.saveFormAccess).toHaveBeenCalledOnce();
+});
+
+it("copies the selected entry and leaves a selectable link when clipboard access fails", async () => {
+  publish(1);
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  vi.stubGlobal("navigator", { clipboard: { writeText } });
+  try {
+    await mount();
+    const buttons = [
+      ...document.querySelectorAll<HTMLButtonElement>("button"),
+    ].filter((el) => el.textContent?.trim() === "复制链接");
+    const fill = document.querySelector<HTMLInputElement>(
+      '[aria-label="表单填写链接"]',
+    )!;
+    const member = document.querySelector<HTMLInputElement>(
+      '[aria-label="成员入口链接"]',
+    )!;
+    buttons[0]!.click();
+    await vi.waitFor(() =>
+      expect(writeText).toHaveBeenLastCalledWith(fill.value),
+    );
+    buttons[1]!.click();
+    await vi.waitFor(() =>
+      expect(writeText).toHaveBeenLastCalledWith(member.value),
+    );
+    writeText.mockRejectedValueOnce(Error("denied"));
+    buttons[0]!.click();
+    await vi.waitFor(() => expect(document.activeElement).toBe(fill));
+    expect(fill.selectionStart).toBe(0);
+    expect(fill.selectionEnd).toBe(fill.value.length);
+    expect(store.notify).toHaveBeenLastCalledWith(
+      "自动复制未完成，请复制已选中的链接。",
+      "warning",
+    );
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
+it("moves visible groups across archived entries and keeps copies disabled until explicitly enabled", async () => {
+  const original = store.data.formAccess![form.id]!.groups[0]!;
+  store.data.formAccess![form.id]!.groups.push(
+    { ...copy(original), id: "archive", name: "已归档组", archived: true },
+    { ...copy(original), id: "second", name: "第二组" },
+  );
+  await mount();
+  const cards = () => [
+    ...document.querySelectorAll<HTMLElement>(".access-group-card"),
+  ];
+  expect(cards()).toHaveLength(2);
+  await click("下移", cards()[0]);
+  expect(cards().map((el) => el.querySelector("strong")!.textContent)).toEqual([
+    "第二组",
+    "原权限组",
+  ]);
+  expect(button("上移", cards()[0]).disabled).toBe(true);
+  expect(button("下移", cards()[1]).disabled).toBe(true);
+  await click("复制", cards()[0]);
+  const copied = cards().at(-1)!;
+  expect(copied.textContent).toContain("第二组（副本）");
+  expect(copied.querySelector<HTMLInputElement>("input")!.checked).toBe(false);
+  await click("归档", copied);
+  await click("已归档");
+  expect(cards()).toHaveLength(2);
+  await click(
+    "恢复",
+    cards().find((el) => el.textContent!.includes("第二组（副本）"))!,
+  );
+  await click("返回权限组");
+  succeed();
+  await click("保存发布设置");
+  await vi.waitFor(() => expect(store.saveFormAccess).toHaveBeenCalledOnce());
+  expect(
+    store.data.formAccess![form.id]!.groups.map((g) => g.id).slice(0, 3),
+  ).toEqual(["second", "archive", "existing-group"]);
+  expect(store.data.formAccess![form.id]!.groups.at(-1)!.enabled).toBe(false);
+});
+
+it("keeps publication pending visible, prevents duplicate requests and offers an actionable failure", async () => {
+  publish(1);
+  store.drafts[form.id] = copy(form);
+  store.data.forms.push(copy(form));
+  await mount(true);
+  let finish!: (result: boolean) => void;
+  store.publishForm.mockReturnValueOnce(
+    new Promise<boolean>((resolve) => {
+      finish = resolve;
+    }),
+  );
+  await click("发布新版本");
+  expect(button("正在发布…").disabled).toBe(true);
+  await click("正在发布…");
+  expect(store.publishForm).toHaveBeenCalledOnce();
+  finish(false);
+  await vi.waitFor(() =>
+    expect(document.querySelector("dialog")?.textContent).toContain(
+      "发布未完成",
+    ),
+  );
+  expect(button("重试发布")).toBeDefined();
+  expect(
+    store.data.forms.find((f) => f.id === form.id)!.published!.version,
+  ).toBe(1);
+  store.publishForm.mockRejectedValueOnce(Error("offline"));
+  await click("重试发布");
+  await vi.waitFor(() =>
+    expect(document.querySelector("dialog")?.textContent).toContain("发布失败"),
+  );
+  expect(store.publishForm).toHaveBeenCalledTimes(2);
+  store.publishForm.mockResolvedValueOnce(true);
+  await click("重试发布");
+  await vi.waitFor(() => expect(document.querySelector("dialog")).toBeNull());
+  expect(store.publishForm).toHaveBeenCalledTimes(3);
 });

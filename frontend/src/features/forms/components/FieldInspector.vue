@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import {
-  formatNumberValue,
   isNumericField,
-  parseNumberInput,
+  fieldDefaultValue,
   dateFormats,
   dateInputType,
   dateInputStep,
@@ -25,6 +24,7 @@ import {
 } from "@platform/contracts";
 import SubformPermissionOptions from "./SubformPermissionOptions.vue";
 import AppIcon from "../../../components/AppIcon.vue";
+import NumberInput from "../../../components/NumberInput.vue";
 import RichTextEditor from "./RichTextEditor.vue";
 import RichTextDefaultInspector from "./RichTextDefaultInspector.vue";
 import ChoiceSettings from "./ChoiceSettings.vue";
@@ -237,14 +237,6 @@ function checked(event: Event) {
 }
 function dateFormat(event: Event) {
   emit("update", dateFormatPatch(props.field, value(event)));
-}
-function numericSetting(key: "defaultValue" | "min" | "max", event: Event) {
-  const result = parseNumberInput(props.field, value(event));
-  if (key !== "defaultValue" && typeof result === "string" && result !== "")
-    return;
-  emit("update", {
-    [key]: result === "" && key !== "defaultValue" ? undefined : result,
-  });
 }
 const rangeEnabled = computed(
   () =>
@@ -588,38 +580,32 @@ const rangeEnabled = computed(
         :field="field"
         @update="emit('update', $event)"
       />
-      <input
-        v-else-if="['text', 'number', 'datetime'].includes(field.type)"
+      <NumberInput
+        v-else-if="field.type === 'number'"
+        :key="field.id + ':default'"
         id="field-default"
         aria-label="自定义默认值"
-        :type="
-          field.type === 'number'
-            ? 'number'
-            : field.type === 'datetime'
-              ? dateInputType(field.format)
-              : 'text'
-        "
-        :value="
-          field.type === 'number'
-            ? formatNumberValue(field, field.defaultValue, { editing: true })
-            : field.defaultValue
-        "
+        :settings="field"
+        :model-value="fieldDefaultValue(field)"
+        :format-on-blur="false"
+        @update:model-value="emit('update', { defaultValue: $event })"
+      />
+      <input
+        v-else-if="['text', 'datetime'].includes(field.type)"
+        id="field-default"
+        aria-label="自定义默认值"
+        :type="field.type === 'datetime' ? dateInputType(field.format) : 'text'"
+        :value="field.defaultValue"
         :step="
-          field.type === 'number'
-            ? 'any'
-            : field.type === 'datetime'
-              ? dateInputStep(field.format)
-              : undefined
+          field.type === 'datetime' ? dateInputStep(field.format) : undefined
         "
         @input="
-          field.type === 'number'
-            ? numericSetting('defaultValue', $event)
-            : emit('update', {
-                defaultValue:
-                  field.type === 'datetime'
-                    ? normalizeDateValue(field.format, value($event))
-                    : value($event),
-              })
+          emit('update', {
+            defaultValue:
+              field.type === 'datetime'
+                ? normalizeDateValue(field.format, value($event))
+                : value($event),
+          })
         "
       />
     </DefaultLinkInspector>
@@ -760,21 +746,27 @@ const rangeEnabled = computed(
           />限定数值范围</label
         >
         <div v-if="rangeEnabled" class="inline-range">
-          <input
-            type="number"
-            step="any"
-            :value="formatNumberValue(field, field.min, { editing: true })"
+          <NumberInput
+            :key="field.id + ':min'"
+            :settings="field"
+            :model-value="field.min"
+            :format-on-blur="false"
             aria-label="最小值"
             placeholder="最小值"
-            @input="numericSetting('min', $event)"
+            @update:model-value="
+              emit('update', { min: $event === '' ? undefined : $event })
+            "
           /><span>至</span>
-          <input
-            type="number"
-            step="any"
-            :value="formatNumberValue(field, field.max, { editing: true })"
+          <NumberInput
+            :key="field.id + ':max'"
+            :settings="field"
+            :model-value="field.max"
+            :format-on-blur="false"
             aria-label="最大值"
             placeholder="最大值"
-            @input="numericSetting('max', $event)"
+            @update:model-value="
+              emit('update', { max: $event === '' ? undefined : $event })
+            "
           />
         </div>
       </template>

@@ -16,6 +16,7 @@ export function organizationActions(
   data: Ref<WorkspaceData>,
   persist: () => boolean,
   notify: (message: string, type?: string) => void,
+  protectExperienceMember = true,
 ) {
   function mutate(
     action: (org: Organization) => void,
@@ -98,7 +99,11 @@ export function organizationActions(
         )
       )
         throw Error("所选角色已停用或不存在，请重新选择");
-      if (item.id === org.currentUserId && item.status !== "active")
+      if (
+        protectExperienceMember &&
+        item.id === org.currentUserId &&
+        item.status !== "active"
+      )
         throw Error("请先切换当前体验成员，再停用此成员");
       const index = org.employees.findIndex((e) => e.id === item.id);
       if (index < 0) org.employees.push(copy(item));
@@ -117,6 +122,7 @@ export function organizationActions(
   ) {
     return mutate((org) => {
       if (
+        protectExperienceMember &&
         action.status &&
         action.status !== "active" &&
         ids.includes(org.currentUserId)
@@ -149,22 +155,6 @@ export function organizationActions(
       if (!item.name.trim()) throw Error("请输入角色名称");
       if (!org.roleGroups.some((g) => g.id === item.groupId))
         throw Error("请选择角色分组");
-      if (
-        item.grants.some(
-          (grant) =>
-            !data.value.apps.some((app) => app.id === grant.appId) ||
-            grant.formIds.some(
-              (id) =>
-                !data.value.forms.some(
-                  (form) =>
-                    form.id === id &&
-                    form.appId === grant.appId &&
-                    !form.archived,
-                ),
-            ),
-        )
-      )
-        throw Error("授权的应用或表单已不存在，请重新选择授权范围");
       if (
         org.roles.some(
           (r) =>

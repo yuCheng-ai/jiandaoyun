@@ -1,23 +1,19 @@
-# 富文本组件与默认值验收
+# 日期选择器交互与视觉验收
 
-更新：2026-10-11。保留当前编辑器，唯一实现位于`components/rich-text`，表单层仅负责策略和文件存储。封装、多实例、异步失效、图片编辑的既有证据见[组件批次](docs/qa-files/jdy-rich-reusable-verification.json)，[接口说明](frontend/src/components/rich-text/README.md)。
+更新：2026-10-11。沿用唯一[对标计划](docs/jiandaoyun-form-designer-plan.md)的FD04，复用既有日期组件和共用弹层；发布页上一批验收保存在[发布页报告](docs/publication-interaction-visual-qa.md)。
 
-## 本批通过
+## 本批结论
 
-- 自定义默认值复用通用富文本编辑器；无图片插入按钮，确认才进入草稿，取消明确放弃。外部默认值改变时拒绝覆盖并保留输入。
-- 3万字符按HTML存储长度判断，含空白标签；默认值与提交错误不截断输入，修正后可继续。历史超限原值和不增大的编辑可保留，旧明细按行ID匹配基线。
-- 单表10个富文本通过原字段数量检查统一覆盖点击、拖入、复制、恢复、整标签页复制和保存／发布。新限制不截断旧定义；旧超额可读且不能继续增加。
-- 数据联动沿用原表单、字段、条件及成员上下文；来源／条件字段不可读时不取值。格式及图片ID保留，已有记录按原发布版本读取。
-- 浏览器：原验收表单V2自定义默认值保存冷刷新；填写30001字符被拒且输入保留，修正后提交；另建1字段验收表单V1，联动原V1记录的标题／列表／删除线／背景色及原图片，提交冷刷新仍为同条记录。未重建来源记录。
-- 390×844默认值弹窗边界left16/right374/bottom576，确定按钮right356/bottom562；工具栏换行，Escape关闭。临时视口已恢复，最近控制台warn/error为空。
-- 全量前端1471项／148文件、完整构建、Sites4项通过。构建保留原大包提示；4份Sites保护文件校验未改，3项交付产物齐全。后端只有随构建进行的类型检查，本批没有后端运行修改或测试。
+原日历只有逐月、逐年翻页，缺少参考产品的年月直选；自身全局滚动监听还会因无关区域滚动误关闭。现已补齐年→月→日选择和十年翻页，删除重复监听。导航不提前写值，含时间的字段仍需确认；联动改变当前值或切为只读时取消旧的待选值。
 
-## 来源与边界
+实际主表、子表均已检查。主表年份直选使月份差公式从1重算为49，验后恢复原试填值。子表四种格式经过保存草稿、冷刷新、手机修改、提交、正式记录冷读取，秒数与月份没有截断。星期、动态日期及秒级边界保持生效。手机内层Escape保留明细窗口并返回日期按钮，窗口未溢出。
 
-[官方富文本说明](https://hc.jiandaoyun.com/doc/23030)确认自定义／联动默认值、自定义默认值禁图、单表10个与3万HTML字符。参考图片此前加载失败，因此不声称精确视觉通过。当前导入超长截断行为尚未对齐；未把上述提交校验宣称为所有草稿、流程或服务端写入入口的完整覆盖。
+![最终桌面年份面板](docs/screenshots/jdy-date-calendar-desktop.jpg)
 
-FD28仍部分完成：图片拖拽缩放、完整PDF图片输出、最终权限组合、全部写入边界／原生存储、其他浏览器及精确视觉保留原R1/R4/R5/R6/R7归属。当前唯一计划见[执行计划](docs/jiandaoyun-form-designer-plan.md)。
+[390×844手机日期面板](docs/screenshots/jdy-date-calendar-mobile.jpg)与[源站年份选择截图](docs/screenshots/jdy-date-year-reference.jpg)均已实际查看。按源图修正年份面板为280×322，三列四行、62×32选中按钮和十年导航，移除选年状态多余的“今天”。源图1318×1237、本地1280×720，页面、数据和年份状态不同；这不是完整同状态逐像素通过。
 
-桌面：[默认值设置](docs/screenshots/jdy-rich-default-editor.png)；窄屏：[390×844](docs/screenshots/jdy-rich-default-mobile.png)；保存结果：[联动记录](docs/screenshots/jdy-rich-default-linked.png)。联动截图中的噪点图是已有合成测试文件。结构化证据见[本批记录](docs/qa-files/jdy-rich-defaults-verification.json)。
+## 验证与范围
 
-final result: passed for this bounded defaults and constraints batch; FD28 remains partial
+日期／弹层33项回归通过，包含6项新增交互测试；前端全量1500项／149文件通过。最终视觉调整后再次运行相关测试和完整构建。Sites4项及交付文件另见[机器证据](docs/qa-files/jdy-date-calendar-verification.json)。Vite既有大包提示保留。
+
+后续范围与默认值核对已完成基础属性批次：四种类型与默认来源、公开动态预设／单位、固定／字段范围及开关保留；修复草稿误拒绝并验证发布拦截、修正与旧版保护。见[配置证据](docs/qa-files/jdy-date-settings-verification.json)。该批未改视觉；完整跨来源／公式目录、输出、权限历史、服务端整合及最终交付范围保持未完成。流程未改。

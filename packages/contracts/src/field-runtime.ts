@@ -126,7 +126,6 @@ export function choiceValueIssue(field: FormField, value: unknown, options = fie
   if (multiple ? !Array.isArray(value) : typeof value !== "string" && !isChoiceTextValue(value)) return "选项格式不合法";
   const selected = (multiple ? value : [value]) as unknown[];
   const keys = new Set<string>();
-  if (selected.length > maxChoiceOptions) return `最多选择${maxChoiceOptions}项`;
   for (const item of selected) {
     const valid = typeof item === "string" ? options.some(option => option.id === item) : isChoiceTextValue(item) && (item.optionId ? !multiple && options.some(option => option.id === item.optionId && option.other) : multiple && field.allowCustomChoices === true && field.choiceSource.mode === "manual" && !!item.text.trim() && item.text.length <= maxChoiceLabelLength);
     if (!valid) return "包含无效选项，请重新选择";

@@ -7,7 +7,7 @@ import {
 } from "../domain/organizationDraftAdapters";
 import { useDraftDismiss } from "./useDraftDismiss";
 
-/** Shared recovery and write acknowledgement for the local organization editors. */
+/** Shared recovery and write acknowledgement for organization editors. */
 export function useOrganizationDraft(options: {
   active: () => boolean;
   key: () => string;
@@ -85,7 +85,7 @@ export function useOrganizationDraft(options: {
             !previousNotices.has(notice.id) && notice.type !== "success",
         );
         error.value = issue
-          ? `保存未完成：${issue.message}。当前修改已保留。`
+          ? issue.message
           : "保存未完成，请稍后重试；当前修改已保留。";
         return false;
       }

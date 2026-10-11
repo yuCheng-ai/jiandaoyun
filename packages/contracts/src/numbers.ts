@@ -93,13 +93,19 @@ export function numberValueIssue(
   if (
     typeof value !== "number" ||
     !Number.isFinite(value) ||
-    Math.abs(value) > Number.MAX_SAFE_INTEGER
+    Math.abs(value) > Number.MAX_SAFE_INTEGER ||
+    (field.limitRange !== false &&
+      [field.min, field.max].some(
+        (bound) =>
+          bound !== undefined &&
+          (typeof bound !== "number" || !Number.isFinite(bound)),
+      ))
   )
     return "invalid";
   if (
     field.limitRange !== false &&
-    ((field.min !== undefined && value < field.min) ||
-      (field.max !== undefined && value > field.max))
+    ((typeof field.min === "number" && value < field.min) ||
+      (typeof field.max === "number" && value > field.max))
   )
     return "range";
   // Older published schemas used precision as an input constraint. Preserve their rule;

@@ -34,6 +34,53 @@ const both = () =>
     choice("multi", "multiselect", { allowCustomChoices: true }),
   );
 
+test("1000 predefined choices plus temporary selections survive drafts, submission and restart while configured totals still apply", async () => {
+  const fixedOptions = Array.from({ length: 1000 }, (_, index) => ({ id: `c${index}`, label: `项目${index}` }));
+  const settings = {
+    options: fixedOptions,
+    allowCustomChoices: true,
+    selectionLimit: { enabled: true, min: 1001, max: 1001 },
+  };
+  await h.request("/definitions", "POST", {
+    title: "预设项数边界",
+    schema: schema(choice("multi", "checkbox", { ...settings, options: [...fixedOptions, { id: "overflow", label: "多余预设" }] })),
+  }, "admin", 400);
+  const definition = await h.definition("临时选项总数边界", schema(
+    choice("multi", "multiselect", settings),
+    field("lines", "subform", { children: [choice("checks", "checkbox", settings)] }),
+  ));
+  const page = (await h.request(`/pages?definitionId=${definition.id}`))[0];
+  const path = `/pages/${page.id}/records`;
+  const selected = [...fixedOptions.map(option => option.id), { text: "临时项目" }];
+  const overflow = [...selected, { text: "额外项目" }];
+  const values = { multi: selected, lines: [{ checks: overflow }] };
+  const rejected = await h.request(path, "POST", { pageVersion: 1, requestId: randomUUID(), values }, "admin", 400);
+  assert.match(rejected.message, /1001~1001/);
+  const saved = await h.request(path, "POST", { pageVersion: 1, requestId: randomUUID(), state: "draft", values }, "admin", 201);
+  await h.restart();
+  const reopened = await h.request(`${path}/${saved.record.id}`);
+  assert.deepEqual(reopened.record.values.multi, selected);
+  assert.deepEqual(reopened.record.values.lines[0].checks, overflow);
+  const submitted = await h.request(`${path}/${saved.record.id}/submit`, "POST", {
+    pageVersion: 1, requestId: randomUUID(), expectedRevision: reopened.record.revision,
+    changes: [{ subformId: "lines", rowId: reopened.record.values.lines[0]._rowId, fieldId: "checks", expectedRevision: 1, value: selected }],
+  }, "admin", 201);
+  assert.equal(submitted.record.state, "active");
+  assert.deepEqual(submitted.record.values.multi, selected);
+  assert.deepEqual(submitted.record.values.lines[0].checks, selected);
+  for (const value of [fixedOptions.map(option => option.id), overflow]) {
+    const result = await h.request(`${path}/${saved.record.id}`, "PATCH", {
+      pageVersion: 1, requestId: randomUUID(),
+      changes: [{ fieldId: "multi", expectedRevision: submitted.record.cellRevisions.multi, value }],
+    }, "admin", 400);
+    assert.match(result.message, /1001~1001/);
+  }
+  assert.deepEqual((await h.request(`${path}/${saved.record.id}`)).record, submitted.record);
+  const model = (await h.request(`/data-objects/${definition.id}/draft`)).model;
+  assert.deepEqual(model.fields[0].settings.options, fixedOptions);
+  assert.deepEqual(model.fields[1].children[0].settings.options, fixedOptions);
+});
+
 test("Other text and temporary choices persist in pages, rows and revisions without modifying option definitions or other fills", async () => {
   const definition = await h.definition(
     "选项补充验收",

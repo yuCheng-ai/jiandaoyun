@@ -42,6 +42,21 @@ const detail: RecordDetail = {
   },
 };
 describe("server record commands", () => {
+  it('sends ordered inserts against stable existing anchors and rejects reordering existing rows', () => {
+    const value = structuredClone(detail); value.rowActions = { lines: { add: false, insert: true, editExisting: false, remove: false } };
+    const original = value.record.values.lines as any[];
+    const edited = { lines: [original[0], { _rowId: 'draft:c', quantity: 3 }, { _rowId: 'draft:d', quantity: 4 }, original[1], { _rowId: 'draft:e', quantity: 5 }] };
+    expect(recordRowChanges(value, edited)).toEqual([
+      { action: 'insert', subformId: 'lines', beforeRowId: 'row-b', expectedRevision: 1, values: { quantity: 3 } },
+      { action: 'insert', subformId: 'lines', beforeRowId: 'row-b', expectedRevision: 1, values: { quantity: 4 } },
+      { action: 'insert', subformId: 'lines', beforeRowId: null, expectedRevision: 1, values: { quantity: 5 } },
+    ]);
+    expect(recordChanges(value, edited)).toEqual([]);
+    expect(() => recordChanges(value, { lines: [{ ...original[0], quantity: 999 }, original[1]] })).toThrow('不可编辑已有记录');
+    expect(() => recordRowChanges(value, { lines: [original[1], original[0]] })).toThrow('不能直接重排');
+    value.rowActions.lines!.insert = false; value.rowActions.lines!.add = true;
+    expect(() => recordRowChanges(value, edited)).toThrow('没有插入明细行的权限');
+  });
   it("addresses reordered child rows by stable identity and uses the field's own revision", () => {
     const result = recordChanges(detail, {
       lines: [

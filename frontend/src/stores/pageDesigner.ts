@@ -44,7 +44,7 @@ export const usePageDesignerStore = defineStore("server-page-designer", () => {
     busy.value = true; error.value = ""; feedback.value = "";
     try {
       accept(await platformApi<PageEditorData>(`/pages/${data.value.draft.id}/discard-draft`, "POST", { expectedRevision: data.value.draft.revision }));
-      feedback.value = `已恢复页面 V${data.value.draft.latestVersion}，共享数据和其他页面保持原样。`;
+      feedback.value = `已恢复表单 V${data.value.draft.latestVersion}，已有记录保持原样。`;
       editorEpoch.value++;
       return true;
     } catch (cause) { error.value = (cause as Error).message; return false; }

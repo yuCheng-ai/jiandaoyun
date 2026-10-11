@@ -350,6 +350,11 @@ it("previews a proportional resize without emitting, then commits one undoable i
   pointer(f.handle, "pointerdown", 130, 90);
   pointer(f.handle, "pointermove", 190, 120);
   expect(f.image.style.width).toBe("160px");
+  // Narrow dialogs can scroll as the live image changes their content height.
+  f.editor.parentElement!.dispatchEvent(new Event("scroll"));
+  await settle();
+  expect(button("缩放图片（右下）")).toBe(f.handle);
+  expect(f.image.style.width).toBe("160px");
   f.editor.dispatchEvent(new Event("blur"));
   expect(f.changes).not.toHaveBeenCalled();
   pointer(f.handle, "pointerup", 190, 120);
@@ -426,4 +431,13 @@ it("adjusts the selected image with the keyboard and retains nearby link content
   expect(f.editors[0]!.querySelectorAll("img")[1]!.style.width).toBe("140px");
   expect(f.editors[0]!.textContent).toBe("说明");
   expect(f.editors[0]!.querySelector("a")!.href).toBe("https://example.com/");
+  const updated = f.editors[0]!.querySelectorAll("img")[1]!;
+  imageLayout(updated);
+  updated.dispatchEvent(new Event("load"));
+  await settle();
+  button("缩放图片（左上）").dispatchEvent(
+    new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+  );
+  await settle();
+  expect(f.editors[0]!.querySelectorAll("img")[1]!.style.width).toBe("145px");
 });

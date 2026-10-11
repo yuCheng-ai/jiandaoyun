@@ -8,7 +8,7 @@ import {
 import { parseSchema } from "../src/schema";
 import { parsePage } from "../src/page-schema";
 import { field, schema } from "./helpers";
-test("page conversion retains row restrictions and native parsers reject unsupported enforcement instead of widening access", () => {
+test("page conversion and native parsers retain row restrictions for server enforcement", () => {
   const source: any = schema(
     field("lines", "subform", {
       children: [field("item", "text")],
@@ -20,8 +20,8 @@ test("page conversion retains row restrictions and native parsers reject unsuppo
     composeFormSchema(split.model, split.page).fields[0]!.subformPermissions,
     source.fields[0]!.subformPermissions,
   );
-  assert.throws(() => parseSchema(source), /操作权限暂未接通/);
-  assert.throws(() => parsePage(split.page, split.model), /操作权限暂未接通/);
+  assert.deepEqual(parseSchema(source).fields[0]!.subformPermissions, source.fields[0]!.subformPermissions);
+  assert.deepEqual(parsePage(split.page, split.model).controls[0]!.properties.subformPermissions, source.fields[0]!.subformPermissions);
 });
 test("native parsers keep unrestricted and legacy definitions but reject malformed row permissions", () => {
   const source: any = schema(

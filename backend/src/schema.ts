@@ -14,7 +14,13 @@ import {
   subformFixedColumnErrors,
   subformMobileErrors,
   subformPermissionSettingErrors,
+  subformPermissions,
   fieldTextPropertiesErrors,
+  readableVisibilityRules,
+  readableFormValidations,
+  formulaSchemaErrors,
+  formulaReferences,
+  formulaTypes,
 } from "@platform/contracts";
 import { scalar, validateFieldRules } from "./field-values";
 export { scalar } from "./field-values";
@@ -133,24 +139,17 @@ export function parseSchema(
     if (raw.subformQuickFill)
       throw new BadRequestException("快速填报暂未接通服务端，请保留原配置");
     if (
-      raw.subformPermissions &&
-      Object.values(raw.subformPermissions).some((value) => value === false)
-    )
-      throw new BadRequestException(
-        "子表单操作权限暂未接通服务端，请保留原配置",
-      );
-    if (
       raw.serial !== undefined ||
       raw.unique ||
       raw.uniqueInRecord ||
-      raw.expression ||
+      (raw.expression && !formulaTypes.includes(raw.type)) ||
       raw.masked ||
       raw.visible !== true ||
       raw.editable !== true ||
       raw.choiceSource?.mode === "form" ||
       raw.defaultLink?.enabled ||
       raw.defaultRows !== undefined ||
-      raw.defaultFormula ||
+      (raw.defaultFormula && !formulaTypes.includes(raw.type)) ||
       raw.referenceFormId
     )
       throw new BadRequestException(
@@ -204,6 +203,8 @@ export function parseSchema(
     ...structuredClone(input),
     fields: input.fields.map((f: unknown) => visit(f, false)),
   } as FormSchema;
+  const formulaErrors = formulaSchemaErrors(schema.fields, allowIncomplete);
+  if (formulaErrors.length) throw new BadRequestException(formulaErrors[0]);
   for (const field of allFields(schema)) {
     const errors = dateRangeErrors(
       field,
@@ -321,7 +322,7 @@ export function masked(
       const clone = structuredClone(field);
       if (field.type === "subform") {
         rows[field.id] = revisions[`@rows/${field.id}`] || 1;
-        clone.children = field.children.filter(
+        clone.children = clone.children.filter(
           (c) => permission(grant, c, field) !== "hidden",
         );
         result[field.id] = ((values[field.id] || []) as FormValues[]).map(
@@ -345,9 +346,27 @@ export function masked(
       }
       return clone;
     });
-  return { schema: { ...schema, fields }, values: result, cells, rows };
+  const allowed = new Set(fields.flatMap(field => [field.id, ...field.children.map(child => child.id)]));
+  // A default may expose its resulting value when granted, never hidden source configuration.
+  for (const field of fields.flatMap(field => [field, ...field.children])) {
+    if (field.defaultFormula && formulaReferences(field.expression).some(id => !allowed.has(id))) {
+      field.defaultFormula = false; field.expression = ""; delete field.formulaRemark;
+    }
+  }
+  const rules = readableVisibilityRules(schema.settings.rules, allowed);
+  const validations = readableFormValidations(schema.settings.validations, allowed);
+  return { schema: { ...schema, fields, settings: { ...schema.settings, rules, validations } }, values: result, cells, rows };
 }
-export function rowActions(schema: FormSchema, access: AccessGrant) {
+/** Page restrictions may narrow the pinned data version, never widen it. */
+export function rowPolicy(field: FormField, pageField?: FormField) {
+  const policy = subformPermissions(pageField ? pageField.subformPermissions : field.subformPermissions);
+  if (pageField && field.subformPermissions) {
+    const data = subformPermissions(field.subformPermissions);
+    for (const key of Object.keys(policy) as (keyof typeof policy)[]) policy[key] &&= data[key];
+  }
+  return policy;
+}
+export function rowActions(schema: FormSchema, access: AccessGrant, page?: FormSchema) {
   return Object.fromEntries(
     schema.fields
       .filter(
@@ -356,12 +375,16 @@ export function rowActions(schema: FormSchema, access: AccessGrant) {
       )
       .map((field) => {
         const editable = access.edit && permission(access, field) === "edit";
+        const policy = rowPolicy(field, page?.fields.find(item => item.id === field.id));
         return [
           field.id,
           {
-            add: editable,
+            add: editable && policy.add,
+            insert: editable && policy.insert,
+            editExisting: editable && policy.editExisting,
             remove:
               editable &&
+              policy.deleteExisting &&
               field.children.every(
                 (child) => permission(access, child, field) === "edit",
               ),

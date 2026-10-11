@@ -1,3 +1,4 @@
+import { RecordViewService } from "./record-views";
 import { GroupConfigurationService } from "./group-config";
 import "reflect-metadata";
 import {
@@ -30,16 +31,22 @@ import { PageService } from "./pages";
 import { ApplicationService } from "./applications";
 import { RecordEvolutionService } from "./record-evolution";
 import { OrganizationService } from "./organization";
+import { AccountService } from "./accounts";
+import { DirectoryService } from "./directory";
+import { MigrationOrganizationService } from "./migration-organization";
 import { AccessService } from "./access";
 import { MigrationIdentityService } from "./migration-identities";
 import { MigrationResourceService } from "./migration-resources";
+import { ApplicationImportService } from "./application-import";
 import { RecordOriginService } from "./record-origins";
 import { CollectionService } from "./collection";
+import { requestLogging, RequestExceptionFilter } from "./request-logging";
 
 @Controller("api/definitions")
 @UseGuards(AuthGuard)
 class CollectionController {
-  constructor(private readonly collection: CollectionService) {}
+  constructor(private readonly collection: CollectionService, private readonly recordViews: RecordViewService) {}
+  @Put(":id/record-view") saveView(@Req() r: AuthenticatedRequest, @Param("id") id:string, @Body() b:unknown) { return this.recordViews.save(r.actor,id,b); }
   @Get(":id/collection-rules") get(@Req() r: AuthenticatedRequest, @Param("id") id: string) { return this.collection.get(r.actor, id); }
   @Put(":id/collection-rules") save(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Body() b: unknown) { return this.collection.save(r.actor, id, b); }
   @Get(":id/collection-rules/events") events(@Req() r: AuthenticatedRequest, @Param("id") id: string) { return this.collection.events(r.actor, id); }
@@ -56,13 +63,16 @@ class RecordOriginController {
 @Controller("api/migration-batches")
 @UseGuards(AuthGuard)
 class MigrationIdentityController {
-  constructor(private readonly migrations: MigrationIdentityService, private readonly resources: MigrationResourceService) {}
+  constructor(private readonly migrations: MigrationIdentityService, private readonly resources: MigrationResourceService, private readonly organizationImport: MigrationOrganizationService, private readonly applicationImport: ApplicationImportService) {}
   @Get() list(@Req() r: AuthenticatedRequest, @Query("namespace") namespace: string, @Query("applicationId") applicationId?: string) { return this.migrations.list(r.actor, namespace, applicationId); }
   @Post() create(@Req() r: AuthenticatedRequest, @Body() b: unknown) { return this.migrations.create(r.actor, b); }
   @Get(":id") get(@Req() r: AuthenticatedRequest, @Param("id") id: string) { return this.migrations.get(r.actor, id); }
   @Get(":id/events") events(@Req() r: AuthenticatedRequest, @Param("id") id: string) { return this.migrations.events(r.actor, id); }
+  @Post(":id/organization-preview") organizationPreview(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Body() b: unknown) { return this.organizationImport.review(r.actor, id, b); }
+  @Post(":id/organization-import") importOrganization(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Body() b: unknown) { return this.organizationImport.apply(r.actor, id, b); }
   @Get(":id/resources") resourcesGet(@Req() r: AuthenticatedRequest, @Param("id") id: string) { return this.resources.get(r.actor, id); }
   @Post(":id/resources") resourcesPrepare(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Body() b: unknown) { return this.resources.prepare(r.actor, id, b); }
+  @Post(":id/application-import") importApplication(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Body() b: unknown) { return this.applicationImport.apply(r.actor, id, b); }
   @Put(":id") save(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Body() b: unknown) { return this.migrations.save(r.actor, id, b); }
   @Post(":id/source") source(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Body() b: unknown) { return this.migrations.save(r.actor, id, b, true); }
   @Post(":id/review") review(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Body() b: unknown) { return this.migrations.review(r.actor, id, b); }
@@ -73,9 +83,17 @@ class MigrationIdentityController {
 @Controller("api/organization")
 @UseGuards(AuthGuard)
 class OrganizationController {
-  constructor(private readonly organizations: OrganizationService) {}
+  constructor(private readonly organizations: OrganizationService, private readonly accounts: AccountService, private readonly directory: DirectoryService) {}
   @Get() get(@Req() r: AuthenticatedRequest) { return this.organizations.get(r.actor); }
+  @Get("directory") async directoryGet(@Req() r: AuthenticatedRequest) { return { directory: await this.directory.get(r.actor) }; }
+  @Get("role-applications") roleApplications(@Req() r: AuthenticatedRequest) { return this.directory.applications(r.actor); }
+  @Post("directory") directoryInitialize(@Req() r: AuthenticatedRequest, @Body() b: unknown) { return this.directory.save(r.actor, b, true); }
+  @Put("directory") directorySave(@Req() r: AuthenticatedRequest, @Body() b: unknown) { return this.directory.save(r.actor, b); }
   @Put() save(@Req() r: AuthenticatedRequest, @Body() b: unknown) { return this.organizations.save(r.actor, b); }
+  @Post("accounts") createAccount(@Req() r: AuthenticatedRequest, @Body() b: unknown) { return this.accounts.save(r.actor, b); }
+  @Get("member-accounts") memberAccounts(@Req() r: AuthenticatedRequest, @Query("namespace") namespace: string) { return this.accounts.memberAccounts(r.actor, namespace); }
+  @Put("member-accounts") associateMember(@Req() r: AuthenticatedRequest, @Body() b: unknown) { return this.accounts.associateMember(r.actor, b); }
+  @Put("accounts/:id") updateAccount(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Body() b: unknown) { return this.accounts.save(r.actor, b, id, r.headers.cookie); }
 }
 
 @Controller("api")
@@ -219,8 +237,8 @@ class PlatformController {
   ) {
     return this.processes.create(r.actor, b);
   }
-  @Get("processes") processesList(@Req() r: AuthenticatedRequest, @Query("applicationId") applicationId?: string) {
-    return this.processes.list(r.actor, applicationId);
+  @Get("processes") processesList(@Req() r: AuthenticatedRequest, @Query("applicationId") applicationId?: string, @Query("scope") scope?: string) {
+    return this.processes.list(r.actor, applicationId, scope);
   }
   @Get("processes/:id") processGet(
     @Req() r: AuthenticatedRequest,
@@ -296,6 +314,8 @@ class PageController {
   @Post("pages/:id/archive") archivePage(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Body() b: unknown) { return this.pages.lifecycle(r.actor, id, b, "archive"); }
   @Post("pages/:id/restore") restorePage(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Body() b: unknown) { return this.pages.lifecycle(r.actor, id, b, "restore"); }
   @Post("pages/:id/discard-draft") discardPage(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Body() b: unknown) { return this.pages.discardDraft(r.actor, id, b); }
+  @Get("pages/:id/record-list") recordList(@Req() r: AuthenticatedRequest, @Param("id") id:string, @Query("version") version?:string, @Query("state") state?:string, @Query("page") page?:string) { return this.pages.recordList(r.actor,id,version ? Number(version) : undefined,state,page===undefined ? 1 : Number(page)); }
+  @Get("pages/:id/records") records(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Query("version") version?: string, @Query("state") state?: string) { return this.pages.records(r.actor, id, version ? Number(version) : undefined, state); }
   @Get("pages/:id/records/:recordId") record(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Param("recordId") recordId: string, @Query("version") version?: string) { return this.pages.record(r.actor, id, recordId, version ? Number(version) : undefined); }
   @Get("pages/:id/records/:recordId/removed-rows") removedPageRows(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Param("recordId") recordId: string, @Query("version") version?: string) { return this.pages.removedRows(r.actor, id, recordId, version ? Number(version) : undefined); }
   @Get("pages/:id/records/:recordId/upgrade") upgradePreview(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Param("recordId") recordId: string, @Query("version") version?: string) { return this.pages.recordUpgrade(r.actor, id, recordId, { pageVersion: version ? Number(version) : undefined }, true); }
@@ -327,11 +347,15 @@ class GroupConfigurationController {
 }
 @Module({
   controllers: [CollectionController, GroupConfigurationController, SessionController, PlatformController, RelationController, PageController, ProcessTemplateController, OrganizationController, MigrationIdentityController, RecordOriginController],
-  providers: [
+  providers: [RecordViewService,
     Database,
     OrganizationService,
+    AccountService,
+    DirectoryService,
+    MigrationOrganizationService,
     MigrationIdentityService,
     MigrationResourceService,
+    ApplicationImportService,
     RecordOriginService,
     AccessService,
     CollectionService,
@@ -355,6 +379,8 @@ export async function createApp() {
     logger: ["error", "warn"],
     bodyParser: false,
   });
+  app.use(requestLogging);
+  app.useGlobalFilters(new RequestExceptionFilter());
   app.use((req: Request, res: Response, next: NextFunction) => {
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -362,7 +388,7 @@ export async function createApp() {
       !["GET", "HEAD", "OPTIONS"].includes(req.method) &&
       req.headers.origin !== config.origin
     )
-      return res.status(403).json({ message: "请求来源不合法" });
+      return res.status(403).json({ message: "请求来源不合法", requestId: res.locals.requestId });
     next();
   });
   app.use("/api/migration-batches", json({ limit: "16mb" }));

@@ -10,10 +10,13 @@ import WorkspaceRecovery from "./features/workspace/WorkspaceRecovery.vue";
 const store = useWorkspaceStore();
 const route = useRoute();
 const session = usePlatformSession();
+const localWorkspaceRoute = computed(
+  () => route.path.startsWith("/apps/") || route.path.startsWith("/admin/"),
+);
 provide(
   customColorOwnerKey,
   computed(() =>
-    route.path.startsWith("/applications")
+    route.path === "/" || route.path.startsWith("/applications")
       ? session.user
         ? `account:${session.user.id}`
         : ""
@@ -24,7 +27,9 @@ provide(
 );
 watch(
   () => route.fullPath,
-  () => store.refreshForRead?.(),
+  () => {
+    if (localWorkspaceRoute.value) store.refreshForRead?.();
+  },
   { immediate: true, flush: "sync" },
 );
 </script>
@@ -35,7 +40,11 @@ watch(
         ><component :is="Component" :key="route.fullPath"
       /></RouterView>
     </div>
-    <div class="toast-stack global-notices" aria-live="polite">
+    <div
+      v-if="localWorkspaceRoute"
+      class="toast-stack global-notices"
+      aria-live="polite"
+    >
       <div
         v-for="notice in store.notices"
         :key="notice.id"
@@ -47,7 +56,10 @@ watch(
         }}
       </div>
     </div>
-    <WorkspaceStorageNotice class="global-storage-notice" />
-    <WorkspaceRecovery />
+    <WorkspaceStorageNotice
+      v-if="localWorkspaceRoute"
+      class="global-storage-notice"
+    />
+    <WorkspaceRecovery v-if="localWorkspaceRoute" />
   </div>
 </template>

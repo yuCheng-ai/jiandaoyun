@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-11",
+  "scope": "已确认身份对应后的组织关系导入；原应用全部资源和授权尚未切换",
+  "changes": [
+    "现有身份对应对话框增加组织关系预览和确认导入，复用原组织校验、事务锁、版本检查、命令重试及不可变审计",
+    "只更新显式关联身份的部门层级、负责人、成员部门归属、主部门和角色成员范围；保留目标名称、角色分组、说明、账号状态以及未涉及的组织资源",
+    "不按名称匹配、不创建账号或激活历史身份；有效关系引用历史或未对应身份时整体阻止导入",
+    "预览绑定来源快照、身份对应和当前组织；确认时重新读取本地来源，服务端在锁内重新检查后原子保存",
+    "导入后继续保留本批身份对应的有效确认；其他组织或来源变化仍使旧预览失效",
+    "原应用检查按钮现在挂载已有选择弹窗；流程进度按钮复用应用内流程页，移除无效showTasks状态"
+  ],
+  "verified": [
+    "隔离后端实际导入后角色授权生效，并仍屏蔽无权字段；历史身份不参与当前授权",
+    "账号启用状态不同、遗漏或新增来源身份、历史关系引用、循环层级均不能部分导入",
+    "来源、组织或预览内容变化拒绝旧提交；并发只有一个版本成功",
+    "审计失败回滚组织、迁移批次及命令；相同命令重试不重复写入；重启后内容保留",
+    "无变化不报告导入；旧浏览器来源和个人联系方式不被修改或上传",
+    "前端错误保留预览，重试复用命令标识；等待状态阻止重复提交"
+  ],
+  "tests": {
+    "targetedFrontend": { "passed": 11, "log": "tmp/org-import-entry-targeted.log" },
+    "targetedBackend": { "passed": 45, "log": "tmp/org-import-backend-targeted-final.log" },
+    "frontendFull": { "files": 154, "passed": 1526, "failed": 0, "command": "npm run test:frontend -- --maxWorkers=2", "log": "tmp/org-import-frontend-verified.log" },
+    "backendFull": { "passed": 294, "failed": 0, "log": "tmp/org-import-backend-full.log", "isolation": "platform_test_* schema，启动应用前断言隔离" },
+    "build": { "passed": true, "log": "tmp/org-import-build-final-current.log", "warning": "已有Vite chunk超过500kB提示" },
+    "sites": { "passed": 4, "log": "tmp/org-import-sites.log" },
+    "resolvedTestFailures": [
+      "新前端用例不再固定等待5ms，改为等待实际busy状态与提交Promise，消除摘要计算未完成导致的测试串扰",
+      "一次全量测试与构建同时运行时既有大文件导入用例超时；停止并行构建，以maxWorkers=2重跑全量通过，未扩大测试超时时限"
+    ]
+  },
+  "browser": {
+    "verified": [
+      "现有开发管理员可登录；原应用迁移检查打开选择弹窗并可关闭，列出原6个应用",
+      "应用页顶部流程进度跳转同应用现有流程页，加载流程模板和已发起流程区域",
+      "结束时回到管理员工作台，原本地应用仍保留"
+    ],
+    "screenshot": "docs/screenshots/organization-import-entry.png",
+    "limits": "仅登录和只读导航；没有修改开发环境原组织、身份对应、权限和业务记录。组织关系确认导入的实际写入在隔离后端测试验证，浏览器未执行真实OA导入。"
+  },
+  "remaining": [
+    "原OA实际身份对应尚未决定，不能由QA或同名自动替代",
+    "本批导入要求目标身份已存在，不导入原组织名称、角色分组或成员档案，也不创建账号",
+    "旧角色的表单授权、字段／记录／历史版本／流程配置仍需完整导入与切换",
+    "主工作台两个真实普通成员新增、修改、受限输出及撤权的最终组合验收仍未完成"
+  ]
+}

@@ -5,7 +5,12 @@ export interface ServerRoleGroup { id: string; name: string }
 export interface ServerRole { id: string; name: string; groupId: string; description: string; memberIds: string[]; departmentIds: string[]; includeChildren: boolean; archived: boolean }
 export interface MemberAssignment { userId: string; departmentIds: string[]; primaryDepartmentId: string | null }
 export interface OrganizationSpec { departments: ServerDepartment[]; roleGroups: ServerRoleGroup[]; roles: ServerRole[]; assignments: MemberAssignment[] }
-export interface ServerOrganization { revision: number; spec: OrganizationSpec; users: (SessionUser & { active: boolean })[] }
+export interface AccountUser extends SessionUser { active: boolean; revision: number }
+export interface AccountCreateRequest { requestId: string; username: string; name: string; password: string }
+export interface MemberAccountSource { namespace: string; memberId: string; name: string; number: string }
+export interface MemberAccountLink { id: string; source: MemberAccountSource; revision: number; account: AccountUser }
+export interface MemberAccounts { links: MemberAccountLink[]; accounts: AccountUser[] }
+export interface ServerOrganization { revision: number; spec: OrganizationSpec; users: AccountUser[] }
 export type GrantSubject = { kind: "department" | "role"; id: string; includeChildren?: boolean };
 export interface SubjectGrant { subject: GrantSubject; policy: AccessPolicy; revision: number }
 export type AssigneeSelector = GrantSubject;

@@ -2,6 +2,8 @@
 import { afterEach, expect, it } from "vitest";
 import { createApp, h, nextTick, reactive } from "vue";
 import { createPinia } from "pinia";
+import { useWorkspaceStore } from "../src/stores/workspace";
+import { LocalWorkspaceRepository } from "../src/repositories/workspaceRepository";
 import {
   formatNumberValue,
   parseNumberInput,
@@ -9,9 +11,11 @@ import {
   separateFormSchema,
   composeFormSchema,
   fieldValueLabel,
+  fieldDefaultValue,
 } from "@platform/contracts";
 import {
   createField,
+  copy,
   emptySchema,
   parseSchema,
   validateValues,
@@ -199,6 +203,21 @@ it("percent controls emit ratios, show one suffix and respect readonly calculate
   await settle();
   expect(f.state.value).toBe(0.25);
 });
+it("updates a focused numeric control when a parent rule replaces its value without re-emitting the stale input", async () => {
+  const f = await mountControl();
+  f.input.focus();
+  f.input.value = "12.";
+  f.input.dispatchEvent(new Event("input", { bubbles: true }));
+  await settle();
+  expect(f.input.value).toBe("12.");
+  f.state.value = 7.89123;
+  await settle();
+  expect(f.input.value).toBe("7.89123");
+  f.input.blur();
+  await settle();
+  expect(f.input.value).toBe("7.89");
+  expect(f.state.value).toBe(7.89123);
+});
 it("inspector percentage defaults and bounds round-trip numeric ratios and turning off the range retains its values", async () => {
   const field = reactive(createField("number", { format: "percent" })),
     schema = { ...emptySchema(), fields: [field] };
@@ -238,4 +257,177 @@ it("inspector percentage defaults and bounds round-trip numeric ratios and turni
     max: 1,
     limitRange: false,
   });
+});
+
+it("saves unfinished bounds without dropping input, blocks publication, and preserves published definitions until correction", async () => {
+  const pinia = createPinia(),
+    store = useWorkspaceStore(pinia);
+  const form = (await store.createForm("oa", "数字设置", "form"))!;
+  const draft = store.openForm(form.id)!;
+  draft.schema.fields = [
+    createField("number", {
+      id: "amount",
+      label: "金额",
+      limitRange: true,
+      min: 0,
+      max: 100,
+    }),
+  ];
+  expect(await store.publishForm(form.id)).toBe(true);
+  const committed = copy(
+    new LocalWorkspaceRepository().load()!.forms.find((f) => f.id === form.id)!,
+  );
+  document.body.innerHTML = '<div id="mount"></div>';
+  const field = draft.schema.fields[0]!;
+  app = createApp(() =>
+    h(FieldInspector, {
+      field,
+      schema: draft.schema,
+      formId: form.id,
+      onUpdate: (patch) => Object.assign(field, patch),
+    }),
+  );
+  app.use(pinia).mount("#mount");
+  await settle();
+  const max =
+    document.querySelector<HTMLInputElement>('[aria-label="最大值"]')!;
+  max.focus();
+  max.value = "9007199254740992";
+  max.dispatchEvent(new Event("input", { bubbles: true }));
+  await settle();
+  expect(field.max).toBe("9007199254740992");
+  max.blur();
+  await settle();
+  expect(max.value).toBe("9007199254740992");
+  expect(validateFieldConfiguration(draft.schema, store.data)).toContain(
+    "「金额」请填写有效的最大值",
+  );
+  expect(await store.saveForm(form.id)).toBe(true);
+  expect(await store.publishForm(form.id)).toBe(false);
+  const unfinished = new LocalWorkspaceRepository()
+    .load()!
+    .forms.find((f) => f.id === form.id)!;
+  expect(unfinished.schema.fields[0]!.max).toBe("9007199254740992");
+  expect(unfinished.published).toEqual(committed.published);
+  expect(unfinished.versions).toEqual(committed.versions);
+  expect(
+    parseSchema(JSON.parse(JSON.stringify(draft.schema))).fields[0]!.max,
+  ).toBe("9007199254740992");
+  max.value = "123.4567";
+  max.dispatchEvent(new Event("input", { bubbles: true }));
+  await settle();
+  expect(field.max).toBe(123.4567);
+  expect(await store.saveForm(form.id)).toBe(true);
+  const saved = new LocalWorkspaceRepository()
+    .load()!
+    .forms.find((f) => f.id === form.id)!;
+  expect(saved.schema.fields[0]!.max).toBe(123.4567);
+  expect(saved.published).toEqual(committed.published);
+  expect(saved.versions).toEqual(committed.versions);
+});
+
+it("edits percentage defaults and bounds with the same decimal buffer and suffix as filling, without truncating or clearing an unfinished value", async () => {
+  const field = reactive(
+    createField("number", {
+      format: "percent",
+      limitRange: true,
+      min: 0,
+      max: 1,
+      defaultValue: 0.12,
+      retainPrecision: true,
+    }),
+  );
+  const schema = { ...emptySchema(), fields: [field] };
+  document.body.innerHTML = '<div id="mount"></div>';
+  app = createApp(() =>
+    h(FieldInspector, {
+      field,
+      schema,
+      formId: "test",
+      onUpdate: (patch) => Object.assign(field, patch),
+    }),
+  );
+  app.use(createPinia()).mount("#mount");
+  await settle();
+  for (const [selector, key] of [
+    ["#field-default", "defaultValue"],
+    ['[aria-label="最小值"]', "min"],
+    ['[aria-label="最大值"]', "max"],
+  ] as const) {
+    const input = document.querySelector<HTMLInputElement>(selector)!;
+    input.focus();
+    for (const text of ["-", "-0.", "-0.123456"]) {
+      input.value = text;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      await settle();
+      expect(input.value).toBe(text);
+    }
+    input.blur();
+    await settle();
+    expect(input.value).toBe("-0.123456");
+    expect(field[key]).toBe(-0.00123456);
+    expect(
+      input.parentElement!.querySelector(".number-suffix")?.textContent,
+    ).toBe("%");
+  }
+  const max =
+    document.querySelector<HTMLInputElement>('[aria-label="最大值"]')!;
+  max.value = "";
+  max.dispatchEvent(new Event("input", { bubbles: true }));
+  await settle();
+  expect(field.max).toBeUndefined();
+  expect(validateFieldConfiguration(schema, seedWorkspace())).toEqual([]);
+});
+
+it("validates custom numeric defaults against the effective range and old precision without constraining dormant formula values", () => {
+  const field = createField("number", {
+    id: "amount",
+    label: "金额",
+    defaultValue: "1e999",
+    limitRange: true,
+    min: 0,
+    max: 1,
+  });
+  const schema = { ...emptySchema(), fields: [field] },
+    data = seedWorkspace();
+  expect(validateFieldConfiguration(schema, data)).toContain(
+    "「金额」请填写有效的数字默认值",
+  );
+  field.defaultValue = 2;
+  expect(validateFieldConfiguration(schema, data)).toContain(
+    "「金额」默认值超出限定数值范围",
+  );
+  field.limitRange = false;
+  expect(validateFieldConfiguration(schema, data)).toEqual([]);
+  field.defaultValue = 0.123456;
+  expect(validateFieldConfiguration(schema, data)).toEqual([]);
+  delete field.retainPrecision;
+  expect(validateFieldConfiguration(schema, data)).toContain(
+    "「金额」默认值最多保留2位小数",
+  );
+  field.defaultFormula = true;
+  field.expression = "1";
+  expect(validateFieldConfiguration(schema, data)).toEqual([]);
+});
+it("reads historical numeric defaults as stored numbers without rewriting schemas or dividing percentage ratios again", () => {
+  const field = createField("number", {
+    id: "rate",
+    format: "percent",
+    defaultValue: "0.125678",
+    retainPrecision: true,
+    precision: 2,
+  });
+  const before = copy(field);
+  expect(fieldDefaultValue(field)).toBe(0.125678);
+  expect(formatNumberValue(field, fieldDefaultValue(field))).toBe("12.57%");
+  expect(
+    validateFieldConfiguration(
+      { ...emptySchema(), fields: [field] },
+      seedWorkspace(),
+    ),
+  ).toEqual([]);
+  expect(field).toEqual(before);
+  expect(fieldDefaultValue({ ...field, defaultValue: "1,234" })).toBe("1,234");
+  expect(fieldDefaultValue({ ...field, defaultValue: "bad" })).toBe("bad");
+  expect(fieldDefaultValue({ ...field, defaultValue: "0" })).toBe(0);
 });

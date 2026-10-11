@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import type { MemberAccounts } from "@platform/contracts";
+import { useRouter } from "vue-router";
 import AdminLayout from "./AdminLayout.vue";
+import AccountListDialog from "./AccountListDialog.vue";
+import MemberAccountDialog from "./MemberAccountDialog.vue";
+import { platformApi } from "../../repositories/platformApi";
+import { memberAccountNamespace } from "../../repositories/memberAccounts";
 import AppIcon from "../../components/AppIcon.vue";
 import BaseDialog from "../../components/BaseDialog.vue";
 import DepartmentTree from "../../components/organization/DepartmentTree.vue";
@@ -25,8 +30,45 @@ import {
   restoreEmployeeDraft,
 } from "../../domain/organizationDraftAdapters";
 const store = useWorkspaceStore(),
-  router = useRouter(),
-  route = useRoute();
+  router = useRouter();
+const showAccounts = ref(false);
+const accountMember = ref<Employee>(),
+  accountNamespace = ref(""),
+  accounts = ref<MemberAccounts>();
+const accountsError = ref(""),
+  accountsBusy = ref(false);
+async function loadAccounts() {
+  if (accountsBusy.value) return;
+  accountsBusy.value = true;
+  accountsError.value = "";
+  try {
+    accountNamespace.value = await memberAccountNamespace();
+    accounts.value = await platformApi<MemberAccounts>(
+      `/organization/member-accounts?namespace=${accountNamespace.value}`,
+    );
+  } catch (cause) {
+    accountsError.value = (cause as Error).message;
+  } finally {
+    accountsBusy.value = false;
+  }
+}
+const memberLinks = computed(
+  () =>
+    new Map(
+      accounts.value?.links.map((link) => [link.source.memberId, link]) || [],
+    ),
+);
+watch(
+  [
+    () => store.data.organization,
+    () => store.directoryReady,
+    () => store.directoryLoading,
+  ],
+  ([, ready, loading]) => {
+    if (ready && !loading) void loadAccounts();
+  },
+  { immediate: true, flush: "post" },
+);
 const org = computed(() => store.data.organization);
 const departmentId = ref(""),
   treeQuery = ref(""),
@@ -284,8 +326,7 @@ function download() {
 }
 </script>
 <template>
-  <AdminLayout
-    :active="route.path.endsWith('members') ? 'members' : 'organization'"
+  <AdminLayout active="organization"
     ><div class="organization-management">
       <aside class="organization-sidebar">
         <div class="segmented-control organization-tabs">
@@ -373,6 +414,7 @@ function download() {
           <button class="button primary" @click="openEmployee()">
             <AppIcon name="add" />添加成员</button
           ><button class="button" @click="download">导出</button>
+          <button class="button" @click="showAccounts = true">登录账号</button>
           <div class="toolbar-spacer" />
           <div class="search-input">
             <AppIcon name="search" /><input
@@ -382,7 +424,7 @@ function download() {
             />
           </div>
           <label class="inline-select-label"
-            >账号状态<select v-model="status" aria-label="账号状态">
+            >成员状态<select v-model="status" aria-label="成员状态">
               <option value="all">全部</option>
               <option value="active">在职</option>
               <option value="inactive">停用</option>
@@ -412,6 +454,10 @@ function download() {
           ><button @click="bulk('status')">修改状态</button
           ><button @click="selectedIds = []">取消选择</button>
         </div>
+        <p v-if="accountsError" class="field-error" role="alert">
+          登录账号读取失败：{{ accountsError }}
+          <button class="text-button" @click="loadAccounts">重试</button>
+        </p>
         <div class="organization-table-scroll">
           <table class="organization-table">
             <thead>
@@ -493,6 +539,19 @@ function download() {
                   >
                     编辑
                   </button>
+                  <div>
+                    <button
+                      class="text-button"
+                      :disabled="accountsBusy || !!accountsError || !accounts"
+                      :aria-label="`${item.name}的登录账号`"
+                      :title="memberLinks.get(item.id)?.account.username"
+                      @click="accountMember = copy(item)"
+                    >
+                      {{
+                        memberLinks.has(item.id) ? "管理账号" : "关联 / 开通"
+                      }}
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -610,7 +669,7 @@ function download() {
               type="date"
               aria-label="入职日期" /></label
           ><label
-            >账号状态<select
+            >成员状态<select
               v-model="employee.status"
               aria-label="编辑成员状态"
             >
@@ -724,6 +783,20 @@ function download() {
           保存
         </button></template
       ></BaseDialog
-    ></AdminLayout
-  >
+    >
+    <AccountListDialog
+      v-if="showAccounts"
+      @close="
+        showAccounts = false;
+        loadAccounts();
+      "
+    />
+    <MemberAccountDialog
+      v-if="accountMember"
+      :member="accountMember"
+      :namespace="accountNamespace"
+      @close="accountMember = undefined"
+      @saved="loadAccounts"
+    />
+  </AdminLayout>
 </template>

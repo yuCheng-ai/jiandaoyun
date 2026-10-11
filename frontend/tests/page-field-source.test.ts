@@ -115,26 +115,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
   document.body.innerHTML = "";
 });
-it("shared data management links to the owning application and object without changing the draft", async () => {
-  await mount();
-  named("添加数字").click();
-  await settle();
-  const before = JSON.stringify(store.state);
-  const link = [...document.querySelectorAll("a")].find(
-    (item) => item.textContent === "管理共享数据",
-  )!;
-  expect(link.getAttribute("href")).toBe(
-    "/applications/app?tab=objects&object=object",
-  );
-  expect(link.target).toBe("_blank");
-  expect(link.rel).toBe("noopener");
-  expect(document.body.textContent).toContain("归属：交付业务");
-  expect(document.body.textContent).toContain("本页新增字段");
-  expect(JSON.stringify(store.state)).toBe(before);
-  expect(
-    vi.mocked(platformApi).mock.calls.some((call) => call[1] === "PUT"),
-  ).toBe(false);
-});
 it("real model fields remain visible under page aliases; locating and reusing never duplicate data fields", async () => {
   await mount();
   await click("已有字段");

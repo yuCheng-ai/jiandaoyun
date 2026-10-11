@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import {
   isChoiceField,
   isOrganizationField,
@@ -9,15 +10,21 @@ import {
   normalizeDateValue,
   textFormats,
   type FormField,
+  type FormSchema,
+  formulaTypes,
+  defaultPageSettings,
 } from "@platform/contracts";
+import DefaultLinkInspector from "../forms/components/DefaultLinkInspector.vue";
 import OrganizationFieldRules from "./OrganizationFieldRules.vue";
 import ManualChoiceEditor from "../forms/components/ManualChoiceEditor.vue";
 const props = defineProps<{
   field: FormField;
+  schema?: FormSchema;
   fields?: FormField[];
   parentId?: string;
   disabled?: boolean;
 }>();
+const formulaSchema = computed(() => props.schema || { version: 1 as const, fields: props.fields || [props.field], settings: defaultPageSettings() });
 const emit = defineEmits<{ update: [value: Partial<FormField>] }>();
 const number = (event: Event) => {
   const value = (event.target as HTMLInputElement).value;
@@ -124,38 +131,10 @@ const number = (event: Event) => {
       :label-prefix="field.label"
       @update="emit('update', $event)"
     />
-    <template v-else-if="field.type === 'datetime'">
-      <label
-        >默认值<select
-          :value="field.dateDefault || 'custom'"
-          :aria-label="`${field.label}默认值方式`"
-          @change="
-            emit('update', {
-              dateDefault: ($event.target as HTMLSelectElement).value as
-                'now' | 'custom',
-            })
-          "
-        >
-          <option value="now">填写当时</option>
-          <option value="custom">自定义</option>
-        </select></label
-      >
-      <label v-if="field.dateDefault !== 'now'"
-        >自定义日期<input
-          :value="field.defaultValue"
-          :aria-label="`${field.label}默认值`"
-          :type="dateInputType(field.format)"
-          :step="dateInputStep(field.format)"
-          @input="
-            emit('update', {
-              defaultValue: normalizeDateValue(
-                field.format,
-                ($event.target as HTMLInputElement).value,
-              ),
-            })
-          "
-      /></label>
-    </template>
+    <DefaultLinkInspector v-else-if="formulaTypes.includes(field.type)" :field="field" :schema="formulaSchema" form-id="" :allow-linked="false" @update="emit('update', $event)">
+      <input :value="field.defaultValue" :aria-label="`${field.label}默认值`" :type="field.type === 'datetime' ? dateInputType(field.format) : field.type === 'number' ? 'number' : 'text'" :step="field.type === 'datetime' ? dateInputStep(field.format) : undefined"
+        @input="emit('update', { defaultValue: field.type === 'datetime' ? normalizeDateValue(field.format, ($event.target as HTMLInputElement).value) : field.type === 'number' ? (number($event) ?? '') : ($event.target as HTMLInputElement).value })" />
+    </DefaultLinkInspector>
     <label
       v-else-if="field.type !== 'subform' && !isOrganizationField(field.type)"
       >默认值<input

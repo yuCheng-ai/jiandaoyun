@@ -13,20 +13,40 @@ export class RecordOriginService {
   constructor(private readonly db: Database, private readonly identities: MigrationIdentityService) {}
   /** Internal transaction primitive. Application/configuration import must precede this; no public partial-import route. */
   async importIn(tx: Transaction, actor: Actor, snapshotId: string, sourceRecordId: string) {
+    return this.importRecordIn(tx, actor, await this.importContext(tx, actor, snapshotId), sourceRecordId);
+  }
+  async importSnapshotIn(tx: Transaction, actor: Actor, snapshotId: string) {
+    const context = await this.importContext(tx, actor, snapshotId);
+    for (const record of context.snapshot.projection.records) await this.importRecordIn(tx, actor, context, record.sourceId);
+  }
+  private async importContext(tx: Transaction, actor: Actor, snapshotId: string) {
     requireAdmin(actor); uuid(snapshotId);
     const snapshot = (await tx.query("SELECT s.* FROM migration_resource_snapshots s JOIN migration_batches b ON b.id=s.batch_id WHERE s.id=$1 AND b.workspace_id=$2", [snapshotId, actor.workspaceId])).rows[0];
     if (!snapshot) throw new NotFoundException("迁移资源快照不存在");
     const batch = await this.identities.lockedBatch(tx, actor, snapshot.batch_id), review = await this.identities.reviewIn(tx, actor, batch);
     const latest = (await tx.query("SELECT id FROM migration_resource_snapshots WHERE batch_id=$1 ORDER BY revision DESC LIMIT 1", [batch.id])).rows[0];
     if (!review.confirmationCurrent || batch.revision !== snapshot.batch_revision || latest.id !== snapshot.id || review.token !== snapshot.identity_review_token || batch.source.fingerprint !== snapshot.source_fingerprint) throw new ConflictException("迁移来源、身份或组织依据已变化，请重新检查");
-    const projected = snapshot.projection.records.filter((record: any) => record.sourceId === sourceRecordId);
-    const entries = snapshot.payload.entries.filter((entry: any) => entry.id === sourceRecordId);
+    const index = (items: any[], key: string) => {
+      const values = new Map<string, any[]>();
+      for (const item of items) { const list = values.get(item[key]) || []; list.push(item); values.set(item[key], list); }
+      return values;
+    };
+    return { snapshot, batch, records: index(snapshot.projection.records, "sourceId"), entries: index(snapshot.payload.entries, "id"), definitions: new Map<string, any>() };
+  }
+  private async importRecordIn(tx: Transaction, actor: Actor, context: Awaited<ReturnType<RecordOriginService["importContext"]>>, sourceRecordId: string) {
+    const { snapshot, batch } = context, snapshotId = snapshot.id;
+    const projected = context.records.get(sourceRecordId) || [], entries = context.entries.get(sourceRecordId) || [];
     if (projected.length !== 1 || entries.length !== 1) throw new ConflictException("记录没有唯一且通过检查的原版本转换结果");
     const record = projected[0], entry = entries[0], lifecycle = legacyRecordLifecycle(entry);
     const form = snapshot.projection.forms.find((f: any) => f.definitionId === record.definitionId), sourceForm = snapshot.payload.forms.find((f: any) => f.id === entry.formId);
     const projectedVersion = form?.versions.find((v: any) => v.version === record.version);
-    const definition = (await tx.query("SELECT d.workspace_id,d.application_id,v.schema FROM definitions d JOIN definition_versions v ON v.definition_id=d.id AND v.version=$2 WHERE d.id=$1 FOR SHARE OF d", [record.definitionId, record.version])).rows[0];
-    if (!definition || definition.workspace_id !== actor.workspaceId || definition.application_id !== snapshot.plan.targetApplicationId || !projectedVersion || migrationDigest(definition.schema) !== migrationDigest(modelFormSchema(projectedVersion.model))) throw new ConflictException("原发布数据结构尚未按检查结果导入，不能将旧记录写入另一份结构");
+    const key = `${record.definitionId}/${record.version}`;
+    let definition = context.definitions.get(key);
+    if (!definition) {
+      definition = (await tx.query("SELECT d.workspace_id,d.application_id,v.schema FROM definitions d JOIN definition_versions v ON v.definition_id=d.id AND v.version=$2 WHERE d.id=$1 FOR SHARE OF d", [record.definitionId, record.version])).rows[0];
+      if (!definition || definition.workspace_id !== actor.workspaceId || definition.application_id !== snapshot.plan.targetApplicationId || !projectedVersion || migrationDigest(definition.schema) !== migrationDigest(modelFormSchema(projectedVersion.model))) throw new ConflictException("原发布数据结构尚未按检查结果导入，不能将旧记录写入另一份结构");
+      context.definitions.set(key, definition);
+    }
     const existing = (await tx.query("SELECT r.id,o.snapshot_id,o.source_record_id FROM records r LEFT JOIN record_origins o ON o.record_id=r.id WHERE r.id=$1 FOR UPDATE OF r", [record.targetId])).rows[0];
     if (existing) {
       if (existing.snapshot_id === snapshotId && existing.source_record_id === sourceRecordId) return record.targetId;

@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { createHash, randomUUID } from "node:crypto";
-import { migrationIdentityKey, type MigrationBatch, type MigrationIdentityChoice, type MigrationIdentityReview, type MigrationIdentitySource, type MigrationSourceIdentity, type ServerOrganization } from "@platform/contracts";
+import { migrationIdentityKey, type DirectoryIdentity, type MigrationBatch, type MigrationIdentityChoice, type MigrationIdentityReview, type MigrationIdentitySource, type MigrationSourceIdentity, type ServerOrganization } from "@platform/contracts";
 import { Actor, requireAdmin } from "./auth";
 import { Database, Transaction } from "./database";
 import { OrganizationService } from "./organization";
@@ -55,8 +55,15 @@ export class MigrationIdentityService {
     if (!row) throw new NotFoundException("迁移批次不存在或不可访问");
     return row;
   }
-  private async event(tx: Transaction, actor: Actor, row: any, action: string) {
-    await tx.query("INSERT INTO migration_batch_events(id,batch_id,actor_id,revision,action,detail) VALUES($1,$2,$3,$4,$5,$6)", [randomUUID(), row.id, actor.id, row.revision, action, { source: row.source, choices: row.choices, state: row.state }]);
+  private async event(tx: Transaction, actor: Actor, row: any, action: string, detail: object = {}) {
+    await tx.query("INSERT INTO migration_batch_events(id,batch_id,actor_id,revision,action,detail) VALUES($1,$2,$3,$4,$5,$6)", [randomUUID(), row.id, actor.id, row.revision, action, { source: row.source, choices: row.choices, state: row.state, ...detail }]);
+  }
+  async organizationImported(tx: Transaction, actor: Actor, row: any, detail: object) {
+    const review = await this.reviewIn(tx, actor, row);
+    if (review.blockers.length) throw new ConflictException(review.blockers.join("；"));
+    const updated = (await tx.query("UPDATE migration_batches SET confirmed_token=$2,revision=revision+1,updated_at=now() WHERE id=$1 RETURNING *", [row.id, review.token])).rows[0];
+    await this.event(tx, actor, updated, "import_organization", detail);
+    return dto(updated);
   }
   private async reserve(tx: Transaction, actor: Actor, source: MigrationIdentitySource) {
     for (const item of source.identities) await tx.query("INSERT INTO migration_identity_keys(workspace_id,source_namespace,kind,source_id,historical_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING", [actor.workspaceId, source.namespace, item.kind, item.sourceId, randomUUID()]);
@@ -113,9 +120,16 @@ export class MigrationIdentityService {
   private async inspect(tx: Transaction, actor: Actor, row: any, organization: ServerOrganization): Promise<MigrationIdentityReview> {
     const source = row.source as MigrationIdentitySource, choices = row.choices as MigrationIdentityChoice[], counts = { existing: 0, historical: 0, unresolved: 0 }, blockers: string[] = [];
     const other = (await tx.query("SELECT id,source,choices FROM migration_batches WHERE workspace_id=$1 AND source_namespace=$2 AND id<>$3 AND state='identities_confirmed'", [actor.workspaceId, source.namespace, row.id])).rows;
+    const memberAccounts = (await tx.query("SELECT member_id,account_id,revision FROM member_accounts WHERE workspace_id=$1 AND source_namespace=$2 ORDER BY member_id", [actor.workspaceId, source.namespace])).rows.filter(link => source.identities.some(identity => identity.kind === 'member' && identity.sourceId === link.member_id) || choices.some(choice => choice.kind === 'member' && choice.mode === 'existing' && choice.targetId === link.account_id));
+    const directoryKeys: DirectoryIdentity[] = ((await tx.query("SELECT identities FROM organization_directories WHERE workspace_id=$1 AND source_namespace=$2", [actor.workspaceId, source.namespace])).rows[0]?.identities || []).filter((key: DirectoryIdentity) => source.identities.some(identity => identity.kind === key.kind && identity.sourceId === key.id) || choices.some(choice => choice.kind === key.kind && choice.targetId === key.targetId));
     const targets = new Map<string, string>();
     const items = source.identities.map(identity => {
       const choice = choices.find(item => migrationIdentityKey(item) === migrationIdentityKey(identity))!;
+      if (identity.kind === "member") for (const link of memberAccounts) {
+        if ((link.member_id === identity.sourceId && (choice.mode !== "existing" || choice.targetId !== link.account_id)) || (link.member_id !== identity.sourceId && choice.targetId === link.account_id))
+          blockers.push(`「${identity.name}」与通讯录已关联的登录账号不一致`);
+      }
+      for (const key of directoryKeys) if (key.kind === identity.kind && ((key.id === identity.sourceId && (choice.mode !== 'existing' || choice.targetId !== key.targetId)) || (key.id !== identity.sourceId && choice.targetId === key.targetId))) blockers.push(`「${identity.name}」与通讯录已接入的组织身份不一致`);
       counts[choice.mode]++;
       const target = choice.mode === "existing" ? (identity.kind === "member" ? organization.users : identity.kind === "department" ? organization.spec.departments : organization.spec.roles).find(item => item.id === choice.targetId) : undefined;
       const targetActive = target ? ("active" in target ? target.active : !target.archived) : false, warnings: string[] = [];
@@ -136,7 +150,7 @@ export class MigrationIdentityService {
       }
       return { source: identity, choice, ...(target ? { targetName: target.name, targetActive } : choice.mode === "historical" ? { targetName: identity.name, targetActive: false } : {}), warnings };
     });
-    const token = createHash("sha256").update(JSON.stringify({ batchId: row.id, source, choices, organizationRevision: organization.revision, items, blockers })).digest("hex");
+    const token = createHash("sha256").update(JSON.stringify({ batchId: row.id, source, choices, organizationRevision: organization.revision, ...(memberAccounts.length ? { memberAccounts } : {}), ...(directoryKeys.length ? { directoryKeys } : {}), items, blockers })).digest("hex");
     return { token, batchId: row.id, revision: row.revision, organizationRevision: organization.revision, confirmationCurrent: row.state === "identities_confirmed" && row.confirmed_token === token, counts, items, blockers: [...new Set(blockers)] };
   }
   async review(actor: Actor, id: string, body: unknown) {

@@ -125,15 +125,24 @@ export interface PageSummary {
   revision: number;
   latestVersion: number;
   archivedAt?: string | null;
+  folder?: string;
+  versions?: number[];
 }
 export interface DataFieldAddition {
   parentId?: string;
   field: DataField;
 }
 export interface PageDraft extends PageSummary {
+  fieldTrash?: RecycledField[];
   schema: FormPageSchema;
   additions: DataFieldAddition[];
   baseDefinitionRevision: number | null;
+  formModel?: DataModel | null;
+}
+export interface RecycledField {
+  field: FormField;
+  parentId: string | null;
+  rules: import('./form').VisibilityRule[];
 }
 export interface PublishedPage {
   id: string;
@@ -156,6 +165,7 @@ export interface PageEditorData {
   draft: PageDraft;
   model: DataModel;
   object: DataObjectDraft;
+  canEditFields?: boolean;
 }
 export interface PublishedDataModel {
   object: DataObjectDraft;
@@ -202,6 +212,9 @@ export interface PageLifecycleImpact {
 export interface ApplicationSummary {
   id: string;
   title: string;
+  color?: string;
+  icon?: string;
+  folders?: string[];
 }
 export interface ModelFieldChange {
   id: string;
@@ -258,6 +271,7 @@ export interface PagePublishImpact {
   fromDataVersion: number;
   toDataVersion: number;
   newFields: { id: string; name: string; parentName?: string }[];
+  fieldChanges?: { changed: string[]; renamed: string[]; removed: string[] };
   controls: {
     added: string[];
     removed: string[];
@@ -359,6 +373,16 @@ export function separateFormSchema(schema: FormSchema): {
   page: FormPageSchema;
 } {
   const fields: DataField[] = [];
+  // A conditionally displayed required control is required on this form only.
+  // Its value may legitimately be empty while the control or its parent is hidden.
+  const conditional = new Set(schema.settings.rules.flatMap(rule => rule.targetIds));
+  const markChildren = (items: FormField[], hiddenParent = false) => {
+    for (const field of items) {
+      if (hiddenParent) conditional.add(field.id);
+      markChildren(field.children, conditional.has(field.id));
+    }
+  };
+  markChildren(schema.fields);
   const visit = (field: FormField, scope: DataField[]): PageControl => {
     const kind = dataKind(field.type);
     const ownsValue =
@@ -375,7 +399,7 @@ export function separateFormSchema(schema: FormSchema): {
         id: field.id,
         name: field.label,
         kind: kind!,
-        required: field.required,
+        required: field.required && !conditional.has(field.id),
         settings: pick(field, dataSettingKeys),
         children: [],
       };

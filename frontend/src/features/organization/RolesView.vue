@@ -105,6 +105,10 @@ const roleList = computed(() =>
   ),
 );
 watch(showArchived, () => (selectedId.value = roleList.value[0]?.id || ""));
+watch(roleList, (list) => {
+  if (!list.some((item) => item.id === selectedId.value))
+    selectedId.value = list[0]?.id || "";
+});
 function openRole(item?: OrganizationRole, tab = "basic") {
   editingId.value = item?.id || "";
   roleDraft.value = item

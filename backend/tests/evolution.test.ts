@@ -43,8 +43,8 @@ test("record upgrade preserves values, row identities, existing revisions and a 
   assert.deepEqual(legacyRuntime.compatibleVersions.sort(), [1, 2]);
   const legacy = await h.request(`/pages/${oldPage.id}/records/${record.record.id}`);
   assert.equal(legacy.record.values.conclusion, undefined);
-  assert.deepEqual(legacy.rowActions.lines, { add: true, remove: false });
-  assert.deepEqual(upgraded.rowActions.lines, { add: true, remove: true });
+  assert.deepEqual(legacy.rowActions.lines, { add: true, remove: false, insert: false, editExisting: true });
+  assert.deepEqual(upgraded.rowActions.lines, { add: true, remove: true, insert: false, editExisting: true });
   await h.request(`/pages/${oldPage.id}/records/${record.record.id}`, "PATCH", { pageVersion: 1, requestId: randomUUID(), changes: [{ fieldId: "name", value: "原页面继续办理", expectedRevision: 1 }] });
   const fresh = await h.request(`/pages/${newPage.id}/records/${record.record.id}`);
   assert.equal(fresh.record.values.name, "原页面继续办理");

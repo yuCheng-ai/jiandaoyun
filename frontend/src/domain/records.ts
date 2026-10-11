@@ -1,3 +1,13 @@
+import {
+  compareRecordSortValues,
+  type RecordViewSettings,
+} from "@platform/contracts";
+export {
+  parseRecordView,
+  recordRowHeights,
+  type RecordRowHeight,
+  type RecordViewSettings,
+} from "@platform/contracts";
 import { entryTitle } from "./collaboration";
 import { isNumericField } from "@platform/contracts";
 import type { FormField, FormSchema } from "./form";
@@ -123,12 +133,6 @@ export function recordExcelExport(
   };
 }
 
-export interface RecordViewSettings {
-  fieldIds: string[];
-  sortField: string;
-  descending: boolean;
-  pageSize: 10 | 20 | 50;
-}
 export function defaultRecordView(schema: FormSchema): RecordViewSettings {
   return {
     fieldIds: presentationFields(schema)
@@ -137,25 +141,10 @@ export function defaultRecordView(schema: FormSchema): RecordViewSettings {
     sortField: "$createdAt",
     descending: true,
     pageSize: 20,
+    rowHeight: "low",
   };
 }
-export function parseRecordView(raw: any): RecordViewSettings {
-  return {
-    fieldIds: Array.isArray(raw?.fieldIds)
-      ? ([
-          ...new Set(
-            raw.fieldIds.filter(
-              (id: unknown): id is string => typeof id === "string",
-            ),
-          ),
-        ] as string[])
-      : [],
-    sortField:
-      typeof raw?.sortField === "string" ? raw.sortField : "$createdAt",
-    descending: raw?.descending !== false,
-    pageSize: [10, 20, 50].includes(raw?.pageSize) ? raw.pageSize : 20,
-  };
-}
+
 export function entrySchema(
   entry: FormEntry,
   data: WorkspaceData,
@@ -203,7 +192,6 @@ export function filterAndSortRecords(
       const field = presentationFields(schema).find(
         (f) => f.id === options.view.sortField,
       );
-      const direction = options.view.descending ? -1 : 1;
       const av =
         options.view.sortField === "$createdAt"
           ? Date.parse(a.createdAt)
@@ -217,10 +205,8 @@ export function filterAndSortRecords(
             ? Number(b.values[field.id])
             : text(b, options.view.sortField);
       return (
-        (typeof av === "number" && typeof bv === "number"
-          ? (Number.isFinite(av) ? av : 0) - (Number.isFinite(bv) ? bv : 0)
-          : String(av).localeCompare(String(bv), "zh-CN", { numeric: true })) *
-          direction || a.id.localeCompare(b.id)
+        compareRecordSortValues(av, bv, options.view.descending) ||
+        a.id.localeCompare(b.id)
       );
     });
 }

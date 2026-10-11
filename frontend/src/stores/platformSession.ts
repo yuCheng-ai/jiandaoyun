@@ -5,28 +5,48 @@ import type { SessionUser } from "@platform/contracts";
 import { platformApi, PlatformError } from "../repositories/platformApi";
 export const usePlatformSession = defineStore("platform-session", () => {
   const user = ref<SessionUser | null>(null);
-  async function restore() {
-    try {
-      user.value = await platformApi<SessionUser>("/auth/me");
-      accessGroupActor(user.value.id);
-    } catch (error) {
-      user.value = null;
-      accessGroupActor(null);
-      if (!(error instanceof PlatformError) || error.status !== 401)
-        throw error;
-    }
+  let revision = 0,
+    restoring: Promise<void> | undefined;
+  function setUser(account: SessionUser | null) {
+    user.value = account;
+    accessGroupActor(account?.id || null);
+  }
+  function restore(): Promise<void> {
+    if (restoring) return restoring;
+    const requestedRevision = revision;
+    const pending = (async () => {
+      try {
+        const account = await platformApi<SessionUser>("/auth/me");
+        if (requestedRevision === revision) setUser(account);
+      } catch (error) {
+        if (requestedRevision !== revision) return;
+        setUser(null);
+        if (!(error instanceof PlatformError) || error.status !== 401)
+          throw error;
+      }
+    })();
+    restoring = pending;
+    void pending
+      .finally(() => {
+        if (restoring === pending) restoring = undefined;
+      })
+      .catch(() => {});
+    return pending;
   }
   async function login(username: string, password: string) {
-    user.value = await platformApi<SessionUser>("/auth/login", "POST", {
+    const requestedRevision = ++revision;
+    restoring = undefined;
+    const account = await platformApi<SessionUser>("/auth/login", "POST", {
       username,
       password,
     });
-    accessGroupActor(user.value.id);
+    if (requestedRevision === revision) setUser(account);
   }
   async function logout() {
+    const requestedRevision = ++revision;
+    restoring = undefined;
     await platformApi("/auth/logout", "POST", {});
-    user.value = null;
-    accessGroupActor(null);
+    if (requestedRevision === revision) setUser(null);
   }
   return { user, restore, login, logout };
 });

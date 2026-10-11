@@ -178,3 +178,55 @@ test("malformed ranges and wrong field scope reject publication atomically; inco
     model,
   );
 });
+
+test("saving an inverted page range retains its draft, rejects publication and leaves the current version intact", async () => {
+  const definition = await h.definition(
+    "日期范围草稿",
+    schema(field("date", "datetime", { format: "date", dateRange: range() })),
+  );
+  const page = (await h.request(`/pages?definitionId=${definition.id}`))[0];
+  const published = await h.request(`/pages/${page.id}`);
+  let draft = await h.request(`/pages/${page.id}/draft`);
+  draft.schema.controls[0].properties.dateRange.earliest.value = "2024-04-01";
+  draft = await h.request(`/pages/${page.id}`, "PUT", {
+    ...draft,
+    expectedRevision: draft.revision,
+  });
+  await h.restart();
+  draft = await h.request(`/pages/${page.id}/draft`);
+  assert.equal(
+    draft.schema.controls[0].properties.dateRange.earliest.value,
+    "2024-04-01",
+  );
+  const failed = await h.request(
+    `/pages/${page.id}/publish`,
+    "POST",
+    { expectedRevision: draft.revision },
+    "admin",
+    400,
+  );
+  assert.match(failed.message, /最早可选时间不能晚于/);
+  assert.deepEqual((await h.request(`/pages/${page.id}`)).page, published.page);
+  draft.schema.controls[0].properties.dateRange.latest.value = "2024-04-30";
+  draft = await h.request(`/pages/${page.id}`, "PUT", {
+    ...draft,
+    expectedRevision: draft.revision,
+  });
+  await h.request(
+    `/pages/${page.id}/publish`,
+    "POST",
+    { expectedRevision: draft.revision },
+    "admin",
+    201,
+  );
+  assert.equal(
+    (await h.request(`/pages/${page.id}`)).page.schema.controls[0].properties
+      .dateRange.earliest.value,
+    "2024-04-01",
+  );
+  assert.deepEqual(
+    (await h.request(`/pages/${page.id}?version=1`)).page.schema.controls[0]
+      .properties.dateRange,
+    range(),
+  );
+});

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { dataFields, emptyOrganizationSpec, organizationSubjectMembers, type DataModel, type FormPageSchema, type PagePublishImpact, type ProcessTemplateSpec } from "@platform/contracts";
+import { dataFields, emptyOrganizationSpec, organizationSubjectMembers, type DataModel, type DataModelImpact, type FormPageSchema, type PagePublishImpact, type ProcessTemplateSpec } from "@platform/contracts";
 import type { Transaction } from "./database";
 
 const canonical = (value: any): any => Array.isArray(value) ? value.map(canonical) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => [key, canonical(item)])) : value;
@@ -8,7 +8,7 @@ const controls = (schema?: FormPageSchema) => schema?.controls.flatMap(control =
 const ownControl = ({ children: _children, ...control }: any) => control;
 
 /** Names and version references only: this preview never reads or returns business values. */
-export async function pagePublishImpact(tx: Transaction, definition: any, page: any, model: DataModel, schema: FormPageSchema): Promise<PagePublishImpact> {
+export async function pagePublishImpact(tx: Transaction, definition: any, page: any, model: DataModel, schema: FormPageSchema, publishesModel = page.additions.length > 0 || page.definition_version === 0, fields?: DataModelImpact): Promise<PagePublishImpact> {
   const previous = (await tx.query("SELECT title,schema,definition_version FROM page_versions WHERE page_id=$1 AND version=$2", [page.id, page.latest_version])).rows[0];
   const before = new Map(controls(previous?.schema).map(control => [control.binding!.fieldId, control]));
   const after = new Map(controls(schema).map(control => [control.binding!.fieldId, control]));
@@ -51,7 +51,12 @@ export async function pagePublishImpact(tx: Transaction, definition: any, page: 
   const impact: Omit<PagePublishImpact, "token"> = {
     pageId: page.id, title: page.title, revision: page.revision, fromVersion: page.latest_version, toVersion: page.latest_version + 1,
     definitionId: definition.id, definitionTitle: definition.title, definitionRevision: definition.revision,
-    fromDataVersion: page.definition_version, toDataVersion: page.additions.length || page.definition_version === 0 ? definition.latest_version + 1 : page.definition_version,
+    fromDataVersion: page.definition_version, toDataVersion: publishesModel ? definition.latest_version + 1 : page.definition_version,
+    ...(fields ? { fieldChanges: {
+      changed: fields.changes.changed.map(field => field.parentName ? `${field.parentName} / ${field.name}` : field.name),
+      renamed: fields.changes.renamed.map(field => `${field.beforeName} → ${field.name}`),
+      removed: fields.changes.removed.map(field => field.parentName ? `${field.parentName} / ${field.name}` : field.name),
+    } } : {}),
     newFields: dataFields(model).filter(item => !oldIds.has(item.field.id)).map(item => ({ id: item.field.id, name: item.field.name, ...(item.parentId ? { parentName: model.fields.find(field => field.id === item.parentId)!.name } : {}) })),
     controls: {
       added: [...after].filter(([id]) => !before.has(id)).map(([id, control]) => name(id, control)),
@@ -61,5 +66,5 @@ export async function pagePublishImpact(tx: Transaction, definition: any, page: 
       titleChanged: !!previous && previous.title !== page.title,
     }, references, records, tasks, authorizedMembers,
   };
-  return { ...impact, token: createHash("sha256").update(fingerprint({ impact, model, schema })).digest("hex") };
+  return { ...impact, token: createHash("sha256").update(fingerprint({ impact, model, schema, fieldImpact: fields?.token })).digest("hex") };
 }

@@ -35,6 +35,30 @@ before(async () => {
 });
 after(() => h.close());
 
+test("legacy numeric string defaults retain their stored scale without changing the definition", async () => {
+  const legacy = await h.definition(
+    "旧数字默认值",
+    schema(
+      field("n", "number", {
+        format: "number",
+        defaultValue: "12.3456",
+        retainPrecision: true,
+      }),
+      field("p", "number", {
+        format: "percent",
+        defaultValue: "0.125678",
+        retainPrecision: true,
+      }),
+    ),
+  );
+  const saved = (await h.request(`/definitions/${legacy.id}`)).definition;
+  assert.equal(saved.schema.fields[0].defaultValue, "12.3456");
+  assert.equal(saved.schema.fields[1].defaultValue, "0.125678");
+  const record = await h.record(legacy.id, {});
+  assert.equal(record.record.values.n, 12.3456);
+  assert.equal(record.record.values.p, 0.125678);
+});
+
 test("number settings, defaults and unrounded stored values survive definition separation, record writes and restart", async () => {
   const saved = (await h.request(`/definitions/${definition.id}`)).definition;
   assert.equal(saved.schema.fields[0].numberGrouping, true);

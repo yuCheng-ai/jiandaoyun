@@ -22,6 +22,8 @@ import {
 } from "../src/domain/form";
 import DateFieldControl from "../src/features/forms/components/DateFieldControl.vue";
 import DateRangeInspector from "../src/features/forms/components/DateRangeInspector.vue";
+import { validateFieldConfiguration } from "../src/domain/fieldValidation";
+import { seedWorkspace } from "../src/domain/workspace";
 import FormFields from "../src/features/forms/components/FormFields.vue";
 import { createPinia } from "pinia";
 
@@ -435,4 +437,275 @@ it("subform calendar bounds come from that row, and updating a sibling does not 
       .disabled,
   ).toBe(true);
   expect(state.values.lines[1]!.end).toBe("2024-03-20");
+});
+
+function mountPicker(format = "date", initial = "2024-03-15") {
+  const state = reactive({ value: initial, disabled: false });
+  const field = ranged(format);
+  const emitted: string[] = [];
+  document.body.innerHTML = '<div id="mount"></div><div id="unrelated"></div>';
+  app = createApp({
+    render: () =>
+      h(DateFieldControl, {
+        field,
+        label: "办理日期",
+        modelValue: state.value,
+        disabled: state.disabled,
+        "onUpdate:modelValue": (value: string) => {
+          emitted.push(value);
+          state.value = value;
+        },
+      }),
+  });
+  app.mount("#mount");
+  return { state, field, emitted };
+}
+const arrow = async (key: string) => {
+  document.activeElement!.dispatchEvent(
+    new KeyboardEvent("keydown", { key, bubbles: true }),
+  );
+  await settle();
+};
+
+it("year and month shortcuts navigate without committing, then select a leap day", async () => {
+  const { state, emitted } = mountPicker();
+  await click(".date-calendar-trigger");
+  await click('[aria-label="选择年份"]');
+  await click('[aria-label="前十年"]');
+  await click('[data-year="2016"]');
+  expect(document.activeElement?.getAttribute("data-month")).toBe("2016-03");
+  await click('[data-month="2016-02"]');
+  expect(state.value).toBe("2024-03-15");
+  expect(emitted).toEqual([]);
+  await click('[data-day="2016-02-29"]');
+  expect(state.value).toBe("2016-02-29");
+  expect(emitted).toEqual(["2016-02-29"]);
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+  expect(document.activeElement?.className).toBe("date-calendar-trigger");
+});
+
+it("year, month and day grids support keyboard navigation across boundaries and Escape discards navigation", async () => {
+  const { state, emitted } = mountPicker();
+  await click(".date-calendar-trigger");
+  await click('[aria-label="选择年份"]');
+  await arrow("ArrowDown");
+  expect(document.activeElement?.getAttribute("data-year")).toBe("2027");
+  (document.activeElement as HTMLButtonElement).click();
+  await settle();
+  await click('[data-month="2027-12"]');
+  await click('[aria-label="选择月份"]');
+  await arrow("ArrowRight");
+  expect(document.activeElement?.getAttribute("data-month")).toBe("2028-01");
+  (document.activeElement as HTMLButtonElement).click();
+  await settle();
+  await arrow("ArrowLeft");
+  expect(document.activeElement?.getAttribute("data-day")).toBe("2027-12-31");
+  await arrow("Escape");
+  expect(state.value).toBe("2024-03-15");
+  expect(emitted).toEqual([]);
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+});
+
+it("month keyboard selection honors bounds and the year picker never offers year zero or 10000", async () => {
+  const { state, field } = mountPicker("month", "2024-03");
+  Object.assign(field.dateRange!.earliest, {
+    enabled: true,
+    mode: "fixed",
+    value: "2024-03",
+  });
+  Object.assign(field.dateRange!.latest, {
+    enabled: true,
+    mode: "fixed",
+    value: "2024-04",
+  });
+  await click(".date-calendar-trigger");
+  await arrow("ArrowLeft");
+  expect(document.activeElement?.getAttribute("data-month")).toBe("2024-03");
+  await arrow("ArrowRight");
+  expect(document.activeElement?.getAttribute("data-month")).toBe("2024-04");
+  (document.activeElement as HTMLButtonElement).click();
+  await settle();
+  expect(state.value).toBe("2024-04");
+  for (const value of ["0001-01", "9999-12"]) {
+    state.value = value;
+    await settle();
+    await click(".date-calendar-trigger");
+    await click('[aria-label="选择年份"]');
+    const boundary = value.startsWith("0001") ? "0" : "10000";
+    expect(
+      document.querySelector<HTMLButtonElement>(`[data-year="${boundary}"]`)!
+        .disabled,
+    ).toBe(true);
+    expect(
+      document.querySelector<HTMLButtonElement>(
+        `[aria-label="${boundary === "0" ? "前十年" : "后十年"}"]`,
+      )!.disabled,
+    ).toBe(true);
+    await arrow("Escape");
+  }
+});
+
+it("timed selection retains seconds and requires confirmation after year and month navigation", async () => {
+  const { state, emitted } = mountPicker(
+    "datetime-second",
+    "2024-03-15T12:34:56",
+  );
+  await click(".date-calendar-trigger");
+  await click('[aria-label="选择年份"]');
+  expect(document.querySelector('[aria-label="选择时间"]')).toBeNull();
+  await click('[data-year="2023"]');
+  await click('[data-month="2023-04"]');
+  await click('[data-day="2023-04-20"]');
+  expect(emitted).toEqual([]);
+  expect(
+    document.querySelector<HTMLInputElement>('[aria-label="选择时间"]')!.value,
+  ).toBe("12:34:56");
+  await click(".date-calendar-time button");
+  expect(state.value).toBe("2023-04-20T12:34:56");
+});
+
+it("external linked values and readonly transitions cancel pending timed edits instead of overwriting them", async () => {
+  const { state, emitted } = mountPicker("datetime-local", "2024-03-15T12:34");
+  await click(".date-calendar-trigger");
+  await click('[data-day="2024-03-20"]');
+  state.value = "2025-05-01T09:00";
+  await settle();
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+  await click(".date-calendar-trigger");
+  expect(
+    document.querySelector<HTMLInputElement>('[aria-label="选择时间"]')!.value,
+  ).toBe("09:00");
+  state.disabled = true;
+  await settle();
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+  await click(".date-calendar-trigger");
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+  expect(emitted).toEqual([]);
+  expect(state.value).toBe("2025-05-01T09:00");
+});
+
+it("only scrolling the calendar's own anchor ancestors dismisses it", async () => {
+  mountPicker();
+  await click(".date-calendar-trigger");
+  document.querySelector("#unrelated")!.dispatchEvent(new Event("scroll"));
+  await settle();
+  expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+  document.querySelector("#mount")!.dispatchEvent(new Event("scroll"));
+  await settle();
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+});
+
+it("an inverted fixed range survives draft save but blocks publication until repaired", () => {
+  const field = ranged();
+  Object.assign(field.dateRange!.earliest, {
+    enabled: true,
+    mode: "fixed",
+    value: "2026-11-30",
+  });
+  Object.assign(field.dateRange!.latest, {
+    enabled: true,
+    mode: "fixed",
+    value: "2026-11-01",
+  });
+  const schema = { ...emptySchema(), fields: [field] };
+  const restored = parseSchema(JSON.parse(JSON.stringify(schema)));
+  expect(restored.fields[0]!.dateRange).toEqual(field.dateRange);
+  expect(
+    validateFieldConfiguration(restored, seedWorkspace()).join(),
+  ).toContain("最早可选时间不能晚于最晚可选时间");
+  restored.fields[0]!.dateRange!.latest.value = "2026-12-01";
+  expect(validateFieldConfiguration(restored, seedWorkspace())).toEqual([]);
+});
+
+it("all dynamic presets and custom periods retain civil boundaries across leap dates and year changes", () => {
+  const field = ranged("datetime-second"),
+    config = field.dateRange!;
+  config.earliest.enabled = config.latest.enabled = true;
+  for (const [preset, day] of [
+    [0, "2024-03-01"],
+    [-1, "2024-02-29"],
+    [1, "2024-03-02"],
+    [-7, "2024-02-23"],
+    [7, "2024-03-08"],
+    [-30, "2024-01-31"],
+    [30, "2024-03-31"],
+  ] as const) {
+    config.earliest.preset = config.latest.preset = preset;
+    expect(dateBoundaryValue(field, "earliest", {}, now)).toBe(
+      `${day}T00:00:00`,
+    );
+    expect(dateBoundaryValue(field, "latest", {}, now)).toBe(`${day}T23:59:59`);
+  }
+  for (const [unit, pastStart, pastEnd, futureStart, futureEnd] of [
+    ["day", "2024-02-28", "2024-02-28", "2024-03-03", "2024-03-03"],
+    ["week", "2024-02-12", "2024-02-18", "2024-03-11", "2024-03-17"],
+    ["month", "2024-01-01", "2024-01-31", "2024-05-01", "2024-05-31"],
+    ["quarter", "2023-07-01", "2023-09-30", "2024-07-01", "2024-09-30"],
+    ["year", "2022-01-01", "2022-12-31", "2026-01-01", "2026-12-31"],
+  ] as const) {
+    for (const [direction, start, end] of [
+      ["past", pastStart, pastEnd],
+      ["future", futureStart, futureEnd],
+    ] as const) {
+      Object.assign(config.earliest, {
+        preset: "custom",
+        amount: 2,
+        unit,
+        direction,
+      });
+      Object.assign(config.latest, config.earliest);
+      expect(dateBoundaryValue(field, "earliest", {}, now)).toBe(
+        `${start}T00:00:00`,
+      );
+      expect(dateBoundaryValue(field, "latest", {}, now)).toBe(
+        `${end}T23:59:59`,
+      );
+      const draft = parseSchema({ ...emptySchema(), fields: [field] })
+        .fields[0]!;
+      expect(draft.dateRange).toEqual(config);
+      draft.format = "month";
+      expect(dateBoundaryValue(draft, "earliest", {}, now)).toBe(
+        start.slice(0, 7),
+      );
+      expect(dateBoundaryValue(draft, "latest", {}, now)).toBe(end.slice(0, 7));
+    }
+  }
+});
+
+it("switching a dynamic boundary between past and current preserves its committed amount", async () => {
+  const field = reactive(ranged());
+  Object.assign(field.dateRange!.earliest, {
+    enabled: true,
+    mode: "dynamic",
+    preset: "custom",
+    direction: "past",
+    amount: 1,
+  });
+  document.body.innerHTML = '<div id="mount"></div>';
+  app = createApp(DateRangeInspector, {
+    field,
+    fields: [field],
+    onUpdate: (patch: any) => Object.assign(field, patch),
+  });
+  app.mount("#mount");
+  await settle();
+  const amount = document.querySelector<HTMLInputElement>(
+    '[aria-label="最早可选时间数量"]',
+  )!;
+  amount.value = "2";
+  amount.dispatchEvent(new Event("input", { bubbles: true }));
+  amount.dispatchEvent(new Event("change", { bubbles: true }));
+  await settle();
+  expect(field.dateRange!.earliest.amount).toBe(2);
+  const direction = document.querySelector<HTMLSelectElement>(
+    '[aria-label="最早可选时间时间状态"]',
+  )!;
+  direction.value = "current";
+  direction.dispatchEvent(new Event("change", { bubbles: true }));
+  await settle();
+  expect(amount.disabled).toBe(true);
+  direction.value = "past";
+  direction.dispatchEvent(new Event("change", { bubbles: true }));
+  await settle();
+  expect(amount.value).toBe("2");
 });

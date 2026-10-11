@@ -50,6 +50,7 @@ import {
 } from "../domain/extensions";
 import { createRelationDemo } from "../domain/relationDemo";
 import { organizationActions } from "./organizationActions";
+import { serverOrganization } from "./serverOrganization";
 import { computed, ref, type Ref } from "vue";
 import { workspaceScopes } from "../domain/workspaceTransactions";
 import { workspaceWrites } from "./workspaceWrites";
@@ -147,6 +148,11 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     (workspace) => workspace.forms.forEach(syncFormWorkflow),
   );
   const { persist } = persistence;
+  const directory = serverOrganization(
+    data,
+    persistence.acceptOrganization,
+    notify,
+  );
   function openForm(id: string) {
     // Commands already read and validate under the shared write lock. A nested
     // editor lookup must not clear a conflict or rebase that command's input.
@@ -898,7 +904,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     ...automationStoreActions(data, openForm, saveForm, notify),
     ...reminderActions(data, openForm, saveForm, persist, notify, appendRun),
     ...records,
-    ...organizationActions(data, persist, notify),
+    setCurrentUser: organizationActions(data, persist, notify).setCurrentUser,
     ...presentationActions(openForm, saveForm, notify, () => data.value),
     createWebhookCredential,
     recordExtensionRun,
@@ -937,6 +943,13 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     drafts,
     ...persistence,
     ...writes.guarded,
+    ...directory.actions,
+    loadDirectory: directory.load,
+    directoryLoading: directory.loading,
+    directoryError: directory.error,
+    directoryReady: computed(
+      () => !!directory.snapshot.value && !directory.error.value,
+    ),
     writePending: writes.writePending,
     activeForms,
     notices,

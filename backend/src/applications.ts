@@ -21,8 +21,8 @@ export class ApplicationService {
   async list(actor: Actor) {
     return this.db.transaction(async tx => {
       const ids = await this.access.definitions(tx, actor);
-      return (await tx.query(`SELECT a.id,a.title FROM applications a WHERE workspace_id=$1 AND ($2::uuid[] IS NULL OR EXISTS(
-        SELECT 1 FROM definitions d WHERE d.application_id=a.id AND d.id=ANY($2))) ORDER BY a.created_at,a.id`, [actor.workspaceId, ids])).rows;
+      return (await tx.query(`SELECT a.id,a.title,a.appearance FROM applications a WHERE workspace_id=$1 AND ($2::uuid[] IS NULL OR EXISTS(
+        SELECT 1 FROM definitions d WHERE d.application_id=a.id AND d.id=ANY($2))) ORDER BY a.created_at,a.id`, [actor.workspaceId, ids])).rows.map(({ appearance, ...app }) => ({ ...app, color: appearance.color, icon: appearance.icon, ...(actor.role === 'admin' ? { folders: appearance.folders || [] } : {}) }));
     });
   }
   async create(actor: Actor, body: unknown) {

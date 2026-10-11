@@ -45,7 +45,6 @@ import {
 } from "../src/domain/workspace";
 import { saveFiles, readFile } from "../src/repositories/fileRepository";
 import { useWorkspaceStore } from "../src/stores/workspace";
-import { inspectApplicationMigration } from "../src/domain/applicationMigration";
 import DefaultLinkInspector from "../src/features/forms/components/DefaultLinkInspector.vue";
 import FieldInspector from "../src/features/forms/components/FieldInspector.vue";
 import FormRuntime from "../src/features/forms/components/FormRuntime.vue";
@@ -367,27 +366,6 @@ it("does not turn a default lookup into permission to update a protected result 
   );
   expect(entry.values.product).toBe("A");
   expect(entry.values.attachment).toEqual(data.entries[1]!.values.files);
-});
-it("migration inspection retains the source dependency and reports unsupported server execution", () => {
-  const { data, source, target } = fixture();
-  const report = inspectApplicationMigration(data, "oa");
-  expect(
-    report.issues.some(
-      (i) =>
-        i.formId === target.id &&
-        i.fieldId === "attachment" &&
-        i.kind === "unsupported" &&
-        i.message.includes("默认值数据联动"),
-    ),
-  ).toBe(true);
-  expect(
-    report.dependencies.some(
-      (d) =>
-        d.formId === target.id &&
-        d.targetId === source.id &&
-        d.scope === "application",
-    ),
-  ).toBe(true);
 });
 it("a source-only not-empty condition does not require or react to a dormant local reference", () => {
   const { data, target, attachment } = fixture();
@@ -1496,4 +1474,61 @@ it("real address runtime submits the linked structure, changes customers and pre
     note: "旧说明",
   });
   expect(shipping.defaultValue).toMatchObject({ detail: "旧自定义仓库" });
+});
+
+it("all four date granularities round-trip each default source without losing custom, formula or linked configuration", () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2024-02-29T16:03:04Z"));
+  try {
+    for (const [format, current, custom, linked, formula] of [
+      ["month", "2024-03", "2020-06", "2026-10", "2024-02"],
+      ["date", "2024-03-01", "2020-06-15", "2026-10-09", "2024-02-29"],
+      [
+        "datetime-local",
+        "2024-03-01T00:03",
+        "2020-06-15T09:10",
+        "2026-10-09T10:11",
+        "2024-02-29T12:13",
+      ],
+      [
+        "datetime-second",
+        "2024-03-01T00:03:04",
+        "2020-06-15T09:10:11",
+        "2026-10-09T10:11:12",
+        "2024-02-29T12:13:14",
+      ],
+    ] as const) {
+      const { data, source, target, date } = scalarFixture();
+      source.schema.fields.find((f) => f.id === "date")!.format = format;
+      data.entries[1]!.values.date = linked;
+      publish(source);
+      Object.assign(date, {
+        format,
+        defaultValue: custom,
+        dateDefault: "custom",
+        expression: "DATE(2024,2,29,12,13,14)",
+      });
+      const link = copy(date.defaultLink!);
+      const value = () =>
+        runtimeDefaults(
+          parseSchema(JSON.parse(JSON.stringify(target.schema))).fields,
+          data,
+        )[date.id];
+      expect(value()).toBe(linked);
+      date.defaultLink!.enabled = false;
+      date.defaultFormula = true;
+      expect(value()).toBe(formula);
+      date.defaultFormula = false;
+      date.dateDefault = "now";
+      expect(value()).toBe(current);
+      date.dateDefault = "custom";
+      expect(value()).toBe(custom);
+      date.defaultLink!.enabled = true;
+      expect(date.defaultLink).toEqual(link);
+      expect(date.expression).toBe("DATE(2024,2,29,12,13,14)");
+      expect(value()).toBe(linked);
+    }
+  } finally {
+    vi.useRealTimers();
+  }
 });

@@ -53,8 +53,7 @@ function discardRecordEdit() {
   editDirty.value = false;
 }
 onMounted(() => {
-  if (!store.drafts[formId])
-    router.replace(`/apps/${route.params.appId}`);
+  if (!store.drafts[formId]) router.replace(`/apps/${route.params.appId}`);
 });
 const savedForm = computed(() => store.data.forms.find((f) => f.id === formId));
 const published = computed(() => savedForm.value?.published);
@@ -104,10 +103,8 @@ const editSchema = computed(() => {
   schema.settings.allowSubmit = true;
   return schema;
 });
-const fillUrl = computed(
-  () =>
-    `${location.origin}${location.pathname}#/apps/${form.value.appId}/forms/${formId}/fill`,
-);
+const publishing = ref(false);
+const publishFailed = ref(false);
 const recordDefinition = computed(() =>
   record.value
     ? (form.value.versions || []).find(
@@ -116,6 +113,8 @@ const recordDefinition = computed(() =>
     : undefined,
 );
 async function publish() {
+  if (publishing.value) return;
+  publishFailed.value = false;
   syncFormWorkflow(form.value);
   errors.value = validateFieldConfiguration(form.value.schema, store.data);
   if (!form.value.title.trim()) errors.value.push("请填写表单名称");
@@ -136,8 +135,22 @@ async function publish() {
     dialog.value = "publish-errors";
     return;
   }
-  if (await store.publishForm(formId))
-    store.notify(`已发布本地版本 V${form.value.published?.version}`);
+  publishing.value = true;
+  try {
+    if (await store.publishForm(formId))
+      store.notify(`已发布版本 V${published.value?.version}`);
+    else {
+      publishFailed.value = true;
+      errors.value = [store.storageError || "发布未完成，设计已保留，请重试。"];
+      dialog.value = "publish-errors";
+    }
+  } catch {
+    publishFailed.value = true;
+    errors.value = ["发布失败，设计已保留，请重试。"];
+    dialog.value = "publish-errors";
+  } finally {
+    publishing.value = false;
+  }
 }
 function openRecord(entry: FormEntry) {
   record.value = entry;
@@ -169,83 +182,58 @@ async function process(action: "approved" | "rejected") {
       @help="dialog = 'help'"
     />
     <main class="form-section-shell">
-      <template v-if="section === 'publish'"
-        ><div class="publish-layout">
-          <aside class="section-side-nav">
-            <button class="active"><AppIcon name="share" />表单发布</button
-            ><button
-              @click="router.push(`/apps/${form.appId}/forms/${formId}/fill`)"
-            >
-              <AppIcon name="form" />填写表单
-            </button>
-          </aside>
-          <section class="publish-content">
-            <h2>表单发布</h2>
-            <p class="section-subtitle">将当前设计保存为可填写的版本</p>
-            <div class="publication-status">
-              <span class="publication-icon"
-                ><AppIcon :name="published ? 'success' : 'form'" :size="30"
-              /></span>
-              <div>
-                <h3>{{ published ? "表单已发布" : "表单尚未发布" }}</h3>
-                <p>
-                  {{
-                    published
-                      ? `当前版本 V${published.version} · ${new Date(published.publishedAt).toLocaleString("zh-CN")}`
-                      : "完成表单设计后，发布即可在本地填写和收集数据"
-                  }}
-                </p>
-              </div>
-              <button class="button primary" @click="publish">
-                {{ published ? "发布新版本" : "发布表单" }}
-              </button>
-            </div>
-            <div v-if="published" class="publish-link-card">
-              <h3>表单链接</h3>
-              <p>在当前设备和浏览器中填写此表单</p>
-              <div class="publish-link-line">
-                <input
-                  :value="fillUrl"
-                  readonly
-                  aria-label="表单填写链接"
-                  @focus="($event.target as HTMLInputElement).select()"
-                /><button
-                  class="button"
-                  @click="
-                    router.push(`/apps/${form.appId}/forms/${formId}/fill`)
-                  "
-                >
-                  打开表单
-                </button>
-              </div>
-            </div>
-            <PublishAccessSettings
-              :form="published && savedForm ? savedForm : form"
-            />
-            <div class="publish-version-list">
-              <h3>版本记录</h3>
-              <div
-                v-for="version in [...(savedForm?.versions || [])].reverse()"
-                :key="version.version"
-              >
-                <span class="status-tag published">V{{ version.version }}</span
-                ><span>{{
-                  new Date(version.publishedAt).toLocaleString("zh-CN")
-                }}</span
-                ><span
-                  >{{ countFormFields(version.schema.fields) }} 个字段</span
-                >
-              </div>
-              <p v-if="!savedForm?.versions.length" class="muted">
-                暂无已发布版本
+      <section
+        v-if="section === 'publish'"
+        class="publish-content"
+        aria-label="表单发布"
+      >
+        <header class="publication-status" :aria-busy="publishing">
+          <div class="publication-overview">
+            <span class="publication-icon"
+              ><AppIcon :name="published ? 'success' : 'form'" :size="22"
+            /></span>
+            <div>
+              <h2>{{ published ? "表单已发布" : "发布表单" }}</h2>
+              <p>
+                {{
+                  published
+                    ? `当前版本 V${published.version} · ${new Date(published.publishedAt).toLocaleString("zh-CN")}`
+                    : "发布后即可填写和收集数据"
+                }}
               </p>
             </div>
-            <p class="scope-note">
-              当前发布与数据保存在本地浏览器，团队访问和真实审批需要接入服务端。
+          </div>
+          <button
+            class="button primary"
+            :disabled="publishing"
+            @click="publish"
+          >
+            {{
+              publishing ? "正在发布…" : published ? "发布新版本" : "发布表单"
+            }}
+          </button>
+        </header>
+        <PublishAccessSettings
+          :form="published && savedForm ? savedForm : form"
+        >
+          <details class="publish-version-list">
+            <summary>版本记录</summary>
+            <div
+              v-for="version in [...(savedForm?.versions || [])].reverse()"
+              :key="version.version"
+            >
+              <span class="status-tag published">V{{ version.version }}</span>
+              <span>{{
+                new Date(version.publishedAt).toLocaleString("zh-CN")
+              }}</span>
+              <span>{{ countFormFields(version.schema.fields) }} 个字段</span>
+            </div>
+            <p v-if="!savedForm?.versions.length" class="muted">
+              暂无已发布版本
             </p>
-          </section>
-        </div></template
-      >
+          </details>
+        </PublishAccessSettings>
+      </section>
       <RecordList
         v-else-if="section === 'data'"
         :form="form"
@@ -272,7 +260,9 @@ async function process(action: "approved" | "rejected") {
           : dialog === 'edit-record'
             ? '编辑记录'
             : dialog === 'publish-errors'
-              ? '发布前请完善配置'
+              ? publishFailed
+                ? '发布未完成'
+                : '发布前请完善配置'
               : '使用说明'
       "
       :width="['record', 'edit-record'].includes(dialog) ? '760px' : '520px'"
@@ -403,6 +393,24 @@ async function process(action: "approved" | "rejected") {
       </p>
       <template #footer
         ><button class="button" @click="closeDialog">关闭</button
+        ><button
+          v-if="dialog === 'publish-errors' && !publishFailed"
+          class="button primary"
+          @click="
+            dialog = '';
+            router.push(`/apps/${form.appId}/forms/${formId}/design`);
+          "
+        >
+          返回表单设计</button
+        ><button
+          v-if="dialog === 'publish-errors' && publishFailed"
+          class="button primary"
+          @click="
+            dialog = '';
+            publish();
+          "
+        >
+          重试发布</button
         ><button
           v-if="dialog === 'record' && record"
           class="button"

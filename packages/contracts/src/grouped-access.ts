@@ -72,7 +72,7 @@ export interface MigrationAccessSummary {
   allowMerged: boolean | null;
   filling: GroupedAccessConfig["filling"] | null;
   groups: MigrationAccessGroupSummary[];
-  executionReady: false;
+  executionReady: boolean;
 }
 
 /** Live operation policy. Collection limits and legacy start-node rules remain separate. */

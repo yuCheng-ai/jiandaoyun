@@ -11,6 +11,7 @@ export function useDialogLayer(
     modal?: boolean;
     anchor?: () => HTMLElement | undefined;
     initialFocus?: () => HTMLElement | undefined;
+    reposition?: () => void;
   } = {},
 ) {
   const zIndex = ref(2000);

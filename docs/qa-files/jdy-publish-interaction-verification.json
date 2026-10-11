@@ -1,0 +1,76 @@
+{
+  "date": "2026-10-11",
+  "scope": "Publication page layout and existing local publication/access interactions",
+  "source": "/var/folders/d1/jrxx62nn7h54mxvhv27ngbvm0000gn/T/codex-clipboard-e755f343-ece5-4418-a4a5-af51eef18c3f.png",
+  "changes": [
+    "Removed duplicate sidebar and nested publication/link/settings cards",
+    "Colocated each entry with its switch; member configuration conditional without deleting saved groups",
+    "Native disclosure for collection settings and version history",
+    "Clipboard copy with explicit success and selectable-link failure fallback",
+    "Sticky save state, no-op save disabled, retained failed inputs and existing leave/recovery decisions",
+    "Validation failure expands collection controls; edited input clears stale errors",
+    "Publication pending state, duplicate suppression, failure retry or return-to-design action",
+    "Permission group movement follows visible ordering across archived groups"
+  ],
+  "browser": {
+    "formId": "form_013d7bbff90a",
+    "title": "发布设置 · 交互验收",
+    "version": 1,
+    "checks": [
+      "First publication generates filling link; initially unpublished form has no unusable link",
+      "Copied filling link matches displayed URL",
+      "Limit 20 saved and retained after cold reload; mobile update to 25 also retained after reload",
+      "Invalid -1 remains editable and validation opens collapsed settings",
+      "Member switch reveals editor; selected local example member 张三, applied group and saved parent",
+      "Toggling member access off/on retains 查看验收数据 group",
+      "Space toggles collection switch; opening form with unsaved settings prompts continue/discard/save",
+      "Continue editing retains pending state; restore switch then open actual form",
+      "Published amount and percentage retain full focus precision, draft reload and submit succeed",
+      "Member view lists one submitted record with only viewing operation",
+      "390x844: all settings controls fit, content width equals scrollWidth 365, Enter expands disclosure, sticky save usable"
+    ],
+    "finalConfig": "publicEnabled=true; filling.enabled=true; filling.limit=25; membersEnabled=false; saved group retained",
+    "screenshots": [
+      "docs/screenshots/publish-desktop.jpg",
+      "docs/screenshots/publish-mobile.jpg",
+      "docs/screenshots/publish-mobile-expanded.jpg",
+      "docs/screenshots/publish-after-reference-size.jpg"
+    ],
+    "console": "No warning/error entries in final QA tab"
+  },
+  "verification": {
+    "frontend": {
+      "files": 149,
+      "tests": 1494,
+      "log": "tmp/publish-frontend.log"
+    },
+    "finalPublicationRegression": {
+      "tests": 21,
+      "log": "tmp/publish-final-targeted.log"
+    },
+    "build": "tmp/publish-build.log",
+    "sites": {
+      "tests": 4,
+      "log": "tmp/publish-sites.log"
+    }
+  },
+  "limits": [
+    "Local-browser access settings; no real internet publication/account-authentication claim",
+    "Failed clipboard/storage and duplicate requests exercised in component tests, not injected into the live browser",
+    "No workflow behavior redesign",
+    "Screenshot comparison is layout improvement against supplied screenshot, not a claim of exact Jiandaoyun visual parity",
+    "Whole project R1-R8 acceptance remains partial"
+  ],
+  "protected": {
+    ".openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+    "worker/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "scripts/prepare-sites-build.mjs": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+    "tests/sites-worker.test.mjs": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf"
+  },
+  "buildOutputs": [
+    "dist/client/index.html",
+    "dist/server/index.js",
+    "dist/.openai/hosting.json"
+  ],
+  "referenceCapture": "docs/screenshots/publish-reference.png"
+}

@@ -273,6 +273,10 @@ export function workspacePersistence(
   }
 
   return {
+    acceptOrganization(organization: WorkspaceData["organization"]) {
+      data.value.organization = copy(organization);
+      baseline.organization = copy(organization);
+    },
     storageError,
     storageErrorContext,
     reportError,

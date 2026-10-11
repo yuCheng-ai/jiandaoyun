@@ -1,0 +1,156 @@
+{
+  "checkedAt": "2026-10-11T10:58:20.708Z",
+  "scope": "Isolated synthetic permission fixture; no original members or OA data changed",
+  "checks": {
+    "departmentConsecutiveSaves": "200, 200 with returned revisions applied",
+    "roleConsecutiveSaves": "200, 200 with normalized create/edit flags applied",
+    "externalConflict": "409 kept unsaved self scope; continue editing kept it; explicit reload obtained latest flags and account name",
+    "groupSave": "parent immediately switched to groups; direct controls disabled",
+    "memberHiddenField": {
+      "ordinaryMemberFormStatus": 200,
+      "visibleFields": [
+        "事项名称"
+      ],
+      "requestId": "867ff28f-5c75-4631-b2d2-451097c9c1de"
+    },
+    "noEligibleGroup": {
+      "status": 403,
+      "requestId": "cb3a1d60-7322-45c6-b8bf-d41735ca8090"
+    }
+  },
+  "requests": [
+    {
+      "timestamp": "2026-10-11T10:50:43.998Z",
+      "level": "info",
+      "event": "http.completed",
+      "requestId": "d8dfaa76-d89f-4395-b31f-0409f68abc3e",
+      "method": "PUT",
+      "route": "/api/definitions/:id/subject-grants",
+      "status": 200,
+      "durationMs": 4.3,
+      "actorId": "c3b9844a-ec10-4d52-b82f-5ee459ffe991",
+      "workspaceId": "local"
+    },
+    {
+      "timestamp": "2026-10-11T10:50:44.002Z",
+      "level": "info",
+      "event": "http.completed",
+      "requestId": "57f67bf5-73bc-446c-b0a2-cb832a79b7f3",
+      "method": "PUT",
+      "route": "/api/definitions/:id/subject-grants",
+      "status": 200,
+      "durationMs": 3.25,
+      "actorId": "c3b9844a-ec10-4d52-b82f-5ee459ffe991",
+      "workspaceId": "local"
+    },
+    {
+      "timestamp": "2026-10-11T10:51:55.480Z",
+      "level": "info",
+      "event": "http.completed",
+      "requestId": "2ca53c9d-6ebc-4323-ac51-91bc015cd8e6",
+      "method": "PUT",
+      "route": "/api/definitions/:id/subject-grants",
+      "status": 200,
+      "durationMs": 53.19,
+      "actorId": "c3b9844a-ec10-4d52-b82f-5ee459ffe991",
+      "workspaceId": "local"
+    },
+    {
+      "timestamp": "2026-10-11T10:52:01.467Z",
+      "level": "info",
+      "event": "http.completed",
+      "requestId": "0d7265b1-94ff-499e-8675-9e6b94988419",
+      "method": "PUT",
+      "route": "/api/definitions/:id/subject-grants",
+      "status": 200,
+      "durationMs": 20.26,
+      "actorId": "c3b9844a-ec10-4d52-b82f-5ee459ffe991",
+      "workspaceId": "local"
+    },
+    {
+      "timestamp": "2026-10-11T10:52:18.711Z",
+      "level": "info",
+      "event": "http.completed",
+      "requestId": "9c8d5491-56ed-47e5-89aa-0cb3630e60b1",
+      "method": "PUT",
+      "route": "/api/definitions/:id/subject-grants",
+      "status": 200,
+      "durationMs": 19.47,
+      "actorId": "c3b9844a-ec10-4d52-b82f-5ee459ffe991",
+      "workspaceId": "local"
+    },
+    {
+      "timestamp": "2026-10-11T10:52:26.177Z",
+      "level": "info",
+      "event": "http.completed",
+      "requestId": "c3395384-875e-4e47-aee6-9c3bfd6297b4",
+      "method": "PUT",
+      "route": "/api/definitions/:id/subject-grants",
+      "status": 200,
+      "durationMs": 12.72,
+      "actorId": "c3b9844a-ec10-4d52-b82f-5ee459ffe991",
+      "workspaceId": "local"
+    },
+    {
+      "timestamp": "2026-10-11T10:57:11.167Z",
+      "level": "info",
+      "event": "http.completed",
+      "requestId": "90c04ff0-4f32-4533-8e6b-39753ff1368c",
+      "method": "PUT",
+      "route": "/api/definitions/:id/subject-grants",
+      "status": 200,
+      "durationMs": 13.11,
+      "actorId": "c3b9844a-ec10-4d52-b82f-5ee459ffe991",
+      "workspaceId": "local"
+    },
+    {
+      "timestamp": "2026-10-11T10:57:16.053Z",
+      "level": "warn",
+      "event": "http.completed",
+      "requestId": "0a8aea6e-99b9-4778-9924-02b8dc1232d4",
+      "method": "PUT",
+      "route": "/api/definitions/:id/subject-grants",
+      "status": 409,
+      "durationMs": 10.94,
+      "actorId": "c3b9844a-ec10-4d52-b82f-5ee459ffe991",
+      "workspaceId": "local",
+      "failure": {
+        "kind": "ConflictException"
+      }
+    },
+    {
+      "timestamp": "2026-10-11T10:58:03.110Z",
+      "level": "info",
+      "event": "http.completed",
+      "requestId": "dfd01113-64f5-4025-af88-c35bd9e2b965",
+      "method": "PUT",
+      "route": "/api/definitions/:id/permission-groups",
+      "status": 200,
+      "durationMs": 16.82,
+      "actorId": "c3b9844a-ec10-4d52-b82f-5ee459ffe991",
+      "workspaceId": "local"
+    }
+  ],
+  "screenshots": [
+    "../screenshots/permission-repeat-save.png",
+    "../screenshots/permission-group-refresh.png"
+  ],
+  "limits": [
+    "Original local organization and server login identities not yet associated",
+    "Direct member grant endpoint does not yet enforce optimistic revision checks"
+  ],
+  "build": {
+    "command": "npm run build",
+    "exitCode": 0,
+    "log": "tmp/permission-dialog-final-build.log",
+    "warning": "Existing Vite chunks exceed 500 kB"
+  },
+  "cleanup": {
+    "isolatedSchemaRemoved": true,
+    "fixtureServerStopped": true
+  },
+  "browserLog": {
+    "unexpectedErrors": 0,
+    "expectedConflictWarnings": 1
+  }
+}

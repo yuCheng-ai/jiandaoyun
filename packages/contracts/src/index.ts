@@ -1,8 +1,15 @@
+export * from "./formula";
+export * from "./form-validation";
+export * from "./visibility";
+export * from "./condition-values";
+export * from "./record-views";
+export * from "./field-display";
 export type * from "./form";
 export type * from "./relations";
 export type * from "./process-templates";
 export * from "./data-view";
 export * from "./organization";
+export * from "./directory";
 export * from "./field-runtime";
 export * from "./choices";
 export * from "./files";
@@ -11,6 +18,7 @@ export * from "./dates";
 export * from "./date-range";
 export * from "./migration";
 export * from "./migration-resources";
+export * from "./migration-organization";
 export * from "./record-origin";
 export * from "./grouped-access";
 export * from "./collection";
@@ -22,7 +30,7 @@ export * from "./address";
 export * from "./location";
 export * from "./subform";
 
-import type { FormSchema, FormValues } from "./form";
+import type { FormField, FormSchema, FormValues } from "./form";
 
 export interface SessionUser {
   id: string;
@@ -50,6 +58,10 @@ export interface AccessGrant extends AccessPolicy {
     revision: number;
     selection: string;
   };
+}
+/** Saved direct authorization configuration; runtime access is still computed per request. */
+export interface MemberGrant extends AccessGrant {
+  revision: number;
 }
 export interface ServerDefinition {
   id: string;
@@ -86,6 +98,7 @@ export type RowChange = {
   expectedRevision: number;
 } & (
   | { action: "add"; values: FormValues }
+  | { action: "insert"; beforeRowId: string | null; values: FormValues }
   | { action: "remove"; rowId: string; expectedCells: Record<string, number> }
   | { action: "restore"; rowId: string; eventId: string }
 );
@@ -117,7 +130,7 @@ export interface RecordDetail {
   definition: ServerDefinition;
   record: ServerRecord;
   access: AccessGrant;
-  rowActions?: Record<string, { add: boolean; remove: boolean }>;
+  rowActions?: Record<string, { add: boolean; remove: boolean; insert?: boolean; editExisting?: boolean }>;
 }
 export interface TaskSpec {
   id: string;
@@ -157,6 +170,14 @@ export interface RecordSummary {
   createdAt: string;
   updatedAt: string;
 }
+/** Business values are present only after record and selected-page authorization. */
+export interface PageRecordSummary extends RecordSummary {
+  preview?: {
+    fields: FormField[];
+    values: FormValues;
+    identities: import("./organization").OrganizationIdentity[];
+  };
+}
 export interface PublishedAccess {
   collection?: import("./collection").CollectionStatus;
   defaultValues?: FormValues;
@@ -165,7 +186,7 @@ export interface PublishedAccess {
   definition: ServerDefinition;
   access: AccessGrant;
   compatibleVersions?: number[];
-  rowActions?: Record<string, { add: boolean; remove: boolean }>;
+  rowActions?: Record<string, { add: boolean; remove: boolean; insert?: boolean; editExisting?: boolean }>;
 }
 export interface RecordUpgradePlan {
   defaultsToken?: string;

@@ -1,9 +1,9 @@
+import { resolveCalculations } from "@platform/contracts";
+export { resolveCalculations } from "@platform/contracts";
 import {
   evaluateFormula,
   formulaReferences,
-  formulaFields,
   replaceFormulaReferences,
-  formulaValue,
   usesFormula,
 } from "./formula";
 import { visibleByRules, parseVisibilityRules } from "./visibility";
@@ -897,127 +897,6 @@ export function calculate(
     ? result.value
     : null;
 }
-export function resolveCalculations(
-  fields: FormField[],
-  values: FormValues,
-  context: FormValues = {},
-  formulas: {
-    defaults?: readonly string[];
-    fields?: FormField[];
-    choices?: (field: FormField, values: FormValues) => FieldOption[];
-    enabled?: (field: FormField, values: FormValues) => boolean;
-  } = {},
-): FormValues {
-  const allFields = formulas.fields || fields;
-  // Tab fields share the surrounding scope; each subform row owns its own values.
-  const scopedFields = (items: FormField[]): FormField[] =>
-    items.flatMap((f) =>
-      f.type === "tabs" ? [f, ...scopedFields(f.children)] : [f],
-    );
-  const active = (field: FormField, scope: Scope) =>
-    (field.type === "calculated" ||
-      (usesFormula(field) && formulas.defaults?.includes(field.id))) &&
-    (formulas.enabled?.(field, input(scope)) ?? true);
-  type Scope = {
-    fields: FormField[];
-    values: FormValues;
-    parent?: Scope;
-    resolving: Set<string>;
-    done: Set<string>;
-    failed: Set<string>;
-  };
-  const scopes: Scope[] = [],
-    owners = new Map<string, Scope[]>();
-  function createScope(
-    items: FormField[],
-    input: FormValues,
-    parent?: Scope,
-  ): Scope {
-    const scope: Scope = {
-      fields: scopedFields(items),
-      values: { ...input },
-      parent,
-      resolving: new Set(),
-      done: new Set(),
-      failed: new Set(),
-    };
-    scopes.push(scope);
-    for (const field of scope.fields) {
-      const locations = owners.get(field.id) || [];
-      locations.push(scope);
-      owners.set(field.id, locations);
-      if (field.type === "subform" && Array.isArray(scope.values[field.id]))
-        scope.values[field.id] = (scope.values[field.id] as FormValues[]).map(
-          (row) => createScope(field.children, row, scope).values,
-        );
-    }
-    return scope;
-  }
-  const root = createScope(fields, values);
-  function input(scope: Scope): FormValues {
-    return {
-      ...(scope.parent ? input(scope.parent) : context),
-      ...scope.values,
-    };
-  }
-  function resolve(field: FormField, scope: Scope) {
-    if (scope.done.has(field.id)) return;
-    if (scope.resolving.has(field.id)) throw Error("计算字段存在循环引用");
-    scope.resolving.add(field.id);
-    const available = formulaFields(allFields, field.id);
-    const failed = new Set<string>();
-    for (const id of formulaReferences(field.expression)) {
-      if (available.find((item) => item.field.id === id)?.column) {
-        for (const owner of owners.get(id) || []) {
-          const dep = owner.fields.find((f) => f.id === id)!;
-          if (active(dep, owner)) resolve(dep, owner);
-          if (owner.failed.has(id)) failed.add(id);
-        }
-      } else {
-        for (
-          let owner: Scope | undefined = scope;
-          owner;
-          owner = owner.parent
-        ) {
-          const dep = owner.fields.find((f) => f.id === id);
-          if (!dep) continue;
-          if (active(dep, owner)) resolve(dep, owner);
-          if (owner.failed.has(id)) failed.add(id);
-          break;
-        }
-      }
-    }
-    const current = input(scope);
-    const result = formulaValue(
-      field,
-      allFields,
-      current,
-      formulas.choices ? (f) => formulas.choices!(f, current) : undefined,
-      undefined,
-      failed,
-    );
-    scope.values[field.id] = result.value;
-    if (result.error) scope.failed.add(field.id);
-    scope.resolving.delete(field.id);
-    scope.done.add(field.id);
-  }
-  for (const scope of scopes)
-    for (const field of scope.fields.filter((field) => active(field, scope))) {
-      try {
-        resolve(field, scope);
-      } catch {
-        for (const pending of scopes) {
-          for (const id of pending.resolving) {
-            pending.values[id] = null;
-            pending.failed.add(id);
-            pending.done.add(id);
-          }
-          pending.resolving.clear();
-        }
-      }
-    }
-  return root.values;
-}
 export function hiddenValueMode(
   schema: FormSchema,
   id: string,
@@ -1435,10 +1314,14 @@ export function parseSchema(raw: unknown): FormSchema {
         ? parseFields(field.children, depth + 1)
         : [];
       if (typeof field.tabId === "string") base.tabId = field.tabId;
-      if (typeof field.min === "number" && Number.isFinite(field.min))
-        base.min = field.min;
-      if (typeof field.max === "number" && Number.isFinite(field.max))
-        base.max = field.max;
+      // Preserve unfinished numeric settings in design recovery. Configuration
+      // validation rejects them before publishing a usable definition.
+      for (const key of ["min", "max"] as const)
+        if (
+          (typeof field[key] === "number" && Number.isFinite(field[key])) ||
+          (field.type === "number" && typeof field[key] === "string")
+        )
+          base[key] = field[key];
       if (
         typeof field.defaultValue === "number" &&
         Number.isFinite(field.defaultValue)

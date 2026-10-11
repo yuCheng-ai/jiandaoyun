@@ -64,6 +64,7 @@ export function useDraftDismiss(
     initial.value = JSON.stringify(value());
   }
   return {
+    dirty,
     confirmDiscard,
     requestClose,
     discard,

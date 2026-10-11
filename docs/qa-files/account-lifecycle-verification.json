@@ -1,0 +1,41 @@
+{
+  "date": "2026-10-11",
+  "scope": "现有服务端组织入口的账号管理与登录后页面加载；不代表主工作台完成统一登录",
+  "implemented": [
+    "管理员新增普通账号，修改姓名、启停及重置密码；新账号不自动获得业务数据授权",
+    "账号版本检查、命令幂等、不可变审计与账号变更同事务；重试返回当前账号状态",
+    "停用撤销会话；重新启用需重新登录；重置密码撤销其他会话；禁止停用当前登录账号",
+    "密码校验与会话创建在同一用户行锁事务内，避免密码变更后旧密码登录补写会话",
+    "账号表单复用共享对话框，待保存状态、失败重试、明确放弃、冲突重新读取；密码不存入浏览器草稿或审计",
+    "账号更新不覆盖未保存组织输入，不推进组织编辑基线",
+    "应用页和设计器保留登录组件至成功回调结束，避免会话变化提前卸载组件而丢失内容加载"
+  ],
+  "verification": {
+    "frontendFull": { "files": 151, "passed": 1512, "log": "tmp/accounts-session-frontend-full.log" },
+    "backendTargetedFinal": { "passed": 39, "log": "tmp/accounts-backend-targeted-final.log", "scope": "accounts、organization、platform；包含7项账号生命周期测试" },
+    "backendEarlierFull": { "passed": 287, "log": "tmp/accounts-backend-full.log", "limit": "在最后两项账号测试及空白密码校验补充前完成；最终变动由39项定向测试复验" },
+    "loginRegression": { "before": "tmp/session-entry-before.log：两处真实session store测试均失败", "after": "tmp/accounts-and-session-targeted.log：19项通过；最终前端全量已包含" },
+    "build": { "passed": true, "log": "tmp/accounts-session-build.log", "warning": "已有Vite大于500kB的chunk提示" },
+    "sites": { "passed": 4, "log": "tmp/accounts-sites-final.log", "limit": "登录组件生命周期微调之前执行；受保护Sites文件无改动，最终构建产物存在" },
+    "browser": [
+      "现有admin账号退出再登录后，应用列表和表单行直接显示，无须刷新",
+      "退出后直接打开设计器链接，登录后画布和原字段直接显示，无须刷新",
+      "组织成员入口打开新增和编辑账号对话框，重置密码控件展开，取消和明确放弃有效",
+      "桌面1280×720与390×844窄屏检查；窄屏对话框宽356px，无横向溢出"
+    ],
+    "browserLimit": "未在开发数据中创建、停用账号或输入新密码；生命周期写入、撤权、并发、失败回滚与重启在隔离platform_test_*数据库schema验证",
+    "screenshots": ["docs/screenshots/account-management-desktop.jpg", "docs/screenshots/account-management-mobile.jpg"]
+  },
+  "preservation": {
+    "migration": "019-account-lifecycle.sql只新增账号revision列与不可变事件表",
+    "developmentDatabaseCountsBeforeAndAfter": { "users": 3, "definitions": 14, "records": 17 },
+    "developmentAccountEvents": 0,
+    "limit": "记录数量核对，不宣称逐行内容摘要比对；浏览器登录退出正常改变会话"
+  },
+  "remaining": [
+    "主工作台与原/apps表单尚未使用统一服务端身份和数据权限",
+    "本地组织、角色、角色组与服务端目录尚未统一；旧身份须明确映射，不能按姓名猜测",
+    "原表单字段、记录、历史版本、权限和流程配置的完整接入仍未交付",
+    "从主入口用两个真实普通成员完成受限业务全流程尚未验收"
+  ]
+}

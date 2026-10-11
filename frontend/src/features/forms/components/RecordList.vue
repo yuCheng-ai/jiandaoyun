@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
+import RecordPagination from "./RecordPagination.vue";
 import InlineRecordEditor from "./InlineRecordEditor.vue";
 import RecordBatchDialog from "./RecordBatchDialog.vue";
 import RecordImportDialog from "./RecordImportDialog.vue";
@@ -34,6 +35,7 @@ const emit = defineEmits<{
 const store = useWorkspaceStore(),
   router = useRouter();
 const editingCell = ref<{ entryId: string; fieldId: string }>();
+const savingView = ref(false);
 const batch = ref<{ entries: FormEntry[]; schema: FormSchema }>();
 const importing = ref(false),
   exporting = ref<FormEntry[]>(),
@@ -111,25 +113,37 @@ watch(
     )),
 );
 async function changeView(patch: Partial<RecordViewSettings>) {
-  await store.saveRecordView(props.form.id, { ...view.value, ...patch });
-  page.value = 1;
+  if (savingView.value) return;
+  savingView.value = true;
+  try {
+    if (await store.saveRecordView(props.form.id, { ...view.value, ...patch }))
+      page.value = 1;
+  } finally {
+    savingView.value = false;
+  }
 }
 function openColumns() {
   columnDraft.value = [...view.value.fieldIds];
   columnsOpen.value = true;
 }
 async function saveColumns() {
+  if (savingView.value) return;
   if (!columnDraft.value.length) {
     store.notify("请至少选择一列", "warning");
     return;
   }
-  if (
-    await store.saveRecordView(props.form.id, {
-      ...view.value,
-      fieldIds: columnDraft.value,
-    })
-  )
-    columnsOpen.value = false;
+  savingView.value = true;
+  try {
+    if (
+      await store.saveRecordView(props.form.id, {
+        ...view.value,
+        fieldIds: columnDraft.value,
+      })
+    )
+      columnsOpen.value = false;
+  } finally {
+    savingView.value = false;
+  }
 }
 function togglePage() {
   const ids = new Set(selected.value),
@@ -258,7 +272,10 @@ async function exportRecords() {
 </script>
 <template>
   <section class="data-record-list">
-    <fieldset class="record-controls-lock" :disabled="!!editingCell">
+    <fieldset
+      class="record-controls-lock"
+      :disabled="!!editingCell || savingView"
+    >
       <header class="data-toolbar">
         <h2>
           {{ recycled ? "数据回收站" : "记录管理" }}
@@ -366,7 +383,10 @@ async function exportRecords() {
         </button>
       </div>
     </fieldset>
-    <p v-if="editingCell" class="inline-session-hint" role="status">
+    <p v-if="savingView" class="inline-session-hint" role="status">
+      正在保存列表设置…
+    </p>
+    <p v-else-if="editingCell" class="inline-session-hint" role="status">
       正在编辑单元格，保存或取消后可继续筛选和其他操作。
     </p>
     <p
@@ -380,7 +400,10 @@ async function exportRecords() {
       点选带编辑图标的单元格，可直接修改。
     </p>
     <div class="data-table-scroll">
-      <table class="forms-table data-table">
+      <table
+        class="forms-table data-table record-display-table"
+        :data-row-height="view.rowHeight || 'low'"
+      >
         <thead>
           <tr>
             <th class="record-check">
@@ -413,7 +436,7 @@ async function exportRecords() {
             <td>
               <button
                 type="button"
-                class="record-title-button"
+                class="record-title-button record-cell-value"
                 :disabled="!!editingCell"
                 :title="entryTitle(entry, store.data)"
                 @click="emit('view', entry)"
@@ -456,10 +479,14 @@ async function exportRecords() {
                 :aria-label="`快捷编辑${field.label}，${entryTitle(entry, store.data)}`"
                 @click="editingCell = { entryId: entry.id, fieldId: field.id }"
               >
-                <span>{{ display(entry, field.id) }}</span
+                <span class="record-cell-value">{{
+                  display(entry, field.id)
+                }}</span
                 ><AppIcon name="edit" :size="13" />
               </button>
-              <span v-else>{{ display(entry, field.id) }}</span>
+              <span v-else class="record-cell-value">{{
+                display(entry, field.id)
+              }}</span>
             </td>
             <td class="record-actions">
               <fieldset
@@ -520,31 +547,18 @@ async function exportRecords() {
         </button>
       </div>
     </div>
-    <fieldset class="record-controls-lock" :disabled="!!editingCell">
-      <footer class="record-pagination">
-        <span>共 {{ entries.length }} 条</span
-        ><label
-          >每页<select
-            aria-label="每页记录数"
-            :value="view.pageSize"
-            @change="
-              changeView({
-                pageSize: Number(($event.target as HTMLSelectElement).value) as
-                  10 | 20 | 50,
-              })
-            "
-          >
-            <option :value="10">10 条</option>
-            <option :value="20">20 条</option>
-            <option :value="50">50 条</option>
-          </select></label
-        ><button class="button" :disabled="page <= 1" @click="page--">
-          上一页</button
-        ><span>{{ page }} / {{ pages }}</span
-        ><button class="button" :disabled="page >= pages" @click="page++">
-          下一页
-        </button>
-      </footer>
+    <fieldset
+      class="record-controls-lock"
+      :disabled="!!editingCell || savingView"
+    >
+      <RecordPagination
+        :total="entries.length"
+        :page="page"
+        :settings="view"
+        :busy="!!editingCell || savingView"
+        @page="page = $event"
+        @change="changeView"
+      />
     </fieldset>
     <RecordBatchDialog
       v-if="batch"
@@ -577,9 +591,12 @@ async function exportRecords() {
     <BaseDialog
       :open="columnsOpen"
       title="配置数据列"
+      :busy="savingView"
       width="520px"
       @close="columnsOpen = false"
-      ><PresentationFields v-model="columnDraft" :schema="schema" />
+      ><fieldset class="record-controls-lock" :disabled="savingView">
+        <PresentationFields v-model="columnDraft" :schema="schema" />
+      </fieldset>
       <p class="field-hint">
         列设置影响当前表单的列表和导出；保存后刷新仍保留。
       </p>
@@ -592,3 +609,8 @@ async function exportRecords() {
     >
   </section>
 </template>
+<style scoped>
+.record-pagination select[aria-label="记录行高"] {
+  width: 86px;
+}
+</style>

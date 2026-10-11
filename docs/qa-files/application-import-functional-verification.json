@@ -1,0 +1,79 @@
+{
+  "updatedAt": "2026-10-11T13:22:13.287Z",
+  "scope": "受支持的内部普通表单包从资源快照整批导入；正式OA未切换",
+  "method": "隔离运行中API、浏览器实际操作、只读SQL、统一请求日志、完整构建；未新增或扩写测试文件",
+  "fixture": {
+    "forms": 2,
+    "publishedVersions": 3,
+    "records": 6,
+    "versions": [
+      1,
+      3
+    ],
+    "members": "明确指定的开发账号和独立历史身份，不是实际OA对应"
+  },
+  "verified": [
+    "exact historical versions 1,3; original draft independent",
+    "archived form and folder retained",
+    "original creator and historical principal retained; unknown departments remain null",
+    "source history admin-only; immutable receipt; repeated import idempotent",
+    "editor own scope, read-only amount, hidden main and child fields enforced; valid name/qty edit preserves original creator",
+    "reviewer sees three permitted records in compatible pinned versions, no edit or origin history",
+    "imported submitted rows count toward no-repeat; drafts and deleted excluded; own draft available",
+    "superseded resource snapshot blocked before target writes",
+    "parallel retries create exactly one receipt and six records",
+    "browser editor saved and reopened original V1 record with hidden/read-only fields preserved",
+    "imported pending draft publishes V4 through existing form path; immutable V1 and V3 unchanged",
+    "import retry after later record edits does not overwrite edits",
+    "immutable raw snapshot matches original payload; six source records retained including draft/deleted/archived",
+    "unknown creation departments remain null; no new account from historical identity"
+  ],
+  "rollback": {
+    "message": "数值比较需要数字字段与有效数字常量",
+    "applications": 0,
+    "definitions": 0,
+    "imports": 0
+  },
+  "unsupportedPublicFillingBlocked": true,
+  "browser": {
+    "errors": [],
+    "screenshots": [
+      "application-import-home.png",
+      "application-import-versions.png",
+      "application-import-member-saved.png",
+      "application-import-member.png"
+    ]
+  },
+  "mainPreview": {
+    "source_unchanged": true,
+    "members": 10,
+    "departments": 8,
+    "roles": 5,
+    "links": 0
+  },
+  "logs": {
+    "path": "tmp/application-import-runtime.log",
+    "requests": 134,
+    "http500AfterFix": 0,
+    "requestIdsPresent": true,
+    "credentialsAbsent": true,
+    "browserErrors": []
+  },
+  "build": {
+    "command": "npm run build",
+    "passed": true,
+    "log": "tmp/application-import-build.log",
+    "diffCheckPassed": true
+  },
+  "cleanup": {
+    "schemaDropped": true,
+    "fixtureStopped": true,
+    "browserTabClosed": true
+  },
+  "limitations": [
+    "公开填写、原流程配置和执行、原记录视图、字段回收配置、角色应用授权、未支持字段类型继续阻止整批导入",
+    "事务内现有权限服务仍作最终校验；准备检查不是免校验通行证",
+    "正式OA账号对应未指定，未导入或自动切换OA，也未添加迁移开发页面",
+    "原生记录列表仍需选择匹配的历史表单版本；完整分页仍未实现"
+  ]
+}

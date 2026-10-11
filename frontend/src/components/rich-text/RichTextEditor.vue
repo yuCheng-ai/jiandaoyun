@@ -47,6 +47,7 @@ const imageOpen = ref(false);
 const linkText = ref("");
 const selectedImage = ref<HTMLImageElement>();
 const resizingImage = ref(false);
+const imageResize = ref<InstanceType<typeof RichTextImageResize>>();
 const imageTools = ref<HTMLElement>();
 const imagePosition = ref({ left: "0px", top: "0px" });
 const imageLink = ref(false);
@@ -61,6 +62,7 @@ const { zIndex: imageZIndex } = useDialogLayer(
   {
     modal: false,
     anchor: () => editor.value,
+    reposition: () => imageResize.value?.measure(),
   },
 );
 const linkOpen = ref(false),
@@ -377,12 +379,17 @@ function showImageTools(event: MouseEvent | KeyboardEvent) {
     previewImage.value = { src: target.src, alt: target.alt };
     return;
   }
-  const rect = target.getBoundingClientRect();
+  selectImage(target);
+}
+function selectImage(target: HTMLImageElement) {
+  positionImageTools(target.getBoundingClientRect());
+  selectedImage.value = target;
+}
+function positionImageTools(rect: DOMRect) {
   imagePosition.value = {
     left: `${Math.max(8, Math.min(rect.left, window.innerWidth - 328))}px`,
     top: `${Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 94))}px`,
   };
-  selectedImage.value = target;
 }
 function openImageLink() {
   if (!selectedImage.value) return;
@@ -394,17 +401,23 @@ function openImageLink() {
   linkError.value = "";
   linkOpen.value = true;
 }
-async function editImage(change: {
-  width?: string;
-  href?: string;
-  align?: "left" | "center" | "right";
-}) {
+async function editImage(
+  change: {
+    width?: string;
+    href?: string;
+    align?: "left" | "center" | "right";
+  },
+  keepSelected = false,
+) {
   const image = selectedImage.value;
   if (props.readonly || !image || !editor.value?.contains(image)) {
     linkError.value = "图片已变化，请重新选择图片";
     return;
   }
   const target = image.closest("a") || image;
+  const imageIndex = Array.from(editor.value.querySelectorAll("img")).indexOf(
+    image,
+  );
   const before = target.outerHTML;
   let replacement = target.cloneNode(true) as HTMLElement;
   const replacementImage =
@@ -450,6 +463,10 @@ async function editImage(change: {
     return;
   selection = retained;
   command("insertHTML", sanitizeRichText(html));
+  if (keepSelected) {
+    const updated = editor.value?.querySelectorAll("img")[imageIndex];
+    if (updated) selectImage(updated);
+  }
 }
 async function removeImage() {
   const image = selectedImage.value;
@@ -767,8 +784,10 @@ watch(
       :style="{ ...imagePosition, zIndex: imageZIndex }"
     >
       <RichTextImageResize
+        ref="imageResize"
         :image="selectedImage"
-        @resize="editImage({ width: $event })"
+        @measure="positionImageTools"
+        @resize="editImage({ width: $event }, true)"
         @resizing="resizingImage = $event"
       />
       <button

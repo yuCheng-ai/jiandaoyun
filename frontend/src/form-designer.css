@@ -660,7 +660,8 @@
 .field-inspector .field-title-group {
   margin-bottom: 15px;
 }
-.field-inspector .select-wrap + #field-default {
+.field-inspector .select-wrap + #field-default,
+.field-inspector .select-wrap + .number-control {
   margin-top: 8px;
 }
 .field-inspector .form-group > label,
@@ -732,24 +733,6 @@
 .field-description img {
   max-width: 100%;
   height: auto;
-}
-.number-control {
-  position: relative;
-  min-width: 0;
-}
-.number-control > input {
-  width: 100%;
-}
-.number-control:has(.number-suffix) > input {
-  padding-right: 28px;
-}
-.number-suffix {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #9297a1;
-  pointer-events: none;
 }
 .field-option-editor {
   display: flex;
@@ -830,6 +813,9 @@
   display: flex;
   align-items: center;
   gap: 7px;
+}
+.inline-range .number-control {
+  flex: 1;
 }
 .inline-range input {
   min-width: 0;

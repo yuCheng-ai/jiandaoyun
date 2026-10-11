@@ -34,7 +34,7 @@ function valuesForUpgrade(row: any, before: FormSchema, after: FormSchema, resol
 export class RecordEvolutionService {
   constructor(private readonly db: Database, private readonly platform: PlatformService) {}
   private async proposed(tx: Transaction, actor: Actor, source: any) {
-    const resolve = await this.platform.defaultResolver(tx, actor, source.target.schema, source.row.values);
+    const resolve = await this.platform.defaultResolver(tx, actor, source.target.schema, source.row.values, {}, source.target.schema, undefined, true);
     const updated = valuesForUpgrade(source.row, source.version.schema, source.target.schema, resolve);
     await this.platform.validateRecordOrganizations(tx, actor, source.target.schema, updated.values, source.row.values);
     // Time advances independently of organization defaults; it must not invalidate confirmation.

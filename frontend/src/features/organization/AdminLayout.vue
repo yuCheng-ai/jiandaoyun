@@ -1,19 +1,35 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import AppIcon from "../../components/AppIcon.vue";
-import IdentityInput from "../../components/organization/IdentityInput.vue";
+import UserMenu from "../../components/shared/UserMenu.vue";
+import { usePlatformSession } from "../../stores/platformSession";
 import { useWorkspaceStore } from "../../stores/workspace";
 const props = defineProps<{ active: string }>();
-const router = useRouter();
-const store = useWorkspaceStore();
-const current = computed({
-  get: () => store.data.organization.currentUserId,
-  set: async (id: string) => {
-    if (id && (await store.setCurrentUser(id)))
-      store.notify("当前体验成员已切换");
-  },
+const workspace = useWorkspaceStore();
+const directoryPage = computed(() =>
+  ["organization", "roles", "permissions"].includes(props.active),
+);
+onMounted(() => {
+  if (directoryPage.value) void workspace.loadDirectory();
 });
+const router = useRouter();
+const session = usePlatformSession();
+const busy = ref(false),
+  error = ref("");
+async function logout() {
+  if (busy.value) return;
+  busy.value = true;
+  error.value = "";
+  try {
+    await session.logout();
+    await router.replace("/");
+  } catch (cause) {
+    error.value = (cause as Error).message;
+  } finally {
+    busy.value = false;
+  }
+}
 </script>
 <template>
   <div class="admin-layout">
@@ -28,8 +44,14 @@ const current = computed({
         >管理后台</strong
       >
       <div class="toolbar-spacer" />
-      <span class="admin-context-label">当前体验成员</span
-      ><IdentityInput v-model="current" label="切换当前体验成员" />
+      <span v-if="error" class="field-error" role="alert">{{ error }}</span>
+      <UserMenu
+        v-if="session.user"
+        :account="session.user"
+        :busy="busy"
+        @organization="router.push('/admin/organization')"
+        @logout="logout"
+      />
     </header>
     <div class="admin-body">
       <nav class="admin-navigation" aria-label="管理后台导航">
@@ -39,11 +61,6 @@ const current = computed({
           @click="router.push('/admin/organization')"
         >
           <AppIcon name="department" />内部组织</button
-        ><button
-          :class="{ active: active === 'members' }"
-          @click="router.push('/admin/members')"
-        >
-          <AppIcon name="people" />成员信息管理</button
         ><small>权限中心</small
         ><button
           :class="{ active: active === 'permissions' }"
@@ -60,11 +77,25 @@ const current = computed({
         </button>
         <div class="admin-navigation-footer">
           <button @click="router.push('/')">
-            <AppIcon name="home" />返回工作台</button
-          ><span>本地工作空间</span>
+            <AppIcon name="home" />返回工作台
+          </button>
         </div>
       </nav>
-      <main class="admin-content"><slot /></main>
+      <main class="admin-content">
+        <div
+          v-if="directoryPage && !workspace.directoryReady"
+          class="workspace-empty"
+        >
+          <p v-if="workspace.directoryLoading" role="status">正在读取通讯录…</p>
+          <template v-else
+            ><p role="alert">{{ workspace.directoryError }}</p>
+            <button class="button" @click="workspace.loadDirectory()">
+              重新读取通讯录
+            </button></template
+          >
+        </div>
+        <slot v-else />
+      </main>
     </div>
   </div>
 </template>

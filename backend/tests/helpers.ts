@@ -19,16 +19,22 @@ export function harness() {
     else assert.equal(response.status, expected, `${method} ${path}: ${JSON.stringify(value)}`);
     return value;
   };
+  const login = async (username: string, password: string, alias = username) => {
+    const response = await fetch(`${base}/api/auth/login`, { method: "POST", headers: { Origin: config.origin, "Content-Type": "application/json" }, body: JSON.stringify({ username, password }) });
+    assert.equal(response.status, 201);
+    const cookie = response.headers.get("set-cookie")!;
+    assert.match(cookie, /HttpOnly/);
+    cookies[alias] = cookie.split(";")[0]!;
+  };
   const start = async () => {
     assert.ok(/^platform_test_[a-f0-9]+$/.test(config.schema) && config.schema === process.env.DATABASE_SCHEMA, "Tests must resolve their isolated schema before loading application modules");
     app = await createApp(); await app.listen(0, "127.0.0.1"); base = await app.getUrl();
     for (const username of ["admin", "editor", "reviewer"]) {
-      const response = await fetch(`${base}/api/auth/login`, { method: "POST", headers: { Origin: config.origin, "Content-Type": "application/json" }, body: JSON.stringify({ username, password: process.env[`PLATFORM_${username.toUpperCase()}_PASSWORD`] }) });
-      assert.equal(response.status, 201); cookies[username] = response.headers.get("set-cookie")!.split(";")[0]!;
+      await login(username, process.env[`PLATFORM_${username.toUpperCase()}_PASSWORD`]!);
     }
   };
   return {
-    start, request, get db() { return app.get(Database); },
+    start, request, login, get db() { return app.get(Database); },
     async restart() { await app.close(); await start(); },
     async close() {
       await app?.close(); const cleanup = new Pool({ connectionString: config.databaseUrl });

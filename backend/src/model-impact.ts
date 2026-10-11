@@ -9,11 +9,12 @@ import { organizationCandidates, organizationDefaultResolver } from "./organizat
 
 const canonical = (value: any): any => Array.isArray(value) ? value.map(canonical) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => [key, canonical(item)])) : value;
 const fingerprint = (value: unknown) => JSON.stringify(canonical(value));
-const settingNames: Record<string, string> = { defaultValue: "默认值", dateDefault: "默认值来源", min: "最小值", max: "最大值", precision: "小数位", retainPrecision: "保留小数位数", numberGrouping: "显示千分符", limitRange: "限定数值范围", maxLength: "文本长度", unique: "唯一性", options: "选项", format: "格式", choiceSource: "选项来源", organization: "组织选择规则" };
+const settingNames: Record<string, string> = { defaultValue: "默认值", defaultFormula: "默认值方式", expression: "公式", formulaRemark: "公式备注", dateDefault: "默认值来源", min: "最小值", max: "最大值", precision: "小数位", retainPrecision: "保留小数位数", numberGrouping: "显示千分符", limitRange: "限定数值范围", maxLength: "文本长度", unique: "唯一性", options: "选项", format: "格式", choiceSource: "选项来源", organization: "组织选择规则" };
 const display = (value: unknown) => value === undefined || value === null || value === "" ? "未设置" : JSON.stringify(value);
 const displaySetting = (key: string, value: unknown, field: ReturnType<typeof dataFields>[number]["field"], identityNames: Map<string, string>, fieldNames: Map<string, string>) => {
   if (key === "organization") {
     const config = value as any;
+    if (!config) return "未设置";
     const range = ({ all: "全部", custom: "指定范围", currentDepartment: "当前成员所在部门", fieldDepartment: "由部门字段决定" } as Record<string, string>)[config.scope.mode];
     const initial = ({ none: config.defaultIds.length ? "指定身份" : "无", currentUser: "当前成员", currentDepartment: "当前成员主部门", departmentManager: "主部门负责人" } as Record<string, string>)[config.defaultMode];
     const specified = [...config.scope.departmentIds, ...config.scope.employeeIds, ...config.scope.roleIds].map(id => identityNames.get(id) || "已不可用身份").join("、");
@@ -26,6 +27,8 @@ const displaySetting = (key: string, value: unknown, field: ReturnType<typeof da
     return selected.map(id => field.settings.options.find(option => option.id === id)?.label || "已失效选项").join("、") || "未设置";
   }
   if (key === "format") return ({ none: "普通文本", number: "数值", percent: "百分比", email: "邮箱", month: "年-月", date: "年-月-日", "datetime-local": "年-月-日 时:分", "datetime-second": "年-月-日 时:分:秒" } as Record<string, string>)[String(value)] || textFormats.find(item => item.value === value)?.label || display(value);
+  if (key === "defaultFormula") return value ? "公式编辑" : "自定义";
+  if (key === "expression" && typeof value === "string") return value.replace(/\{\{([a-zA-Z0-9_.:-]+)\}\}/g, (_, id) => fieldNames.get(id) || "已失效字段");
   if (key === "dateDefault") return value === "now" ? "填写当时" : "自定义";
   if (["retainPrecision", "numberGrouping", "limitRange"].includes(key)) return value === undefined ? "原设置" : value ? "开启" : "关闭";
   if (key === "choiceSource" && field.settings.choiceSource?.mode === "manual") return "自定义选项";
@@ -33,7 +36,7 @@ const displaySetting = (key: string, value: unknown, field: ReturnType<typeof da
 };
 
 /** The preview returns configuration and aggregate counts, never record values or record IDs. */
-export async function dataModelImpact(tx: Transaction, definition: any, model: DataModel, managePage = false, context?: { organization: ServerOrganization; actorId: string }): Promise<DataModelImpact> {
+export async function dataModelImpact(tx: Transaction, definition: any, model: DataModel, managePage = false, context?: { organization: ServerOrganization; actorId: string; publishingPageId?: string }): Promise<DataModelImpact> {
   const previous = (await tx.query("SELECT v.title,m.model FROM data_object_versions m JOIN definition_versions v USING(definition_id,version) WHERE m.definition_id=$1 AND m.version=$2", [definition.id, definition.latest_version])).rows[0];
   const before: DataModel = previous?.model || { version: 1, fields: [] };
   const changes = dataModelChanges(before, model), old = new Map(dataFields(before).map(item => [item.field.id, item]));
@@ -59,6 +62,8 @@ export async function dataModelImpact(tx: Transaction, definition: any, model: D
   for (const row of (await tx.query(`SELECT p.*,v.title AS public_title,v.schema,v.definition_version AS public_data_version FROM pages p
     LEFT JOIN page_versions v ON v.page_id=p.id AND v.version=p.latest_version WHERE p.definition_id=$1 ORDER BY p.id`, [definition.id])).rows) {
     stamps.push(["page", row.id, row.revision]);
+    // This form and its fields commit together; its previous version stays immutable.
+    if (row.id === context?.publishingPageId) continue;
     if (managePage && row.managed && !row.archived_at) defaultPageWillPublish = true;
     if (row.latest_version) {
       const ids = pageBindings(row.schema), blocked = !row.archived_at && missing(ids).length > 0 && !(managePage && row.managed);

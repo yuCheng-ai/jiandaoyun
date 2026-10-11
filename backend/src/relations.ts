@@ -7,7 +7,7 @@ import { Actor, requireAdmin } from "./auth";
 import { Database, Transaction } from "./database";
 import { PlatformService } from "./platform";
 import { once } from "./commands";
-import { cellKey, object, permission, scalar, uuid } from "./schema";
+import { cellKey, object, permission, rowPolicy, scalar, uuid } from "./schema";
 import { matchesRelation, parseRelation, relationFields, relationScope, requireRelationFields } from "./relation-rules";
 import { assertPageActive } from "./page-lifecycle";
 import { pageAccess, type RecordPageScope } from "./page-runtime";
@@ -106,6 +106,7 @@ export class RelationService {
       const access = await this.platform.access(tx, actor, spec.targetDefinitionId, schemas.target);
       const readScope = await this.platform.readableScope(tx, actor, spec.targetDefinitionId);
       const fields = requireRelationFields(spec, source.version.schema, schemas.target, source.access, access);
+      if (fields.parent && spec.mappings.length && !rowPolicy(fields.parent, page?.schema.fields.find(field => field.id === fields.parent!.id)).editExisting) throw new ForbiddenException('不可回填不可编辑的已有明细行');
       for (const mapping of spec.mappings) if (permission(source.access, fields.src(mapping.toSourceFieldId)!, fields.parent) !== "edit") throw new ForbiddenException("当前页面或成员没有回填字段的修改权限");
       const columnLabels = Object.fromEntries(fields.targetFields.filter(f => fieldList(spec).includes(f.id) && permission(access, f) !== "hidden").map(f => [f.id, f.label]));
       const parameters: unknown[] = [actor.workspaceId, spec.targetDefinitionId, readScope.creators, cursor || null, recordId, readScope.createdDepartments];
@@ -149,6 +150,7 @@ export class RelationService {
       if (body.expectedTargetRevision !== undefined && body.expectedTargetRevision !== target.row.revision) throw new ConflictException("目标记录已经更新，请重新查看并确认关联");
       if (target.row.definition_id !== spec.targetDefinitionId) throw new BadRequestException("记录不属于关系的目标表单");
       const fields = requireRelationFields(spec, source.version.schema, target.version.schema, source.access, target.access);
+      if (fields.parent && spec.mappings.length && !rowPolicy(fields.parent, page?.schema.fields.find(field => field.id === fields.parent!.id)).editExisting) throw new ForbiddenException('不可回填不可编辑的已有明细行');
       if (!matchesRelation(spec, source.scope, target.row.values)) throw new ConflictException("目标记录已不符合当前筛选条件，请重新选择");
       if ((await tx.query("SELECT 1 FROM record_links WHERE relation_id=$1 AND source_record_id=$2 AND source_row_id IS NOT DISTINCT FROM $3::uuid AND target_record_id=$4", [relationId, recordId, body.sourceRowId || null, body.targetRecordId])).rowCount) throw new ConflictException("这条记录已经关联，请刷新查看");
       if (spec.cardinality === "one" && (await tx.query("SELECT 1 FROM record_links WHERE relation_id=$1 AND source_record_id=$2 AND source_row_id IS NOT DISTINCT FROM $3::uuid", [relationId, recordId, body.sourceRowId || null])).rowCount) throw new ConflictException("此处只允许关联一条记录，请先解除已有关系");

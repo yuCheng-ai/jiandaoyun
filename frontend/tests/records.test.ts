@@ -4,7 +4,11 @@ import { useWorkspaceStore } from "../src/stores/workspace";
 import { createField, copy } from "../src/domain/form";
 import { newWebhook } from "../src/domain/extensions";
 import { sourceEntries } from "../src/domain/relations";
-import { defaultRecordView, filterAndSortRecords } from "../src/domain/records";
+import {
+  defaultRecordView,
+  filterAndSortRecords,
+  parseRecordView,
+} from "../src/domain/records";
 import { LocalWorkspaceRepository } from "../src/repositories/workspaceRepository";
 
 beforeEach(() => {
@@ -186,6 +190,7 @@ describe("record operations", () => {
       ...defaultRecordView(form.schema),
       fieldIds: ["quantity", "code"],
       pageSize: 10 as const,
+      rowHeight: "high" as const,
     };
     expect(await store.saveRecordView(form.id, view)).toBe(true);
     const loaded = new LocalWorkspaceRepository().load()!;
@@ -194,9 +199,27 @@ describe("record operations", () => {
     vi.mocked(localStorage.setItem).mockImplementation(() => {
       throw Error("quota");
     });
-    expect(await store.saveRecordView(form.id, { ...view, pageSize: 50 })).toBe(
-      false,
-    );
+    expect(
+      await store.saveRecordView(form.id, { ...view, rowHeight: "auto" }),
+    ).toBe(false);
     expect(store.data.recordViews![form.id]).toEqual(view);
+  });
+  it("preserves old column and sort settings when adopting low row height, and rejects unknown heights", () => {
+    const legacy = {
+      fieldIds: ["quantity", "code"],
+      pageSize: 50,
+      sortField: "quantity",
+      descending: false,
+    };
+    expect(parseRecordView(legacy)).toEqual({ ...legacy, rowHeight: "low" });
+    expect(parseRecordView({ ...legacy, rowHeight: "invalid" })).toEqual({
+      ...legacy,
+      rowHeight: "low",
+    });
+    for (const rowHeight of ["low", "medium", "high", "auto"])
+      expect(parseRecordView({ ...legacy, rowHeight })).toEqual({
+        ...legacy,
+        rowHeight,
+      });
   });
 });

@@ -40,5 +40,5 @@ export interface MigrationIdentityReview {
   items: { source: MigrationSourceIdentity; choice: MigrationIdentityChoice; targetName?: string; targetActive?: boolean; warnings: string[] }[];
   blockers: string[];
 }
-export interface MigrationBatchEvent { id: string; revision: number; action: "create" | "save" | "refresh_source" | "confirm_identities" | "reopen"; actorName: string; createdAt: string }
+export interface MigrationBatchEvent { id: string; revision: number; action: "create" | "save" | "refresh_source" | "confirm_identities" | "reopen" | "import_organization"; actorName: string; createdAt: string }
 export const migrationIdentityKey = (item: Pick<MigrationSourceIdentity, "kind" | "sourceId">) => `${item.kind}/${item.sourceId}`;

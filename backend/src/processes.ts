@@ -214,9 +214,17 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
       return this.context.record(tx, actor, id, await this.task(tx, actor, id, taskId));
     });
   }
-  async list(actor: Actor, applicationId?: string) {
+  async list(actor: Actor, applicationId?: string, scope?: string) {
     if (applicationId) uuid(applicationId);
-    return (await this.db.query("SELECT p.id,p.spec->>'title' AS title,p.status,p.template_version AS \"templateVersion\" FROM processes p WHERE p.workspace_id=$1 AND ($4::uuid IS NULL OR p.application_id=$4) AND ($2='admin' OR EXISTS(SELECT 1 FROM tasks t WHERE t.process_id=p.id AND t.assignee_id=$3)) ORDER BY p.created_at DESC LIMIT 100", [actor.workspaceId, actor.role, actor.id, applicationId || null])).rows;
+    if (scope && !["todo", "started", "handled"].includes(scope)) throw new BadRequestException("流程范围无效");
+    return (await this.db.query(`SELECT p.id,p.spec->>'title' AS title,p.status,p.template_version AS "templateVersion"
+      FROM processes p WHERE p.workspace_id=$1 AND ($4::uuid IS NULL OR p.application_id=$4)
+      AND ($2='admin' OR EXISTS(SELECT 1 FROM tasks t WHERE t.process_id=p.id AND t.assignee_id=$3))
+      AND ($5::text IS NULL
+        OR ($5='todo' AND EXISTS(SELECT 1 FROM tasks t WHERE t.process_id=p.id AND t.assignee_id=$3 AND t.status IN ('ready','blocked')))
+        OR ($5='started' AND p.created_by=$3)
+        OR ($5='handled' AND EXISTS(SELECT 1 FROM process_events e WHERE e.process_id=p.id AND e.actor_id=$3 AND e.action='completed')))
+      ORDER BY p.created_at DESC LIMIT 100`, [actor.workspaceId, actor.role, actor.id, applicationId || null, scope || null])).rows;
   }
   async refreshPending() {
     const pending = (await this.db.query("SELECT p.id,p.workspace_id,u.id AS actor_id,u.name,u.username FROM processes p JOIN LATERAL (SELECT id,name,username FROM users WHERE workspace_id=p.workspace_id AND role='admin' AND active ORDER BY id LIMIT 1) u ON true WHERE p.status='running' ORDER BY p.checked_at NULLS FIRST,p.created_at LIMIT 20")).rows;

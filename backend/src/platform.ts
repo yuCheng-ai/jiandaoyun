@@ -1,3 +1,4 @@
+import { compareRecordSortValues, displayPlainFieldValue, isNumericField, hasFieldValue, type RecordViewSettings } from "@platform/contracts";
 import {
   BadRequestException,
   ConflictException,
@@ -9,6 +10,7 @@ import { randomUUID } from "node:crypto";
 import { maxSubformRows } from "@platform/contracts";
 import type {
   AccessGrant,
+  MemberGrant,
   AccessPolicy,
   SubjectGrant,
   CellChange,
@@ -16,6 +18,7 @@ import type {
   FormSchema,
   FormValues,
   RecordDetail,
+  PageRecordSummary,
   ServerDefinition,
   ServerRecord,
 } from "@platform/contracts";
@@ -23,15 +26,15 @@ import { Database, Transaction } from "./database";
 import { Actor, requireAdmin } from "./auth";
 import { once } from "./commands";
 import { storeModelDraft, storeModelVersion } from "./data-projection";
-import { dataKind, separateFormSchema, isOrganizationField, isDepartmentField, equalFieldValues, fieldDefaultValue } from "@platform/contracts";
+import { dataKind, separateFormSchema, isOrganizationField, isDepartmentField, equalFieldValues, fieldDefaultValue, resolveCalculations } from "@platform/contracts";
 import { dataModelImpact } from "./model-impact";
-import { pageAccess, validatePageSubmission, type RecordPageScope } from "./page-runtime";
+import { pageAccess, pageAcceptsVersion, validatePageSubmission, type RecordPageScope } from "./page-runtime";
 import { assertPageActive } from "./page-lifecycle";
 import { pageBindings } from "./page-schema";
 import { applicationId } from "./applications";
 import { referencedRelationFields } from "./relation-rules";
 import { latestRowEvents } from "./record-rows";
-import { AccessService, AccessContext } from "./access";
+import { AccessService, AccessContext, effectiveAccess } from "./access";
 import { OrganizationService, parseSubject, requireSubject } from "./organization";
 import { CollectionService } from "./collection";
 import { draftSchema, validateSubmittedRecord } from "./record-state";
@@ -47,6 +50,7 @@ import {
   permission,
   scalar,
   rowActions,
+  rowPolicy,
   title,
   uuid,
 } from "./schema";
@@ -86,18 +90,40 @@ export class PlatformService {
   async identityLabels(tx: Queryable, actor: Actor, schema: FormSchema, values: FormValues) {
     return allFields(schema).some(field => isOrganizationField(field.type)) ? historicalLabels(tx, actor, organizationLabels(schema, values, await this.organizations.snapshot(tx, actor))) : [];
   }
-  async defaultResolver(tx: Queryable, actor: Actor, schema: FormSchema, values: FormValues = {}, base: FormValues = {}, fullSchema = schema) {
+  async defaultResolver(tx: Queryable, actor: Actor, schema: FormSchema, values: FormValues = {}, base: FormValues = {}, fullSchema = schema, access?: AccessGrant, strict = false) {
     const resolve = allFields(schema).some(field => isOrganizationField(field.type)) ? organizationDefaultResolver(fullSchema, await this.organizations.snapshot(tx, actor), actor.id, values, base) : (field: FormField) => field.defaultValue;
     const now = new Date();
-    return (field: FormField, row?: FormValues) => field.type === "datetime" ? fieldDefaultValue(field, now) : resolve(field, row);
+    const basic = (field: FormField, row?: FormValues) => isOrganizationField(field.type) ? resolve(field, row) : fieldDefaultValue(field, now);
+    const formulas = allFields(schema).filter(field => field.defaultFormula);
+    if (!formulas.length) return basic;
+    const supplied = (field: FormField, input: FormValues, parent?: FormField) =>
+      (!access || permission(access, field, parent) === "edit") && input[field.id] != null;
+    const seed = (fields: FormField[], input: FormValues, parent?: FormField): FormValues => Object.fromEntries(fields.map(field => {
+      if (field.type === "subform") return [field.id, Array.isArray(input[field.id]) ? (input[field.id] as FormValues[]).map(row => row && typeof row === 'object' && !Array.isArray(row) ? seed(field.children, row, field) : {}) : []];
+      return [field.id, supplied(field, input, parent) ? input[field.id] : field.defaultFormula ? undefined : basic(field, parent ? input : undefined)];
+    }));
+    const failures = new Set<string>();
+    const calculated = resolveCalculations(schema.fields, seed(schema.fields, values), base, {
+      fields: fullSchema.fields, now, defaults: formulas.map(field => field.id),
+      enabled: (field, input) => input[field.id] === undefined,
+      onError: field => failures.add(field.id),
+    });
+    if (strict && failures.size) throw new BadRequestException("默认值计算未完成，请检查相关填写内容或联系表单管理员。");
+    return (field: FormField, row?: FormValues) => {
+      const parent = schema.fields.find(item => item.children.some(child => child.id === field.id));
+      if (!parent) return calculated[field.id];
+      const index = Array.isArray(values[parent.id]) ? (values[parent.id] as FormValues[]).findIndex(item => item === row || (!!row?._rowId && item._rowId === row._rowId)) : -1;
+      const target = (calculated[parent.id] as FormValues[])?.[index];
+      return target && Object.hasOwn(target, field.id) ? target[field.id] : basic(field, row);
+    };
   }
   async recordDefaults(tx: Queryable, actor: Actor, schema: FormSchema) {
     const resolve = await this.defaultResolver(tx, actor, schema);
     return Object.fromEntries(schema.fields.map(field => [field.id, field.type === "subform" ? [] : resolve(field)]));
   }
-  async createValues(tx: Queryable, actor: Actor, schema: FormSchema, input: unknown, access: AccessGrant, base: FormValues = {}, fullSchema = schema) {
+  async createValues(tx: Queryable, actor: Actor, schema: FormSchema, input: unknown, access: AccessGrant, base: FormValues = {}, fullSchema = schema, strictDefaults = true) {
     object(input);
-    const resolve = await this.defaultResolver(tx, actor, schema, input, base, fullSchema);
+    const resolve = await this.defaultResolver(tx, actor, schema, input, base, fullSchema, access, strictDefaults);
     return newValues(schema, input, access, resolve);
   }
   async organizationOptions(actor: Actor, id: string, body: unknown, page?: RecordPageScope, transaction?: Transaction) {
@@ -120,6 +146,11 @@ export class PlatformService {
       if (body.rowId && (!source || !parent)) throw new BadRequestException("明细行身份不适用");
       const currentRow = body.rowId ? (source!.row.values[parent!.id] as FormValues[]).find(row => row._rowId === body.rowId) : undefined;
       if (body.rowId && !currentRow) throw new BadRequestException("明细行不存在");
+      if (parent) {
+        const policy = rowPolicy(parent, page?.schema.fields.find(item => item.id === parent.id));
+        if (currentRow ? !policy.editExisting : !policy.add && !policy.insert)
+          throw new ForbiddenException('此明细行不可填写组织字段');
+      }
       const organization = await this.organizations.snapshot(tx, actor);
       const values = source?.row.values || await this.recordDefaults(tx, actor, schema);
       const context: FormValues = { ...values, ...currentRow };
@@ -286,6 +317,7 @@ export class PlatformService {
       const defaultValues = Object.fromEntries(fields.map((field: FormField) => [field.id, defaults[field.id]]));
       return {
         defaultValues, identities: await this.identityLabels(tx, actor, { ...row.schema, fields }, defaultValues),
+        rowActions: rowActions(row.schema, { ...access, edit: access.create }),
         ...(access.create ? { collection: await this.collection.statusIn(tx, actor, id) } : {}),
         definition: {
           ...definitionDto(row),
@@ -299,10 +331,10 @@ export class PlatformService {
     requireAdmin(actor);
     await this.definition(this.db, actor, id);
     return (
-      await this.db.query("SELECT policy FROM grants WHERE definition_id=$1", [
+      await this.db.query("SELECT user_id,policy,revision FROM grants WHERE definition_id=$1", [
         id,
       ])
-    ).rows.map((r) => r.policy);
+    ).rows.map((r) => ({ ...r.policy, userId: r.user_id, revision: r.revision } satisfies MemberGrant));
   }
   async subjectGrants(actor: Actor, id: string) {
     requireAdmin(actor); await this.definition(this.db, actor, id);
@@ -313,6 +345,10 @@ export class PlatformService {
     object(body);
     const subject = subjectMode ? parseSubject(body.subject) : undefined;
     if (!subject) uuid(body.userId);
+    // An omitted version means first creation only, never an unchecked update.
+    const expectedRevision = body.expectedRevision === undefined ? 0 : body.expectedRevision;
+    if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0)
+      throw new BadRequestException("授权版本不合法");
     object(body.fields);
     if (body.relations !== undefined) object(body.relations);
     if (body.remove !== undefined && typeof body.remove !== "boolean") throw new BadRequestException("归档权限不合法");
@@ -327,8 +363,10 @@ export class PlatformService {
       throw new BadRequestException("授权配置不合法");
     return this.db.transaction(async (tx) => {
       await this.definition(tx, actor, id, "FOR UPDATE");
+      const organization = await this.organizations.snapshot(tx, actor);
+      requireAdmin(organization.users.find(user => user.id === actor.id)!);
       if ((await tx.query("SELECT 1 FROM record_permission_groups WHERE definition_id=$1 AND config->>'mode'='groups'", [id])).rowCount) throw new ConflictException('此数据对象按权限组授权，请在权限组中修改');
-      if (subject) requireSubject((await this.organizations.snapshot(tx, actor)).spec, subject);
+      if (subject) requireSubject(organization.spec, subject);
       const user = subject || (
         await tx.query(
           "SELECT id FROM users WHERE id=$1 AND workspace_id=$2 AND active",
@@ -366,14 +404,17 @@ export class PlatformService {
       };
       if (subject) {
         const old = (await tx.query("SELECT revision FROM subject_grants WHERE definition_id=$1 AND subject_kind=$2 AND subject_id=$3", [id, subject.kind, subject.id])).rows[0];
-        if (body.expectedRevision !== (old?.revision || 0)) throw new ConflictException("部门或角色权限已被修改，请重新读取后合并");
+        if (expectedRevision !== (old?.revision || 0)) throw new ConflictException("部门或角色权限已被修改，请重新读取后合并");
         const revision = (old?.revision || 0) + 1;
         await tx.query("INSERT INTO subject_grants(definition_id,subject_kind,subject_id,include_children,policy,revision) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(definition_id,subject_kind,subject_id) DO UPDATE SET include_children=$4,policy=$5,revision=$6", [id, subject.kind, subject.id, !!subject.includeChildren, policy, revision]);
         return { subject, policy, revision } satisfies SubjectGrant;
       }
       const direct: AccessGrant = { ...policy, userId: body.userId };
-      await tx.query("INSERT INTO grants VALUES($1,$2,$3) ON CONFLICT(definition_id,user_id) DO UPDATE SET policy=EXCLUDED.policy", [id, body.userId, direct]);
-      return direct;
+      const old = (await tx.query("SELECT revision FROM grants WHERE definition_id=$1 AND user_id=$2", [id, body.userId])).rows[0];
+      if (expectedRevision !== (old?.revision || 0)) throw new ConflictException("成员权限已被修改，当前输入已保留，请重新读取授权后核对");
+      const revision = (old?.revision || 0) + 1;
+      await tx.query("INSERT INTO grants(definition_id,user_id,policy,revision) VALUES($1,$2,$3,$4) ON CONFLICT(definition_id,user_id) DO UPDATE SET policy=EXCLUDED.policy,revision=EXCLUDED.revision", [id, body.userId, direct, revision]);
+      return { ...direct, revision } satisfies MemberGrant;
     });
   }
   async loadRecord(tx: Queryable, actor: Actor, id: string, lock = false, operation?: "export" | "print") {
@@ -427,7 +468,7 @@ export class PlatformService {
       identities: await this.identityLabels(tx, actor, visible.schema, visible.values),
       definition: { ...definitionDto(version), schema: visible.schema },
       access,
-      rowActions: rowActions(version.schema, access),
+      rowActions: rowActions(version.schema, access, page?.schema),
       ...(row.state === 'draft' && access.create ? { collection: await this.collection.statusIn(tx, actor, row.definition_id, row.created_by) } : {}),
       record: {
         ...recordDto(row),
@@ -467,16 +508,55 @@ export class PlatformService {
       };
     }
   }
-  async records(actor: Actor, id: string, state = "active") {
+  async records(actor: Actor, id: string, state = "active", page?: RecordPageScope, transaction?: Transaction): Promise<PageRecordSummary[]> {
+    return (await this.recordList(actor, id, state, page, transaction)).records;
+  }
+  async recordList(actor: Actor, id: string, state = "active", page?: RecordPageScope, transaction?: Transaction, options?: { settings: RecordViewSettings; page: number }) {
     if (!["active", "draft"].includes(state)) throw new BadRequestException("请选择正式记录或草稿");
-    return this.db.transaction(async (tx) => {
-      const def = await this.definition(tx, actor, id, "FOR SHARE");
-      const scope = state === "draft" ? await this.authorization.draftReaders(tx, actor, id) : await this.readableScope(tx, actor, id);
-      // Filter before LIMIT so disallowed rows cannot hide accessible records or disclose metadata.
+    const read = async (tx: Transaction) => {
+      await this.definition(tx, actor, id, "FOR SHARE");
+      const context = await this.authorization.context(tx, actor, id);
+      const scope = state === "draft" ? await this.authorization.draftReaders(tx, actor, id, context) : await this.authorization.readers(tx, actor, id, context);
       const parameters: unknown[] = [id, actor.workspaceId, scope.creators, state, actor.role === "admin", actor.id, scope.createdDepartments];
       const groupScope = scope.sql?.('r', parameters) || 'true';
-      return (await tx.query(`SELECT id,definition_version AS "definitionVersion",revision,state,created_at AS "createdAt",updated_at AS "updatedAt" FROM records r WHERE definition_id=$1 AND workspace_id=$2 AND archived_at IS NULL AND state=$4 AND ($3::uuid[] IS NULL OR created_by=ANY($3) OR created_department_ids && $7::uuid[]) AND (state<>'draft' OR $5::boolean OR created_by=$6) AND (${groupScope}) ORDER BY created_at DESC LIMIT 100`, parameters)).rows;
-    });
+      const where = `r.definition_id=$1 AND r.workspace_id=$2 AND r.archived_at IS NULL AND r.state=$4 AND ($3::uuid[] IS NULL OR r.created_by=ANY($3) OR r.created_department_ids && $7::uuid[]) AND (r.state<>'draft' OR $5::boolean OR r.created_by=$6) AND (${groupScope})`;
+      const settings=options?.settings, fieldSort=!!settings && settings.sortField !== '$createdAt';
+      // The same permission predicate drives counts and rows. Hidden values never drive sorting.
+      const total=Number((await tx.query(`SELECT count(*) AS count FROM records r WHERE ${where}`,parameters)).rows[0].count);
+      const pageSize=settings?.pageSize || 100, pageNumber=Math.min(options?.page || 1,Math.max(1,Math.ceil(total/pageSize)));
+      const offset=(pageNumber-1)*pageSize;
+      const order=settings?.descending===false ? 'ASC' : 'DESC';
+      const rows=(await tx.query(`SELECT r.*,v.schema FROM records r JOIN definition_versions v ON v.definition_id=r.definition_id AND v.version=r.definition_version WHERE ${where} ORDER BY r.created_at ${order},r.id ${fieldSort ? '' : `LIMIT ${pageSize} OFFSET ${offset}`}`,parameters)).rows;
+      const result: PageRecordSummary[] = [];
+      for (const row of rows) {
+        const record: PageRecordSummary = { id: row.id, definitionVersion: row.definition_version, revision: row.revision, state: row.state, createdAt: new Date(row.created_at).toISOString(), updatedAt: new Date(row.updated_at).toISOString() };
+        if (page && pageAcceptsVersion(page, row.schema, row.definition_version)) {
+          const source = effectiveAccess(actor, row.schema, context, { createdBy: row.created_by, createdDepartmentIds: row.created_department_ids, values: row.values, ...(row.state === 'draft' ? { operation: 'create' as const } : {}) });
+          const access = pageAccess(page, id, row.definition_version, source, row.schema);
+          const visible = masked(page.schema, row.values, {}, access);
+          record.preview = { fields: visible.schema.fields, values: visible.values, identities: [] };
+          // Only sorting by identity needs label resolution before slicing the selected page.
+          const sortField=visible.schema.fields.find(field=>field.id===settings?.sortField);
+          if (fieldSort && sortField && isOrganizationField(sortField.type)) record.preview.identities=await historicalLabels(tx,actor,organizationLabels(visible.schema,visible.values,context.organization));
+        }
+        result.push(record);
+      }
+      if (fieldSort) {
+        const key=(record:PageRecordSummary) => {
+          const preview=record.preview, field=preview?.fields.find(field=>field.id===settings!.sortField);
+          if (!field || !preview) return '';
+          const value=preview.values[field.id];
+          return isNumericField(field) ? Number(value) : displayPlainFieldValue(field,value,{identity:id=>preview.identities.find(identity=>identity.id===id)?.name || '无法识别的成员或部门'}).toLocaleLowerCase();
+        };
+        const keys=new Map(result.map(record=>[record.id,key(record)]));
+        result.sort((a,b)=>compareRecordSortValues(keys.get(a.id)!,keys.get(b.id)!,settings!.descending)||a.id.localeCompare(b.id));
+      }
+      const records=fieldSort ? result.slice(offset,offset+pageSize) : result;
+      for (const record of records) if(record.preview) record.preview.identities=await historicalLabels(tx,actor,organizationLabels({version:1,fields:record.preview.fields} as FormSchema,record.preview.values,context.organization));
+      const fields=actor.role==='admin' && page ? page.schema.fields.filter(hasFieldValue) : [...new Map(records.flatMap(record=>(record.preview?.fields || []).map(field=>[field.id,field] as const))).values()];
+      return {records,total,page:pageNumber,pageSize,fields};
+    };
+    return transaction ? read(transaction) : this.db.transaction(read);
   }
   async createRecord(actor: Actor, id: string, body: unknown, page?: RecordPageScope, transaction?: Transaction) {
     object(body);
@@ -505,8 +585,13 @@ export class PlatformService {
           const { values, revisions } = await this.createValues(
             tx, actor, draft ? draftSchema(version.schema) : version.schema,
             body.values,
-            access,
+            access, {}, version.schema, !draft,
           );
+          for (const field of (version.schema as FormSchema).fields.filter(field => field.type === 'subform')) {
+            const policy = rowPolicy(field, page?.schema.fields.find(item => item.id === field.id));
+            if ((values[field.id] as FormValues[]).length && !policy.add && !policy.insert)
+              throw new ForbiddenException(`「${field.label}」不可新增或插入记录`);
+          }
           await this.validateRecordOrganizations(tx, actor, version.schema, values);
           if (!draft) {
             validatePageSubmission(page, values, access);
@@ -601,7 +686,7 @@ export class PlatformService {
           const changed: Record<string, unknown>[] = [];
           body.changes.forEach(object);
           if (page?.row && (body.rows.length || body.changes.some((change: any) => change.subformId !== page.row!.subformId || change.rowId !== page.row!.rowId))) throw new ForbiddenException("此任务仅允许修改所绑定的明细行");
-          await this.patchRows(tx, actor, row, schema, access, body.rows, changed);
+          await this.patchRows(tx, actor, row, schema, access, body.rows, changed, page?.schema);
           for (const raw of body.changes) {
             object(raw);
             const change = raw as CellChange;
@@ -629,6 +714,8 @@ export class PlatformService {
               : row.values;
             if (!target)
               throw new BadRequestException("明细行不存在，请重新读取");
+            if (parent && !rowPolicy(parent, page?.schema.fields.find(item => item.id === parent.id)).editExisting)
+              throw new ForbiddenException(`「${parent.label}」不可编辑已有记录`);
             const key = cellKey(change);
             if (
               keys.has(key) ||
@@ -669,22 +756,32 @@ export class PlatformService {
     const result = async (tx: Transaction) => this.writeDetailIn(tx, actor, await write(tx), page, !page?.taskId);
     return transaction ? result(transaction) : this.db.transaction(result);
   }
-  private async patchRows(tx: Transaction, actor: Actor, record: any, schema: FormSchema, access: AccessGrant, commands: unknown[], audit: Record<string, unknown>[]) {
+  private async patchRows(tx: Transaction, actor: Actor, record: any, schema: FormSchema, access: AccessGrant, commands: unknown[], audit: Record<string, unknown>[], page?: FormSchema) {
     const touched = new Set<string>(), removed = new Set<string>();
     for (const raw of commands) {
       object(raw);
       const parent = schema.fields.find(f => f.id === raw.subformId && f.type === "subform");
       if (!parent || permission(access, parent) !== "edit") throw new ForbiddenException("没有此明细的结构修改权限");
+      const policy = rowPolicy(parent, page?.fields.find(item => item.id === parent.id));
       const key = `@rows/${parent.id}`;
       if (!Number.isInteger(raw.expectedRevision) || raw.expectedRevision !== (record.cell_revisions[key] || 1)) throw new ConflictException("明细行结构已变更，请读取最新记录后重试");
       const rows = record.values[parent.id] as FormValues[];
-      if (raw.action === "add") {
-        const created = await this.createValues(tx, actor, { ...schema, fields: [parent] }, { [parent.id]: [raw.values] }, access, record.values, schema);
+      if (raw.action === "add" || raw.action === "insert") {
+        if (raw.action === 'add' ? !policy.add : !policy.insert)
+          throw new ForbiddenException(raw.action === 'add' ? '不可新增记录' : '不可插入记录');
+        let index = rows.length;
+        if (raw.action === 'insert' && raw.beforeRowId !== null) {
+          uuid(raw.beforeRowId);
+          index = rows.findIndex(item => item._rowId === raw.beforeRowId);
+          if (index < 0) throw new ConflictException('插入位置已变化，请读取最新记录后重试');
+        }
+        const created = await this.createValues(tx, actor, { ...schema, fields: [parent] }, { [parent.id]: [raw.values] }, access, record.values, schema, record.state !== "draft");
         const value = (created.values[parent.id] as FormValues[])[0]!;
-        rows.push(value);
+        rows.splice(index, 0, value);
         for (const [cell, revision] of Object.entries(created.revisions)) if (cell !== key) record.cell_revisions[cell] = revision;
-        audit.push({ action: "row-add", subformId: parent.id, rowId: value._rowId, values: value });
+        audit.push({ action: "row-add", subformId: parent.id, rowId: value._rowId, values: value, ...(raw.action === 'insert' ? { beforeRowId: raw.beforeRowId } : {}) });
       } else if (raw.action === "remove") {
+        if (!policy.deleteExisting) throw new ForbiddenException('不可删除已有记录');
         uuid(raw.rowId); object(raw.expectedCells);
         if (parent.children.some(child => permission(access, child, parent) !== "edit")) throw new ForbiddenException("删除明细需要能够修改该行所有列");
         const index = rows.findIndex(r => r._rowId === raw.rowId);
@@ -701,13 +798,14 @@ export class PlatformService {
         rows.splice(index, 1); removed.add(raw.rowId);
         for (const child of parent.children) delete record.cell_revisions[cellKey({ subformId: parent.id, rowId: raw.rowId, fieldId: child.id })];
       } else if (raw.action === "restore") {
+        if (!policy.add) throw new ForbiddenException('不可新增记录，无法恢复明细');
         uuid(raw.rowId); uuid(raw.eventId);
         if (parent.children.some(child => permission(access, child, parent) !== "edit")) throw new ForbiddenException("恢复明细需要能够修改该行所有列");
         if (rows.some(row => row._rowId === raw.rowId)) throw new ConflictException("此明细行已存在，请刷新查看");
         const deleted = (await latestRowEvents(tx, record.id)).find(event => event.change.subformId === parent.id && event.change.rowId === raw.rowId);
         if (!deleted || deleted.id !== raw.eventId || deleted.change.action !== "row-remove") throw new ConflictException("删除记录已变化，请选择最近一次删除的明细");
         const { _rowId, ...before } = deleted.change.before;
-        const restored = await this.createValues(tx, actor, { ...schema, fields: [parent] }, { [parent.id]: [before] }, access, record.values, schema);
+        const restored = await this.createValues(tx, actor, { ...schema, fields: [parent] }, { [parent.id]: [before] }, access, record.values, schema, record.state !== "draft");
         const value = (restored.values[parent.id] as FormValues[])[0]!; value._rowId = raw.rowId;
         rows.push(value);
         // Cell versions must never become equal to an old pre-deletion edit snapshot.
@@ -743,14 +841,15 @@ export class PlatformService {
     return this.db.transaction(async tx => {
       const record = await this.loadRecord(tx, actor, id);
       const access = pageAccess(page, record.row.definition_id, record.row.definition_version, record.access, record.version.schema);
-      const allowed = rowActions(record.version.schema, access);
+      const allowed = rowActions(record.version.schema, access, page?.schema);
       return Promise.all((await latestRowEvents(tx, id)).filter(event => event.change.action === "row-remove" && allowed[event.change.subformId]?.remove && !(record.row.values[event.change.subformId] || []).some((row: FormValues) => row._rowId === event.change.rowId)).map(async event => {
         const parent = (record.version.schema as FormSchema).fields.find(field => field.id === event.change.subformId)!;
         const { _rowId, ...before } = event.change.before;
         let restorable = true, reason: string | undefined;
         try {
+          if (!allowed[parent.id]?.add) throw new ForbiddenException('不可新增记录，无法恢复明细');
           const restoreSchema = record.row.state === "draft" ? draftSchema(record.version.schema) : record.version.schema;
-          const restored = await this.createValues(tx, actor, { ...restoreSchema, fields: [restoreSchema.fields.find((field: FormField) => field.id === parent.id)!] }, { [parent.id]: [before] }, access, record.row.values, record.version.schema);
+          const restored = await this.createValues(tx, actor, { ...restoreSchema, fields: [restoreSchema.fields.find((field: FormField) => field.id === parent.id)!] }, { [parent.id]: [before] }, access, record.row.values, record.version.schema, record.row.state !== "draft");
           await this.validateRecordOrganizations(tx, actor, record.version.schema, { ...record.row.values, [parent.id]: [...record.row.values[parent.id], ...(restored.values[parent.id] as FormValues[])] }, record.row.values);
         }
         catch (cause) { restorable = false; reason = (cause as Error).message; }

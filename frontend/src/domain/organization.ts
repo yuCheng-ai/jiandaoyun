@@ -1,54 +1,25 @@
 import { copy, uid, type FormValues } from "./form";
 
-export interface Department {
-  id: string;
-  name: string;
-  parentId: string | null;
-  managerIds: string[];
-  archived: boolean;
-}
-export type EmployeeStatus = "active" | "inactive" | "left";
-export interface Employee {
-  id: string;
-  name: string;
-  number: string;
-  email: string;
-  phone: string;
-  departmentIds: string[];
-  primaryDepartmentId: string;
-  position: string;
-  status: EmployeeStatus;
-  joinedAt: string;
-}
-export interface RoleGroup {
-  id: string;
-  name: string;
-}
-export type GrantAction = "view" | "submit" | "manage";
-export interface RoleGrant {
-  appId: string;
-  formIds: string[];
-  actions: GrantAction[];
-  dataScope: "all" | "self" | "department";
-}
-export interface OrganizationRole {
-  id: string;
-  name: string;
-  groupId: string;
-  description: string;
-  memberIds: string[];
-  departmentIds: string[];
-  includeChildren: boolean;
-  grants: RoleGrant[];
-  archived: boolean;
-}
-export interface Organization {
-  version: 1;
-  name: string;
-  departments: Department[];
-  employees: Employee[];
-  roleGroups: RoleGroup[];
-  roles: OrganizationRole[];
+import {
+  roleGrantMatches,
+  type DirectorySpec,
+  type GrantAction,
+} from "@platform/contracts";
+export type {
+  DirectoryDepartment as Department,
+  DirectoryEmployee as Employee,
+  DirectoryRoleGroup as RoleGroup,
+  DirectoryRole as OrganizationRole,
+  EmployeeStatus,
+  GrantAction,
+  RoleGrant,
+} from "@platform/contracts";
+import type {
+  DirectoryDepartment as Department,
+  DirectoryEmployee as Employee,
+  DirectoryRole as OrganizationRole,
+} from "@platform/contracts";
+export interface Organization extends DirectorySpec {
   currentUserId: string;
 }
 import type {
@@ -422,16 +393,32 @@ export function permissionsFor(
   employeeId: string,
   appId: string,
   formId: string,
+  sourceAppId?: string,
+  sourceFormId?: string,
 ) {
   const grants = rolesFor(org, employeeId)
     .flatMap((r) => r.grants)
-    .filter(
-      (g) =>
-        (g.appId === "*" || g.appId === appId) &&
-        (!g.formIds.length || g.formIds.includes(formId)),
+    .filter((g) =>
+      roleGrantMatches(g, appId, formId, sourceAppId, sourceFormId),
     );
   return {
     actions: [...new Set(grants.flatMap((g) => g.actions))],
+    scopes: Object.fromEntries(
+      (["view", "submit", "manage"] as GrantAction[]).map((action) => {
+        const scopes = [
+          ...new Set(
+            grants
+              .filter(
+                (g) =>
+                  g.actions.includes(action) ||
+                  (action === "view" && g.actions.includes("manage")),
+              )
+              .map((g) => g.dataScope),
+          ),
+        ];
+        return [action, scopes.includes("all") ? ["all"] : scopes];
+      }),
+    ) as Record<GrantAction, ("all" | "self" | "department")[]>,
     dataScope: grants.some((g) => g.dataScope === "all")
       ? "all"
       : grants.some((g) => g.dataScope === "department")

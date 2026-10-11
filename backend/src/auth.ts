@@ -26,6 +26,14 @@ export interface AuthenticatedRequest extends Request {
 }
 export const tokenHash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
+export function sessionTokenHash(cookie = "") {
+  const token = cookie
+    .split(";")
+    .map((value) => value.trim())
+    .find((value) => value.startsWith("platform_session="))
+    ?.slice(17);
+  return token ? tokenHash(token) : undefined;
+}
 export function passwordHash(value: string) {
   const salt = randomBytes(16).toString("hex");
   return `${salt}:${scryptSync(value, salt, 64).toString("hex")}`;
@@ -84,58 +92,52 @@ export class AuthService {
     const prior = this.failures.get(key);
     if (prior && prior.until > Date.now() && prior.count >= 8)
       throw new UnauthorizedException("尝试次数过多，请稍后重试");
-    const row = (
-      await this.db.query("SELECT * FROM users WHERE username=$1 AND active", [
-        username,
-      ])
-    ).rows[0];
-    const valid = verifyPassword(
-      password,
-      row?.password_hash || this.dummyHash,
-    );
-    if (!row || !valid) {
-      if (this.failures.size > 10000) this.failures.clear();
-      this.failures.set(key, {
-        count: prior && prior.until > Date.now() ? prior.count + 1 : 1,
-        until: Date.now() + 60000,
-      });
-      throw new UnauthorizedException("账号或密码不正确");
-    }
-    this.failures.delete(key);
-    const token = randomBytes(32).toString("base64url");
-    await this.db.query(
-      "INSERT INTO sessions VALUES($1,$2,now()+interval '8 hours')",
-      [tokenHash(token), row.id],
-    );
-    return { token, user: publicUser(row) };
+    return this.db.transaction(async (tx) => {
+      // Serialize password verification and session creation with account changes.
+      const row = (
+        await tx.query(
+          "SELECT * FROM users WHERE username=$1 AND active FOR UPDATE",
+          [username],
+        )
+      ).rows[0];
+      const valid = verifyPassword(
+        password,
+        row?.password_hash || this.dummyHash,
+      );
+      if (!row || !valid) {
+        if (this.failures.size > 10000) this.failures.clear();
+        this.failures.set(key, {
+          count: prior && prior.until > Date.now() ? prior.count + 1 : 1,
+          until: Date.now() + 60000,
+        });
+        throw new UnauthorizedException("账号或密码不正确");
+      }
+      this.failures.delete(key);
+      const token = randomBytes(32).toString("base64url");
+      await tx.query(
+        "INSERT INTO sessions VALUES($1,$2,now()+interval '8 hours')",
+        [tokenHash(token), row.id],
+      );
+      return { token, user: publicUser(row) };
+    });
   }
   async actor(cookie = "") {
-    const token = cookie
-      .split(";")
-      .map((v) => v.trim())
-      .find((v) => v.startsWith("platform_session="))
-      ?.slice(17);
-    if (!token) throw new UnauthorizedException("请先登录协作空间");
+    const hash = sessionTokenHash(cookie);
+    if (!hash) throw new UnauthorizedException("请先登录");
     const row = (
       await this.db.query(
         `SELECT u.* FROM users u JOIN sessions s ON s.user_id=u.id
       WHERE s.token_hash=$1 AND s.expires_at>now() AND u.active`,
-        [tokenHash(token)],
+        [hash],
       )
     ).rows[0];
     if (!row) throw new UnauthorizedException("登录已失效，请重新登录");
     return publicUser(row);
   }
   async logout(cookie = "") {
-    const token = cookie
-      .split(";")
-      .map((v) => v.trim())
-      .find((v) => v.startsWith("platform_session="))
-      ?.slice(17);
-    if (token)
-      await this.db.query("DELETE FROM sessions WHERE token_hash=$1", [
-        tokenHash(token),
-      ]);
+    const hash = sessionTokenHash(cookie);
+    if (hash)
+      await this.db.query("DELETE FROM sessions WHERE token_hash=$1", [hash]);
   }
 }
 @Injectable()
@@ -144,19 +146,35 @@ export class AuthGuard implements CanActivate {
   async canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     request.actor = await this.auth.actor(request.headers.cookie);
-    const header = request.headers['x-platform-access-groups'];
+    const header = request.headers["x-platform-access-groups"];
     if (header !== undefined) {
       try {
-        if (typeof header !== 'string' || header.length > 12000) throw new Error();
+        if (typeof header !== "string" || header.length > 12000)
+          throw new Error();
         const choices = JSON.parse(header);
-        if (!choices || typeof choices !== 'object' || Array.isArray(choices) || Object.keys(choices).length > 50) throw new Error();
-        for (const [key, value] of Object.entries(choices)) if (!/^[0-9a-f-]{36}$/i.test(key) || typeof value !== 'string' || !value || value.length > 200) throw new Error();
+        if (
+          !choices ||
+          typeof choices !== "object" ||
+          Array.isArray(choices) ||
+          Object.keys(choices).length > 50
+        )
+          throw new Error();
+        for (const [key, value] of Object.entries(choices))
+          if (
+            !/^[0-9a-f-]{36}$/i.test(key) ||
+            typeof value !== "string" ||
+            !value ||
+            value.length > 200
+          )
+            throw new Error();
         request.actor.accessGroups = choices;
-      } catch { throw new BadRequestException('权限组选择格式不合法'); }
+      } catch {
+        throw new BadRequestException("权限组选择格式不合法");
+      }
     }
     return true;
   }
 }
-export function requireAdmin(actor: Actor) {
+export function requireAdmin(actor: Pick<Actor, "role">) {
   if (actor.role !== "admin") throw new ForbiddenException("需要管理员权限");
 }

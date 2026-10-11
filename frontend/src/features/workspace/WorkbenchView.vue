@@ -1,387 +1,340 @@
 <script setup lang="ts">
-import { entryTitle } from "../../domain/collaboration";
-import { computed, ref } from "vue";
-import { useRouter } from "vue-router";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import type { ApplicationSummary } from "@platform/contracts";
 import { useWorkspaceStore } from "../../stores/workspace";
+import { usePlatformSession } from "../../stores/platformSession";
+import { platformApi, PlatformError } from "../../repositories/platformApi";
+import { signInDestination } from "../../router/sessionGuard";
 import AppIcon from "../../components/AppIcon.vue";
 import BaseDialog from "../../components/BaseDialog.vue";
 import WorkspaceHeader from "../../components/shared/WorkspaceHeader.vue";
-const store = useWorkspaceStore();
-const router = useRouter();
-const query = ref("");
-const dialog = ref("");
-const appName = ref("");
-const appColor = ref("#56ae72");
-const showGuide = ref(sessionStorage.getItem("studio-guide-hidden") !== "1");
-const workTab = ref("");
-const apps = computed(() =>
-  store.data.apps.filter((app) => app.name.includes(query.value)),
-);
-const recent = computed(() =>
-  store.data.recentFormIds
-    .map((id) => store.activeForms.find((f) => f.id === id))
-    .filter(Boolean),
-);
-const menu = [
-  { label: "我的待办", icon: "bell" },
-  { label: "我发起的", icon: "start" },
-  { label: "我处理的", icon: "done" },
-  { label: "抄送我的", icon: "copy" },
-  { label: "发起流程", icon: "launch" },
+import PlatformLogin from "../session/PlatformLogin.vue";
+import ProcessWorkspace from "../processes/ProcessWorkspace.vue";
+import WorkbenchProcessStart from "../processes/WorkbenchProcessStart.vue";
+import "../collaboration/collaboration.css";
+const store = useWorkspaceStore(),
+  session = usePlatformSession();
+const router = useRouter(),
+  route = useRoute();
+const query = ref(""),
+  tab = ref("apps");
+const workMenu = [
+  { id: "todo", title: "我的待办", icon: "bell" },
+  { id: "started", title: "我发起的", icon: "start" },
+  { id: "handled", title: "我处理的", icon: "archive" },
+  { id: "copied", title: "抄送我的", icon: "copy" },
+  { id: "launch", title: "发起流程", icon: "logout" },
+  { id: "delegation", title: "待办委托", icon: "people" },
 ];
-const pendingEntries = computed(() =>
-  store.data.entries.filter(
-    (e) =>
-      !e.deletedAt &&
-      e.status === "submitted" &&
-      store.activeForms.some((f) => f.id === e.formId && f.kind === "workflow"),
+const processScope = computed(() =>
+  ["todo", "started", "handled"].includes(tab.value)
+    ? (tab.value as "todo" | "started" | "handled")
+    : undefined,
+);
+const applications = ref<ApplicationSummary[]>([]),
+  busy = ref(false),
+  error = ref("");
+const ready = ref(false),
+  loadedActor = ref("");
+const dialog = ref(false),
+  appName = ref(""),
+  saving = ref(false),
+  saveError = ref("");
+const apps = computed(() =>
+  [
+    ...(session.user?.role === "admin"
+      ? store.data.apps.map((app) => ({
+          id: `local:${app.id}`,
+          title: app.name,
+          color: app.color,
+          icon: app.icon,
+          path: `/apps/${app.id}`,
+        }))
+      : []),
+    ...applications.value.map((app) => ({
+      id: `server:${app.id}`,
+      title: app.title,
+      color: "#56ae72",
+      icon: "department",
+      path: `/applications/${app.id}`,
+    })),
+  ].filter((app) =>
+    app.title.toLowerCase().includes(query.value.trim().toLowerCase()),
   ),
 );
-const taskEntries = computed(() =>
-  store.data.entries
-    .filter((entry) => !entry.deletedAt)
-    .filter((entry) =>
-      workTab.value === "我的待办"
-        ? entry.status === "submitted" &&
-          store.activeForms.some(
-            (f) => f.id === entry.formId && f.kind === "workflow",
-          )
-        : workTab.value === "我处理的"
-          ? ["approved", "rejected"].includes(entry.status)
-          : workTab.value === "抄送我的"
-            ? entry.history.some((h) => h.label.includes("抄送"))
-            : true,
-    ),
-);
-function openTemplate(id: string) {
-  const form = store.activeForms.find((f) => f.id === id);
-  if (form)
-    router.push(
-      `/apps/${form.appId}/forms/${form.id}/${dialog.value === "templates" ? "design" : "fill"}`,
-    );
-  dialog.value = "";
+let disposed = false;
+async function load() {
+  if (busy.value) return;
+  busy.value = true;
+  error.value = "";
+  try {
+    await session.restore();
+    if (disposed) return;
+    if (!session.user || loadedActor.value !== session.user.id) {
+      applications.value = [];
+      dialog.value = false;
+      tab.value = "apps";
+    }
+    loadedActor.value = session.user?.id || "";
+    if (!session.user) return;
+    const next = signInDestination(router, route.query.next);
+    if (next) {
+      await router.replace(next);
+      return;
+    }
+    const actor = session.user.id;
+    const result = await platformApi<ApplicationSummary[]>("/applications");
+    if (!disposed && actor === session.user?.id) applications.value = result;
+  } catch (cause) {
+    applications.value = [];
+    if (cause instanceof PlatformError && cause.status === 401) {
+      try {
+        await session.restore();
+      } catch (failure) {
+        error.value = (failure as Error).message;
+      }
+    } else error.value = (cause as Error).message;
+  } finally {
+    busy.value = false;
+    ready.value = true;
+  }
 }
-function hideGuide() {
-  showGuide.value = false;
-  sessionStorage.setItem("studio-guide-hidden", "1");
+async function logout() {
+  if (busy.value || saving.value) return;
+  busy.value = true;
+  error.value = "";
+  try {
+    await session.logout();
+    applications.value = [];
+    loadedActor.value = "";
+    dialog.value = false;
+    tab.value = "apps";
+    await router.replace("/");
+  } catch (cause) {
+    error.value = (cause as Error).message;
+  } finally {
+    busy.value = false;
+  }
+}
+function openCreate() {
+  dialog.value = true;
+  appName.value = saveError.value = "";
 }
 async function createApp() {
-  if (!appName.value.trim()) return;
-  const app = await store.createApp(appName.value.trim(), appColor.value);
-  if (app) {
-    dialog.value = "";
-    router.push(`/apps/${app.id}`);
-  }
-}
-function menuClick(label: string) {
-  if (label === "发起流程") {
-    dialog.value = "start";
+  if (saving.value || !appName.value.trim() || session.user?.role !== "admin")
     return;
+  saving.value = true;
+  saveError.value = "";
+  try {
+    const app = await store.createApp(appName.value.trim(), "#56ae72");
+    if (!app) throw new Error(store.storageError || "创建失败，请重试");
+    dialog.value = false;
+    await router.push(`/apps/${app.id}`);
+  } catch (cause) {
+    saveError.value = (cause as Error).message;
+  } finally {
+    saving.value = false;
   }
-  workTab.value = label;
 }
-function openForm(id: string) {
-  const form = store.activeForms.find((f) => f.id === id);
-  if (form) router.push(`/apps/${form.appId}/forms/${form.id}/design`);
+// Recheck the session and authorized app list when returning from another tab.
+function focused() {
+  if (!dialog.value && tab.value === "apps") void load();
 }
-function guideAction(index: number) {
-  if (index === 0) dialog.value = "help";
-  else if (index === 1)
-    document.querySelector("#my-apps")?.scrollIntoView({ behavior: "smooth" });
-  else if (index === 2) router.push("/apps/oa");
-  else router.push("/admin/organization");
-}
+onMounted(() => {
+  void load();
+  window.addEventListener("focus", focused);
+});
+onBeforeUnmount(() => {
+  disposed = true;
+  window.removeEventListener("focus", focused);
+});
 </script>
 <template>
   <div class="workspace-page">
     <WorkspaceHeader
-      @templates="dialog = 'templates'"
+      v-if="session.user && ready"
+      :account="session.user"
+      :busy="busy"
+      @home="tab = 'apps'"
       @directory="router.push('/admin/organization')"
-      @notifications="dialog = 'notifications'"
+      @logout="logout"
     />
+    <header v-else class="workspace-header">
+      <div class="workspace-brand">
+        <AppIcon name="cloud" :size="27" class="brand-cloud" /><strong
+          >工作台</strong
+        >
+      </div>
+    </header>
     <main class="workbench-scroll">
       <div class="workbench-content">
-        <section v-if="showGuide" class="guide-banner">
-          <strong>新手引导</strong
-          ><button
-            class="guide-close icon-button"
-            aria-label="关闭新手引导"
-            @click="hideGuide"
-          >
-            <AppIcon name="close" />
-          </button>
-          <div class="guide-steps">
+        <p v-if="error" class="collab-error workbench-message" role="alert">
+          {{ error }}
+          <button class="button" :disabled="busy" @click="load">重试</button>
+        </p>
+        <p v-if="busy" class="workbench-message" role="status">正在读取…</p>
+        <PlatformLogin
+          v-show="ready && !session.user && !busy && !error"
+          @signed-in="load"
+        />
+        <div
+          v-if="ready && session.user && loadedActor === session.user.id"
+          class="workbench-columns"
+        >
+          <aside class="workbench-menu panel-card" aria-label="工作台导航">
             <button
-              v-for="(label, index) in [
-                '了解本产品',
-                '探索应用',
-                '创建流程/表单',
-                '邀请成员',
-              ]"
-              :key="label"
-              @click="guideAction(index)"
-            >
-              <img :src="`/assets/guide-${index + 1}.png`" alt="" />
-              <div>
-                <b>{{ index + 1 }}.</b><span>{{ label }}</span>
-              </div>
-            </button>
-          </div>
-        </section>
-        <div class="workbench-columns">
-          <aside class="workbench-menu panel-card">
-            <button @click="router.push('/applications')">
-              <AppIcon name="layers" :size="18" />应用管理
-            </button>
-            <button
-              v-for="(item, index) in menu"
-              :key="item.label"
+              v-for="item in workMenu"
+              :key="item.id"
               :class="{
-                active: workTab === item.label,
-                'menu-separator': index === 4,
+                active: tab === item.id,
+                'menu-separator': item.id === 'launch',
               }"
-              @click="menuClick(item.label)"
+              :aria-current="tab === item.id ? 'page' : undefined"
+              @click="tab = item.id"
             >
-              <AppIcon :name="item.icon" :size="18" />{{ item.label
-              }}<span
-                v-if="index === 0 && pendingEntries.length > 0"
-                class="count-dot"
-                >{{ pendingEntries.length }}</span
-              >
+              <AppIcon :name="item.icon" :size="18" />{{ item.title }}
             </button>
           </aside>
           <div class="workbench-main">
-            <template v-if="workTab"
-              ><section class="panel-card task-panel">
-                <header class="section-heading">
-                  <h2>{{ workTab }}</h2>
-                  <button class="text-button" @click="workTab = ''">
-                    返回应用
-                  </button>
-                </header>
-                <div v-if="!taskEntries.length" class="workspace-empty">
-                  <AppIcon name="done" :size="48" />
-                  <p>暂无{{ workTab.slice(1) }}记录</p>
-                </div>
-                <button
-                  v-for="entry in taskEntries"
-                  :key="entry.id"
-                  class="task-row"
-                  @click="
-                    router.push(
-                      `/apps/${store.activeForms.find((f) => f.id === entry.formId)?.appId}/forms/${entry.formId}/data`,
-                    )
-                  "
-                >
-                  <AppIcon name="form" /><span
-                    >{{ entryTitle(entry, store.data)
-                    }}<small>{{
-                      new Date(entry.createdAt).toLocaleString("zh-CN")
-                    }}</small></span
-                  ><span class="status-tag">{{
-                    entry.status === "submitted"
-                      ? store.activeForms.find((f) => f.id === entry.formId)
-                          ?.kind === "workflow"
-                        ? "待处理"
-                        : "已提交"
-                      : entry.status === "draft"
-                        ? "草稿"
-                        : "已处理"
-                  }}</span
-                  ><AppIcon name="down" />
-                </button></section
-            ></template>
-            <template v-else
-              ><section class="panel-card recent-panel">
-                <header class="section-heading"><h2>最近使用</h2></header>
-                <div class="recent-grid">
-                  <button
-                    v-for="form in recent"
-                    :key="form!.id"
-                    @click="openForm(form!.id)"
-                  >
-                    <AppIcon
-                      :name="form!.kind === 'workflow' ? 'condition' : 'form'"
-                      :size="20"
-                      :class="
-                        form!.kind === 'workflow' ? 'orange-icon' : 'blue-icon'
-                      "
-                    /><span>{{ form!.title }}</span>
-                  </button>
-                  <p v-if="!recent.length" class="muted">
-                    还没有最近使用的表单
-                  </p>
-                </div>
-              </section>
-              <section id="my-apps" class="panel-card apps-panel">
-                <header class="section-heading">
-                  <h2>我的应用 <AppIcon name="settings" class="muted" /></h2>
-                  <div class="section-actions">
-                    <div class="search-input">
-                      <AppIcon name="search" /><input
-                        v-model="query"
-                        aria-label="搜索应用"
-                        placeholder="请输入名称来搜索"
-                      />
-                    </div>
-                    <button
-                      class="button primary"
-                      @click="
-                        appName = '';
-                        dialog = 'create-app';
-                      "
-                    >
-                      <AppIcon name="add" />新建应用
-                    </button>
-                  </div>
-                </header>
-                <div class="app-grid">
-                  <button
-                    v-for="app in apps"
-                    :key="app.id"
-                    class="application-card"
-                    @click="router.push(`/apps/${app.id}`)"
-                  >
-                    <span
-                      class="application-tile"
-                      :style="{ background: app.color }"
-                      ><AppIcon :name="app.icon" :size="29" /></span
-                    ><span>{{ app.name }}</span>
-                  </button>
-                </div>
-                <div v-if="!apps.length" class="workspace-empty">
-                  没有找到匹配的应用
-                </div>
-              </section>
-              <section class="panel-card charts-panel">
-                <header class="section-heading">
-                  <h2>我的图表</h2>
-                  <button class="text-button" @click="dialog = 'charts'">
-                    <AppIcon name="add" />添加
-                  </button>
-                </header>
-                <div
-                  v-if="store.data.entries.filter((e) => !e.deletedAt).length"
-                  class="workspace-stats"
-                >
-                  <div>
-                    <strong>{{ store.activeForms.length }}</strong
-                    ><span>表单</span>
-                  </div>
-                  <div>
-                    <strong>{{
-                      store.data.entries.filter((e) => !e.deletedAt).length
-                    }}</strong
-                    ><span>累计提交</span>
-                  </div>
-                  <div>
-                    <strong>{{ pendingEntries.length }}</strong
-                    ><span>待处理</span>
-                  </div>
-                </div>
-                <div v-else class="charts-empty">
-                  暂无图表
-                  <button class="text-button" @click="dialog = 'charts'">
-                    添加
-                  </button>
-                </div>
-              </section></template
+            <p
+              v-if="route.query.notice === 'access-denied'"
+              class="collab-error"
+              role="alert"
             >
+              当前账号没有访问此页面的权限。
+            </p>
+            <button
+              v-if="tab !== 'apps'"
+              class="text-button workbench-back"
+              @click="tab = 'apps'"
+            >
+              返回我的应用
+            </button>
+            <ProcessWorkspace
+              v-if="processScope"
+              :key="`${session.user.id}-${processScope}`"
+              :scope="processScope"
+            />
+            <WorkbenchProcessStart
+              v-else-if="tab === 'launch'"
+              :applications="applications"
+            />
+            <section
+              v-else-if="tab === 'copied' || tab === 'delegation'"
+              class="panel-card apps-panel"
+            >
+              <header class="section-heading">
+                <h2>{{ tab === "copied" ? "抄送我的" : "待办委托" }}</h2>
+              </header>
+              <p class="workspace-empty">
+                {{
+                  tab === "copied"
+                    ? "抄送功能尚未接通。"
+                    : "待办委托尚未接通，任务仍由原处理人办理。"
+                }}
+              </p>
+            </section>
+            <section v-else class="panel-card apps-panel">
+              <header class="section-heading">
+                <h2>我的应用</h2>
+                <div class="section-actions">
+                  <div class="search-input">
+                    <AppIcon name="search" /><input
+                      v-model="query"
+                      aria-label="搜索应用"
+                      placeholder="搜索应用"
+                    />
+                  </div>
+                  <button class="button" :disabled="busy" @click="load">
+                    刷新
+                  </button>
+                  <button
+                    v-if="session.user.role === 'admin'"
+                    class="button primary"
+                    @click="openCreate"
+                  >
+                    <AppIcon name="add" />新建应用
+                  </button>
+                </div>
+              </header>
+              <div class="app-grid">
+                <button
+                  v-for="app in apps"
+                  :key="app.id"
+                  class="application-card"
+                  @click="router.push(app.path)"
+                >
+                  <span
+                    class="application-tile"
+                    :style="{ background: app.color }"
+                    ><AppIcon :name="app.icon" :size="29" /></span
+                  ><span>{{ app.title }}</span>
+                </button>
+              </div>
+              <p v-if="!busy && !error && !apps.length" class="workspace-empty">
+                {{
+                  query
+                    ? "没有找到匹配的应用"
+                    : session.user.role === "admin"
+                      ? "还没有应用，点击“新建应用”开始。"
+                      : "暂无可访问的应用，请联系管理员分配权限。"
+                }}
+              </p>
+            </section>
           </div>
         </div>
       </div>
     </main>
     <BaseDialog
-      :busy="store.writePending"
-      v-if="dialog"
-      :open="true"
-      :title="
-        (
-          {
-            'create-app': '新建应用',
-            directory: '通讯录',
-            templates: '模板中心',
-            notifications: '通知',
-            start: '发起流程',
-            help: '开始使用工作台',
-            charts: '工作台图表',
-          } as Record<string, string>
-        )[dialog] || dialog
-      "
-      @close="dialog = ''"
+      :open="!!dialog"
+      :busy="saving"
+      title="新建应用"
+      @close="dialog = false"
     >
-      <template v-if="dialog === 'create-app'"
-        ><div class="form-group">
+      <form id="workbench-create-app" @submit.prevent="createApp">
+        <div class="form-group">
           <label for="new-app-name">应用名称</label
           ><input
             id="new-app-name"
             v-model="appName"
-            placeholder="为应用起个名字"
             maxlength="40"
-            @keydown.enter="createApp"
+            placeholder="为应用起个名字"
           />
         </div>
-        <label class="standalone-label">应用颜色</label>
-        <div class="color-swatches">
-          <button
-            v-for="color in [
-              '#56ae72',
-              '#f1af56',
-              '#548ddb',
-              '#a777d4',
-              '#53b0bd',
-              '#dc7d87',
-            ]"
-            :key="color"
-            :style="{ background: color }"
-            :aria-label="color"
-            :class="{ selected: appColor === color }"
-            @click="appColor = color"
-          >
-            <AppIcon v-if="appColor === color" name="check" />
-          </button></div
-      ></template>
-      <div
-        v-else-if="dialog === 'templates' || dialog === 'start'"
-        class="template-list"
-      >
-        <button
-          v-for="form in store.activeForms.filter(
-            (f) => dialog === 'templates' || f.kind === 'workflow',
-          )"
-          :key="form.id"
-          @click="openTemplate(form.id)"
-        >
-          <AppIcon name="form" /><span>{{ form.title }}</span
-          ><AppIcon name="back" class="rotate-icon" />
-        </button>
-      </div>
-      <p v-else-if="dialog === 'help'" class="dialog-description">
-        从「我的应用」进入表单列表，新建普通表单或流程表单。在设计器中添加字段、设置属性，并通过预览验证填写效果。保存配置后，可在「表单发布」创建本地发布版本。
-      </p>
-      <p v-else-if="dialog === 'charts'" class="dialog-description">
-        表单提交后，这里会显示表单数量、累计提交和待处理数量。<button
-          class="text-button"
-          @click="
-            dialog = '';
-            router.push('/apps/oa');
-          "
-        >
-          前往表单列表
-        </button>
-      </p>
-      <p v-else class="dialog-description">暂无新通知</p>
+        <p v-if="saveError" class="collab-error" role="alert">
+          {{ saveError }}
+        </p>
+      </form>
       <template #footer
-        ><button class="button" @click="dialog = ''">关闭</button
+        ><button class="button" @click="dialog = false">取消</button
         ><button
-          v-if="dialog === 'create-app'"
+          type="submit"
+          form="workbench-create-app"
           class="button primary"
-          :disabled="!appName.trim()"
-          @click="createApp"
+          :disabled="saving || !appName.trim()"
         >
-          创建应用
+          {{ saving ? "正在创建…" : "创建应用" }}
         </button></template
       >
     </BaseDialog>
   </div>
 </template>
+<style scoped>
+.workbench-back {
+  align-self: flex-start;
+}
+.workbench-message {
+  margin: 0 0 20px;
+}
+@media (max-width: 650px) {
+  .section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .section-actions {
+    flex-wrap: wrap;
+  }
+}
+</style>

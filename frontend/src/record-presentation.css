@@ -458,3 +458,41 @@
   z-index: 1;
   background: #f8fafc;
 }
+
+/* Shared record row density for local and server-backed lists. */
+.record-display-table {
+  --record-row-height: 56px;
+  --record-lines: 1;
+}
+.record-display-table[data-row-height="medium"] {
+  --record-row-height: 88px;
+  --record-lines: 3;
+}
+.record-display-table[data-row-height="high"] {
+  --record-row-height: 128px;
+  --record-lines: 5;
+}
+.record-display-table td {
+  height: var(--record-row-height);
+}
+.record-display-table .record-cell-value {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--record-lines);
+  overflow: hidden;
+  max-width: 200px;
+  min-width: 80px;
+  line-height: 20px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.record-display-table[data-row-height="low"] .record-cell-value {
+  display: block;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.record-display-table[data-row-height="auto"] .record-cell-value {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+}

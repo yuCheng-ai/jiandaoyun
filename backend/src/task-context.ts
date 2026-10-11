@@ -70,7 +70,7 @@ export class TaskContextService {
       creator: await recordCreator(tx, actor, source.row.created_by),
       identities: await this.platform.identityLabels(tx, actor, visible.schema, visible.values),
       definition: { ...definitionDto(source.version), schema: visible.schema }, access,
-      rowActions: spec.rowId ? Object.fromEntries(source.schema.fields.filter(f => f.type === "subform").map(f => [f.id, { add: false, remove: false }])) : rowActions(source.version.schema, access),
+      rowActions: Object.fromEntries(Object.entries(rowActions(source.version.schema, access, source.scope?.schema)).map(([id, actions]) => [id, spec.rowId ? { ...actions, add: false, insert: false, remove: false } : actions])),
       record: { ...recordDto(source.row), values: visible.values, cellRevisions: visible.cells, rowRevisions: visible.rows },
     };
   }

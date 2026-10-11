@@ -36,10 +36,12 @@ import {
   pageFieldConflicts,
   planFieldReuse,
 } from "../../domain/pageDesigner";
-import { applicationDataLocation } from "../../domain/applicationNavigation";
 import { newForm } from "../../domain/workspace";
 import { useFormDesigner, type FieldDrop } from "../forms/useFormDesigner";
 import { useDesignerPanels } from "../../composables/useDesignerPanels";
+import FieldRecycleList from "../forms/components/FieldRecycleList.vue";
+import FormValidationSettings from "../forms/components/FormValidationSettings.vue";
+import VisibilityRules from "../forms/components/VisibilityRules.vue";
 import FieldCanvas from "../forms/components/FieldCanvas.vue";
 import FormPreview from "./ServerFormPreview.vue";
 import AppIcon from "../../components/AppIcon.vue";
@@ -55,6 +57,7 @@ const store = usePageDesignerStore(),
   router = useRouter(),
   route = useRoute();
 const data = computed(() => store.data!);
+const canEditFields = computed(() => !!data.value.canEditFields);
 const base = newForm(data.value.draft.applicationId || "", store.state.title);
 const facade = computed(() => ({
   ...base,
@@ -64,6 +67,8 @@ const facade = computed(() => ({
   set title(value) {
     store.state.title = value;
   },
+  get fieldTrash() { return store.state.fieldTrash || []; },
+  set fieldTrash(value) { store.state.fieldTrash = value; },
   get schema() {
     return store.state.schema;
   },
@@ -88,7 +93,7 @@ const preview = ref(false),
 const editor = useFormDesigner(facade, (message) => {
   notice.value = message;
 });
-const discarding = ref(false);
+const discarding = ref(false), recycling = ref(false);
 async function locateField() {
   const id = route.query.field;
   if (typeof id !== "string" || !findField(store.state.schema.fields, id))
@@ -117,16 +122,10 @@ const baseFields = computed(() => modelFields(data.value.model));
 const chosenBase = computed(() =>
   baseFields.value.find((item) => item.field.id === editor.selected.value?.id),
 );
-const dataLocation = computed(() =>
-  applicationDataLocation(
-    data.value.draft.applicationId!,
-    data.value.draft.definitionId,
-  ),
-);
 const parentName = computed(() =>
   editor.activeParent.value
     ? findField(store.state.schema.fields, editor.activeParent.value)?.label
-    : "主数据",
+    : "主表",
 );
 const usedFields = computed(
   () =>
@@ -250,7 +249,7 @@ async function inspectModel() {
     );
     if (!latest.object.latestVersion)
       throw new Error(
-        "数据对象尚未发布。当前页面可继续编辑；数据管理如有独立修改，请先发布，再回到本页采用。",
+        "表单尚未发布，请先保存并发布当前设计。",
       );
     latestModel.value = latest;
   } catch (cause) {
@@ -334,12 +333,14 @@ function drop(payload: FieldDrop & { existingId?: string }) {
 function remove(id: string) {
   const existing = baseFields.value.some((item) => item.field.id === id);
   editor.remove([id]);
-  notice.value = existing
+  notice.value = canEditFields.value
+    ? "已移除字段，可在字段回收站恢复。已有记录保留原版本。"
+    : existing
     ? "已移除页面控件，数据字段与已有值保留；可从“已有字段”重新放入。"
     : "已取消这个新增字段，可撤销恢复。";
 }
 async function save() {
-  if (await store.save()) notice.value = "草稿已保存，正式页面尚未改变。";
+  if (await store.save()) notice.value = "草稿已保存，已发布表单尚未改变。";
 }
 async function publish() {
   if (
@@ -347,7 +348,7 @@ async function publish() {
     (await store.publish(publicationImpact.value))
   ) {
     publishing.value = false;
-    notice.value = "页面已发布。";
+    notice.value = "表单已发布。";
   } else publicationImpact.value = undefined;
 }
 async function reload() {
@@ -373,11 +374,15 @@ function leave() {
 function beforeUnload(event: BeforeUnloadEvent) {
   if (store.dirty) event.preventDefault();
 }
+function undo() { editor.undo(); notice.value = ''; }
+function redo() { editor.redo(); notice.value = ''; }
 function keyboard(event: KeyboardEvent) {
+  if (event.target instanceof Element && event.target.closest('[role="dialog"]')) return;
   if (
     data.value.draft.archivedAt ||
     store.busy ||
     discarding.value ||
+    recycling.value ||
     publishing.value ||
     preview.value ||
     leaveTo.value ||
@@ -392,7 +397,7 @@ function keyboard(event: KeyboardEvent) {
   }
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
     event.preventDefault();
-    event.shiftKey ? editor.redo() : editor.undo();
+    event.shiftKey ? redo() : undo();
   }
 }
 onMounted(() => {
@@ -423,13 +428,13 @@ onBeforeUnmount(() => {
         ><input
           v-model="store.state.title"
           class="document-title"
-          aria-label="页面名称"
+          aria-label="表单名称"
           maxlength="100"
           :disabled="store.busy || !!data.draft.archivedAt"
         />
       </div>
       <span class="page-header-context"
-        >表单页面 · {{ data.object.title }}</span
+        >表单设计</span
       >
       <div class="header-utilities">{{ session.user?.name }}</div>
     </header>
@@ -439,7 +444,7 @@ onBeforeUnmount(() => {
           class="icon-button"
           aria-label="撤销"
           :disabled="store.busy || !editor.canUndo.value"
-          @click="editor.undo"
+          @click="undo"
         >
           <AppIcon name="undo" />
         </button>
@@ -447,7 +452,7 @@ onBeforeUnmount(() => {
           class="icon-button"
           aria-label="重做"
           :disabled="store.busy || !editor.canRedo.value"
-          @click="editor.redo"
+          @click="redo"
         >
           <AppIcon name="redo" />
         </button>
@@ -465,14 +470,8 @@ onBeforeUnmount(() => {
         >
           <AppIcon name="settings" />
         </button>
-        <span class="page-model-label">数据：{{ data.object.title }}</span
-        ><RouterLink
-          :to="dataLocation"
-          class="text-button"
-          target="_blank"
-          rel="noopener"
-          >管理共享数据</RouterLink
-        ><button
+        <button
+          v-if="!canEditFields"
           class="text-button"
           :disabled="store.busy"
           @click="inspectModel"
@@ -499,8 +498,9 @@ onBeforeUnmount(() => {
           :disabled="store.busy"
           @click="discarding = true"
         >
-          放弃页面草稿
+          放弃表单草稿
         </button>
+        <button class="text-button" :disabled="store.busy" @click="recycling = true">字段回收站<span v-if="editor.trash.value.length">（{{ editor.trash.value.length }}）</span></button>
         <button class="button" :disabled="store.busy" @click="preview = true">
           预览</button
         ><button
@@ -567,7 +567,7 @@ onBeforeUnmount(() => {
           v-show="showPalette && !data.draft.archivedAt"
           class="field-palette"
         >
-          <div class="property-tabs">
+          <div v-if="!canEditFields" class="property-tabs">
             <button
               :class="{ active: fieldMode === 'new' }"
               @click="fieldMode = 'new'"
@@ -617,7 +617,7 @@ onBeforeUnmount(() => {
                   <AppIcon :name="item.icon" :size="14" />{{ item.label }}
                 </button>
               </div>
-              <p class="field-hint">
+              <p v-if="!canEditFields" class="field-hint">
                 新增字段随页面草稿保存，发布后可供其他页面使用。
               </p>
             </section>
@@ -699,12 +699,12 @@ onBeforeUnmount(() => {
               :class="{ active: inspector === 'field' }"
               @click="inspector = 'field'"
             >
-              控件属性</button
+              字段属性</button
             ><button
               :class="{ active: inspector === 'page' }"
               @click="inspector = 'page'"
             >
-              页面属性
+              表单属性
             </button>
           </div>
           <div class="form-property-scroll">
@@ -712,7 +712,7 @@ onBeforeUnmount(() => {
               v-if="inspector === 'field' && editor.selected.value"
               class="field-inspector"
             >
-              <div class="page-binding-note">
+              <div v-if="!canEditFields" class="page-binding-note">
                 <strong>{{
                   chosenBase
                     ? `数据字段：${chosenBase.field.name}`
@@ -725,7 +725,7 @@ onBeforeUnmount(() => {
               </div>
               <div class="form-group">
                 <label for="page-control-label">{{
-                  chosenBase ? "本页显示名称" : "字段名称"
+                  !canEditFields && chosenBase ? "本页显示名称" : "字段名称"
                 }}</label
                 ><input
                   id="page-control-label"
@@ -784,10 +784,10 @@ onBeforeUnmount(() => {
                   ><input
                     v-model="editor.selected.value.required"
                     type="checkbox"
-                    :disabled="chosenBase?.field.required"
-                  />本页提交时必填</label
+                    :disabled="!canEditFields && chosenBase?.field.required"
+                  />必填</label
                 >
-                <p v-if="chosenBase?.field.required" class="field-hint">
+                <p v-if="!canEditFields && chosenBase?.field.required" class="field-hint">
                   数据对象已要求此字段必填。
                 </p>
                 <label class="checkbox-line"
@@ -819,26 +819,27 @@ onBeforeUnmount(() => {
                 class="form-group"
               >
                 <label v-if="!isChoiceField(editor.selected.value.type)"
-                  >数据规则</label
+                  >填写规则</label
                 ><ManualChoiceEditor
                   v-if="isChoiceField(editor.selected.value.type)"
                   :field="editor.selected.value"
                   appearance
-                  :readonly-options="!!chosenBase"
+                  :readonly-options="!canEditFields && !!chosenBase"
                   @update="Object.assign(editor.selected.value!, $event)"
                 /><FieldValueRules
                   v-else
+                  :schema="store.state.schema"
                   :field="editor.selected.value"
                   :fields="store.state.schema.fields"
                   :parent-id="editor.activeParent.value || undefined"
-                  :disabled="!!chosenBase"
+                  :disabled="!canEditFields && !!chosenBase"
                   @update="Object.assign(editor.selected.value!, $event)"
                 />
-                <p v-if="chosenBase" class="field-hint">
+                <p v-if="!canEditFields && chosenBase" class="field-hint">
                   {{
                     isChoiceField(editor.selected.value.type)
-                      ? "选项名称和默认值在数据管理中修改。"
-                      : "此处显示共享规则；如需修改，请进入应用的数据管理检查影响。"
+                      ? "已发布字段暂不支持修改选项名称和默认值。"
+                      : "已发布字段暂不支持修改这些规则。"
                   }}
                 </p>
               </div>
@@ -852,11 +853,13 @@ onBeforeUnmount(() => {
                 :fields="store.state.schema.fields"
                 @update="Object.assign(editor.selected.value!, $event)"
               />
+              <VisibilityRules v-if="editor.selected.value.type === 'subform'" :schema="store.state.schema" :scope-id="editor.selected.value.id" />
+              <VisibilityRules v-else :schema="store.state.schema" :field-id="editor.selected.value.id" />
               <button
                 class="button danger full-width"
                 @click="remove(editor.selected.value!.id)"
               >
-                {{ chosenBase ? "移除本页控件" : "取消新增字段" }}
+                {{ canEditFields ? "删除字段" : chosenBase ? "移除本页控件" : "取消新增字段" }}
               </button>
             </div>
             <div
@@ -866,6 +869,8 @@ onBeforeUnmount(() => {
               选择画布中的字段，设置当前页面的展示和填写方式。
             </div>
             <div v-else class="field-inspector">
+              <VisibilityRules :schema="store.state.schema" />
+              <FormValidationSettings :schema="store.state.schema" />
               <div class="form-group">
                 <label for="page-layout">页面列数</label
                 ><select
@@ -885,7 +890,7 @@ onBeforeUnmount(() => {
                 />
               </div>
               <p class="field-hint">
-                页面布局独立保存，不改变数据结构与其他页面。
+                发布后，表单设置对新填写生效。
               </p>
             </div>
           </div>
@@ -1034,7 +1039,7 @@ onBeforeUnmount(() => {
     >
     <BaseDialog
       :open="discarding"
-      title="放弃页面草稿"
+      title="放弃表单草稿"
       :busy="store.busy"
       @close="discarding = false"
     >
@@ -1044,7 +1049,7 @@ onBeforeUnmount(() => {
         }}，放弃已保存草稿和当前未保存的修改，包括布局、控件及尚未发布的新字段。
       </p>
       <p>
-        共享数据字段、已有记录和其他页面保持原样。恢复后不能通过本页撤销按钮找回这些草稿修改。
+        已有记录保持原样。恢复后不能通过撤销按钮找回这些草稿修改。
       </p>
       <p v-if="store.error" class="collab-error" role="alert">
         {{ store.error }}
@@ -1056,11 +1061,16 @@ onBeforeUnmount(() => {
           :disabled="store.busy"
           @click="store.discardDraft"
         >
-          确认放弃页面草稿
+          确认放弃表单草稿
         </button></template
       >
     </BaseDialog>
   </div>
+  <BaseDialog :open="recycling" title="字段回收站" :busy="store.busy" @close="recycling = false">
+    <FieldRecycleList :items="editor.trash.value" @restore="index => { if (editor.restore(index)) notice = '字段已恢复，保存后生效'; }" />
+    <p v-if="notice" class="field-hint" role="status">{{ notice }}</p>
+    <template #footer><button class="button" @click="recycling = false">关闭</button></template>
+  </BaseDialog>
 </template>
 <style scoped>
 .field-reuse-notice {
@@ -1078,5 +1088,24 @@ onBeforeUnmount(() => {
 .archived-page-canvas :deep(.field-card-tools),
 .archived-page-canvas :deep(.subform-design-heading button) {
   display: none;
+}
+</style>
+
+<style>
+.page-header-context { color: #87909e; font-size: 12px; margin-left: 20px; }
+.server-page-designer .header-utilities { margin-left: auto; margin-right: 22px; color: #637083; font-size: 13px; }
+.page-model-label { color: #718098; font-size: 12px; margin-left: 12px; }
+.page-editor-message { display: flex; align-items: center; justify-content: space-between; padding: 8px 20px; background: #edf5ff; color: #386692; font-size: 12px; }
+.page-editor-message.error { background: #fff1f0; color: #a5443f; }
+.page-existing-fields { display: grid; gap: 8px; }
+.page-existing-fields .palette-field { width: 100%; justify-content: flex-start; }
+.page-existing-fields .palette-field span { flex: 1; overflow-wrap: anywhere; }
+.page-existing-fields .palette-field small { flex-shrink: 0; color: #788692; font-size: 11px; }
+.page-existing-fields .palette-field.placed { background: #f5f8fa; }
+.page-binding-note { padding: 9px 10px; background: #f1f6fc; color: #55739b; border-radius: 4px; margin-bottom: 18px; font-size: 12px; line-height: 1.6; }
+@media(max-width: 800px) {
+  .page-header-context, .page-model-label { display: none; }
+  .server-page-designer .document-title { max-width: 180px; }
+  .server-page-designer .form-editor-toolbar { flex-wrap: wrap; height: auto; min-height: 48px; padding: 8px; gap: 6px; }
 }
 </style>

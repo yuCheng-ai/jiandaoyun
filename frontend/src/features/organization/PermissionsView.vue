@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
+import { useRoleApplications } from "../../composables/useRoleApplications";
+import type { GrantAction } from "../../domain/organization";
 import AdminLayout from "./AdminLayout.vue";
 import IdentityInput from "../../components/organization/IdentityInput.vue";
 import AppIcon from "../../components/AppIcon.vue";
@@ -13,14 +15,41 @@ const store = useWorkspaceStore();
 const employeeId = ref(store.data.organization.currentUserId),
   query = ref("");
 const org = computed(() => store.data.organization);
+watch(
+  org,
+  (value) => {
+    if (!value.employees.some((member) => member.id === employeeId.value))
+      employeeId.value =
+        value.employees.find((member) => member.status === "active")?.id || "";
+  },
+  { immediate: true },
+);
+const catalog = useRoleApplications();
+const actions: GrantAction[] = ["view", "submit", "manage"];
+const scopeLabel = (scopes: string[]) =>
+  scopes
+    .map(
+      (scope) =>
+        ({ all: "全部数据", self: "本人提交", department: "所在部门" })[scope],
+    )
+    .join("、") || "—";
 const permissions = computed(() =>
-  store.activeForms
-    .filter((f) => f.title.includes(query.value))
-    .map((f) => ({
-      form: f,
-      app: store.data.apps.find((a) => a.id === f.appId),
-      ...permissionsFor(org.value, employeeId.value, f.appId, f.id),
-    })),
+  catalog.applications.value.flatMap((app) =>
+    app.forms
+      .filter((form) => form.title.includes(query.value))
+      .map((form) => ({
+        form,
+        app,
+        ...permissionsFor(
+          org.value,
+          employeeId.value,
+          app.id,
+          form.id,
+          app.sourceId,
+          form.sourceId,
+        ),
+      })),
+  ),
 );
 </script>
 <template>
@@ -54,8 +83,15 @@ const permissions = computed(() =>
             }}
           </p>
         </div>
-        <span class="scope-note">展示当前本地角色配置合并后的权限</span>
+        <span class="scope-note">角色授权范围；表单权限组优先生效</span>
       </div>
+      <p v-if="catalog.loading.value" class="field-hint" role="status">
+        正在读取应用…
+      </p>
+      <p v-if="catalog.error.value" class="field-error" role="alert">
+        {{ catalog.error.value }}
+        <button class="text-button" @click="catalog.load">重新读取</button>
+      </p>
       <div class="organization-table-scroll">
         <table class="organization-table">
           <thead>
@@ -65,34 +101,32 @@ const permissions = computed(() =>
               <th>查看</th>
               <th>填写提交</th>
               <th>管理数据</th>
-              <th>数据范围</th>
+              <th>生效方式</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="item in permissions" :key="item.form.id">
               <td>{{ item.app?.name }}</td>
               <td>{{ item.form.title }}</td>
-              <td v-for="action in ['view', 'submit', 'manage']" :key="action">
+              <td v-for="action in actions" :key="action">
                 <span
                   :class="
-                    item.actions.includes(action as any)
-                      ? 'permission-yes'
-                      : 'muted'
+                    item.scopes[action].length ? 'permission-yes' : 'muted'
                   "
                   >{{
-                    item.actions.includes(action as any) ? "允许" : "—"
+                    action === "submit" && item.scopes[action].length
+                      ? "允许填写"
+                      : scopeLabel(item.scopes[action])
                   }}</span
                 >
               </td>
               <td>
                 {{
-                  item.actions.length
-                    ? {
-                        all: "全部数据",
-                        self: "本人提交",
-                        department: "所在部门",
-                      }[item.dataScope]
-                    : "无权限"
+                  !item.app.connected
+                    ? "应用尚未接入账号访问"
+                    : item.form.grouped
+                      ? "按表单权限组"
+                      : "角色授权"
                 }}
               </td>
             </tr>
@@ -100,7 +134,7 @@ const permissions = computed(() =>
         </table>
       </div>
       <p class="permission-boundary">
-        此处用于设计和核对权限配置；真实访问控制由接入的服务端执行。
+        此处核对角色授权，各操作的数据范围分别计算。成员需关联有效登录账号；表单权限组、成员直接授权及具体记录条件请在表单内核对。
       </p>
     </section></AdminLayout
   >

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import FieldRecycleList from "./components/FieldRecycleList.vue";
 import { computed, nextTick, ref, onMounted, onBeforeUnmount } from "vue";
 import { visibilityConditions, textVisibilityRules } from "../../domain/visibility";
 import { formulaReferences } from "../../domain/formula";
@@ -544,27 +545,7 @@ onBeforeUnmount(() => {
         </div></template
       >
       <div v-else-if="dialog === 'trash'">
-        <div
-          v-for="(item, index) in editor.trash.value"
-          :key="item.field.id + '-' + index"
-          class="recycled-field"
-        >
-          <AppIcon
-            :name="
-              fieldRegistry.find((d) => d.type === item.field.type)?.icon ||
-              'form'
-            "
-          /><span>{{ item.field.label }}</span
-          ><button
-            class="text-button"
-            @click="editor.restore(index) && store.notify('字段已恢复')"
-          >
-            恢复
-          </button>
-        </div>
-        <p v-if="!editor.trash.value.length" class="dialog-description">
-          暂无已删除字段。
-        </p>
+        <FieldRecycleList :items="editor.trash.value" @restore="index => editor.restore(index) && store.notify('字段已恢复')" />
       </div>
       <template #footer
         ><button class="button" @click="dialog = ''">

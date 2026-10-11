@@ -1,4 +1,5 @@
 import type { FormField } from "./form";
+import { parseNumberInput } from "./numbers";
 
 export const dateFormats = [
   { value: "month", label: "年-月" },
@@ -141,6 +142,10 @@ export function fieldDefaultValue(
   field: Pick<FormField, "type" | "format" | "defaultValue" | "dateDefault">,
   now = new Date(),
 ) {
+  // Historical numeric defaults were stored as text. They already represent
+  // the underlying number (including percentage ratios), not fresh user input.
+  if (field.type === "number" && typeof field.defaultValue === "string")
+    return parseNumberInput({ format: "number" }, field.defaultValue);
   return field.type === "datetime" && field.dateDefault === "now"
     ? dateValueAt(field.format, now)
     : field.defaultValue;
