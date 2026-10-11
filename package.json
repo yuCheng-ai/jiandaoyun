@@ -1,0 +1,30 @@
+{
+  "name": "business-design-platform",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "frontend",
+    "backend",
+    "packages/*"
+  ],
+  "scripts": {
+    "prepare": "npm run build --workspace @platform/contracts",
+    "predev": "npm run build --workspace @platform/contracts",
+    "dev": "node scripts/dev.mjs",
+    "dev:frontend": "npm run dev --workspace @platform/frontend -- --host 127.0.0.1 --port 5198 --strictPort",
+    "dev:backend": "npm run dev --workspace @platform/backend",
+    "build": "npm run build --workspace @platform/contracts && npm run build --workspace @platform/frontend && node scripts/prepare-sites-build.mjs && npm run build --workspace @platform/backend",
+    "test": "npm run test:frontend && npm run test:backend",
+    "test:frontend": "npm run test --workspace @platform/frontend",
+    "test:backend": "npm run test --workspace @platform/backend",
+    "test:sites": "node --test tests/sites-worker.test.mjs",
+    "preview": "npm run preview --workspace @platform/frontend",
+    "db:up": "docker compose up -d database",
+    "setup:local": "node scripts/setup-local.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.3"
+  }
+}

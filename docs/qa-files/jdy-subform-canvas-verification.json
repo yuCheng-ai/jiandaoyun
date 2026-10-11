@@ -1,0 +1,207 @@
+{
+  "date": "2026-10-10",
+  "timezone": "Asia/Shanghai",
+  "scope": "Horizontal design canvas only; shared recursive editor and original field IDs / controls / history / drop events",
+  "status": {
+    "goal": "active",
+    "fullParity": "unfinished",
+    "fullVisualQA": "blocked",
+    "roughEngineeringEstimate": 70,
+    "estimateScope": "basic designer only; not acceptance or whole project percentage",
+    "groups": 53,
+    "equalWorkUnits": false,
+    "workPackages": "R1–R8 / F1–F10 preserved"
+  },
+  "source": {
+    "url": "https://hc.jiandaoyun.com/doc/9020",
+    "sourceAccountChanged": false,
+    "originalEditorCSSAndDPR": "unknown",
+    "helpCapturePixels": [
+      1280,
+      720
+    ],
+    "originalImagePixels": [
+      1917,
+      1346
+    ],
+    "renderedCSS": [
+      798,
+      560.890625
+    ],
+    "widthURL": "https://hc.jiandaoyun.com/doc/12325",
+    "childWidthModes": [
+      "1/2",
+      "标准",
+      "2倍",
+      "自定义"
+    ],
+    "customWidthMaximumPX": 1000
+  },
+  "implementation": {
+    "sharedComponent": "FieldCanvas.vue",
+    "columnWidthCSS": 200,
+    "rowNumberWidthCSS": 38,
+    "headerHeightCSS": 32,
+    "minimumRowHeightCSS": 82,
+    "newSchemaOrRoutes": false,
+    "mainAndTabs": "original vertical insertion preserved",
+    "subfieldInsertion": "horizontal midpoint",
+    "tools": "original duplicate / delete events",
+    "removed": [
+      "redundant subform heading / add strip",
+      "ineffective card gridColumn / redundant test assertions"
+    ],
+    "sharedHover": "Only innermost hovered field highlights, preserving selected states",
+    "columnWidthStatus": "unfinished: 200px fixed columns; existing child main-grid width control not connected; source child modes required"
+  },
+  "browser": {
+    "formId": "form_d8c2caad8b20",
+    "finalFields": 9,
+    "publishedVersion": 8,
+    "versionsPreserved": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "recordIds": [
+      "entry_b7b76591b0e1",
+      "entry_15e124414db8",
+      "entry_8504783b0758",
+      "entry_82bb61c4360c"
+    ],
+    "finalRecords": 4,
+    "newPublishedVersions": 0,
+    "newOrModifiedRecords": 0,
+    "temporaryCopiedField": "field_bbb9241814d7",
+    "copiedFieldFinal": "copy / delete / undo same ID / undo copy; no trash item after refresh",
+    "nativeSameTableSort": "quantity before code, then undo; actual DOM order observed",
+    "nativeCrossTableMove": "unfinished: dragstart / source dragover but no drop, parent unchanged",
+    "desktopKeyboardScrollLeft": 76,
+    "desktopLastColumn": "selected with matching inspector",
+    "desktopViewport": [
+      1280,
+      720
+    ],
+    "mobileViewport": [
+      390,
+      844
+    ],
+    "mobilePageClientAndScrollWidths": [
+      390,
+      390
+    ],
+    "mobileSubformClientAndScrollWidths": [
+      [
+        316,
+        856
+      ],
+      [
+        316,
+        456
+      ]
+    ],
+    "mobileLastColumnScrollLeft": 521,
+    "mobilePreview": "one temporary row, Escape closed and focus returned; no submit / draft write",
+    "finalConsoleWarnError": []
+  },
+  "verification": {
+    "newTests": 5,
+    "red": {
+      "failed": 3,
+      "passed": 2
+    },
+    "related": {
+      "tests": 17,
+      "files": 3
+    },
+    "firstFull": {
+      "passed": 1090,
+      "failed": 1,
+      "reason": "obsolete duplicate gridColumn assertion on non-grid article"
+    },
+    "finalFull": {
+      "tests": 1091,
+      "files": 114,
+      "failed": 0
+    },
+    "build": "contracts / vue-tsc / Vite / Sites prepare / backend tsc passed",
+    "sites": 4,
+    "formattedCodeFiles": 4,
+    "notRerun": [
+      "backend database tests",
+      "actual PDF / Excel",
+      "physical device",
+      "complete final permission / source combinations"
+    ],
+    "finalBuildLog": "tmp/subform-canvas-build-final.log",
+    "finalFullLog": "tmp/subform-canvas-all-verified.log"
+  },
+  "unfinished": [
+    "SBF12 child width control / design / preview / filling; source half / standard / double / custom <=1000px",
+    "SBF01 cross-subform and inspector native drag",
+    "SBF07 whole-table defaults / linkage",
+    "SBF09 / SBF10 independent row rights / actions",
+    "SBF11 shared 200-row limit",
+    "SBF12 runtime presentation / fixed columns / auto row heights / full source density",
+    "R1–R8 / F1–F10 full scope and final acceptance",
+    "complete source properties / effort / schedule"
+  ],
+  "hashes": {
+    "design-qa.md": "4d062c9ef01eccb559880b44935313179ef979f0705bef0dfc4be2c8c0481be5",
+    "docs/form-designer-acceptance.md": "1c9c10829e7320370a18aeeed07c6e7a6b07fd11c42dc2c7ef2a5bdf1877f5a3",
+    "docs/frontend-closure.md": "63822c3997637700d150326447b594e7e8072cae9e7f3b402498a6afea259a48",
+    "docs/implementation-plan.md": "4b86b41f7c02a24af73a0f51eb73d92c16e2aebd814c91aca752c5af8e4b304d",
+    "docs/jiandaoyun-form-designer-plan.md": "fd5c671c5f4131c9841c7740c7f74c04ce380644df8186a1bf590dbfec9afef4",
+    "docs/screenshots/jdy-subfield-unique-source-panel-live.jpg": "d22183cc50263d8f21543ec4db9bcee6069f9549c46577356e61b67764a19915",
+    "docs/screenshots/jdy-subform-canvas-before-hover-fix-live.jpg": "a5869bfd5ae7360cbc5db63630558edb491a2d87600c437dd5f432ce7cc9054e",
+    "docs/screenshots/jdy-subform-canvas-compare-before-focus.jpg": "e6327a6d1529b4136871c75b0c5aa7b85512047d5cc891b28dc89323d3d96f20",
+    "docs/screenshots/jdy-subform-canvas-compare-before-full.jpg": "575d1a1bd54b456fac8fac5d81e452151e5210ec2f142984c381958370c66f0f",
+    "docs/screenshots/jdy-subform-canvas-compare-focus.jpg": "c81734ec42f296fbdd67f199b4b5e0d064b5a65b2b5d4a4ceed560ad81494e72",
+    "docs/screenshots/jdy-subform-canvas-compare-full.jpg": "5b89e127f126caa997e8af881d8008f9a1525434e433919440fc034335da3f4b",
+    "docs/screenshots/jdy-subform-canvas-copy-live.jpg": "f274108bc670fc1ae05fb69940b93a0ff8b319c7c296ebdb9bf5b470637e2d40",
+    "docs/screenshots/jdy-subform-canvas-delete-live.jpg": "c16a657eaf352a5f0bc26b64a93bea3efeeb49b5c6e64f7bf16e919972e9de6a",
+    "docs/screenshots/jdy-subform-canvas-final-live.jpg": "057786ebdb06ab82376d00e34ea11d80ebe69f5d9fd68bef37dab64e24b29aa8",
+    "docs/screenshots/jdy-subform-canvas-keyboard-scroll-live.jpg": "1d14b9e420a05ad7a614e7b1088f3d82d32e83949f7abaed5da6c8c376111df6",
+    "docs/screenshots/jdy-subform-canvas-last-column-live.jpg": "a7770e28296bc63c921cbf049b23545c2ffda0e2149b81e45cf1b96b26128ebb",
+    "docs/screenshots/jdy-subform-canvas-mobile-after-preview-live.jpg": "7176a72ca7c5dcab7752e92bba0023fde1ced840004fbb4bf78f531c18638190",
+    "docs/screenshots/jdy-subform-canvas-mobile-last-live.jpg": "c9db6e7892d97daa6cda9835338fae79e9b062d235f78b51afb74f8c7b5bf414",
+    "docs/screenshots/jdy-subform-canvas-mobile-live.jpg": "70d6083e27d5ca42d055065b43e4ef8af2502d2d614379bace60afcf9c8bb9ff",
+    "docs/screenshots/jdy-subform-canvas-mobile-preview-live.jpg": "799db10383afd2966bdce84595349de3fb34d7fd912e09dd91c7f5857c17d72a",
+    "docs/screenshots/jdy-subform-canvas-native-move-live.jpg": "16ebb060d0b53b22eac90cce99d51a36cdfb9a4936d8b9825a82481ffcab99e8",
+    "docs/screenshots/jdy-subform-canvas-native-sort-live.jpg": "fbd3fc29ee02285ba7cdb8a2a805e943fbead3916e82034ecea2bd03a682abe8",
+    "docs/screenshots/jdy-subform-canvas-old-v4-live.jpg": "f47e2ac62b3e9cbb9bdf89e2187692ce229c8535f68406a038c924b14ece2b17",
+    "docs/screenshots/jdy-subform-canvas-old-v4-version-live.jpg": "6d69b06660bd63a21fa664e0ae21174f7a3c22ce5dbd3f908286f5619e0f197d",
+    "docs/screenshots/jdy-subform-canvas-published-live.jpg": "44cd678a2b9dcd362f58901827bd27cec71c1f96516e1912bebcc2f506cf78f4",
+    "docs/screenshots/jdy-subform-canvas-records-live.jpg": "9c30cbbe0751a52d58d2e820f379e46eaf1a149b0408f889d86fb863360e6f8f",
+    "docs/screenshots/jdy-subform-canvas-undo-delete-live.jpg": "91f36681358b341580d28013e427e8aa276006c995915feb6f43b86f8864d9a4",
+    "frontend/src/features/forms/components/FieldCanvas.vue": "eb88c9d9ac98ced134a0f0664cc177f4925c3cbd2c17412f804419ec245e18cd",
+    "frontend/src/form-designer.css": "65ff0d8b5ece2ca6c32b4255a8d850224ec5d88cc8da658c6b8398af0b24fef3",
+    "frontend/tests/divider-fields.test.ts": "1a05f26be2ebea5ac2233ed99f74d7ad82a7905e1d2bb6c71d041df49b1b30e9",
+    "frontend/tests/subform-canvas.test.ts": "a530b430feeb090daba164129ff77e226f7dd986aa08579b29b713c90dc7b9bc",
+    "tmp/subform-canvas-all-final.log": "d8521e6869611e8b7847e236c363857facc13127ff0c2e051ca1b39bd8a3ad70",
+    "tmp/subform-canvas-all-verified.log": "4e0479bf6631f8352f7b32ed683658fef29cdd14a5a3c7bb0cf9e53f6a695164",
+    "tmp/subform-canvas-all.log": "7c74a06d3974b4cee8dcff448b558242fe79f2fcf3d6e503f5c5bcbdf29ba46d",
+    "tmp/subform-canvas-build-final.log": "63c6ff938e16c876f70fc7c7667ddd15686f27dbd18230d415e1760390c144d2",
+    "tmp/subform-canvas-build.log": "03fe12118156fb97c77f36d4ff7cbe4c78063391a81e4d7bf1a30677df454885",
+    "tmp/subform-canvas-focused.log": "811e4457fbe01baadec635197c63775fbdce657cce43442b7c81617e4c925218",
+    "tmp/subform-canvas-format.log": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+    "tmp/subform-canvas-red.log": "452f5308f309a616ddb7c23105416fa435395274380d533af01193a42c77678d",
+    "tmp/subform-canvas-sites.log": "ec0f590b89e92f0ae16ed1d093ddc21a1c1ee0dd4a37046299ce8504aca8aec3"
+  },
+  "protectedSHA256": {
+    ".openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+    "worker/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "scripts/prepare-sites-build.mjs": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+    "tests/sites-worker.test.mjs": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf"
+  },
+  "buildArtifacts": {
+    "dist/client/index.html": "d61a8f757330955c99dce859b2e27ea44abddf82df0517d73c2a88072112ab21",
+    "dist/server/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "dist/.openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947"
+  }
+}

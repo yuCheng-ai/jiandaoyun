@@ -1,0 +1,84 @@
+{
+  "date": "2026-10-11",
+  "scope": "Application front-office homepage matching supplied screenshot; existing local backend list retained. No workflow/backend/permission rewrite.",
+  "routes": {
+    "home": "#/apps/oa?form=form_a0bd065ea67a",
+    "management": "#/apps/oa/manage",
+    "existingFill": "#/apps/oa/forms/form_a0bd065ea67a/fill"
+  },
+  "changes": [
+    "Home navigation selects actual application forms; folders, search, new form and unpublished/missing states work.",
+    "Existing form administration moved to /manage; explicit return-home button. Designer back returns to selected form at home.",
+    "CreateFormDialog reused by home and management; FormFilling extracted from FormSection and reused by application home and existing external filling.",
+    "Canonical form query prevents refresh from selecting another form; draft query survives with original form identity.",
+    "Shared runtime reports dirty/pending state; navigation retains automatic drafts or requests explicit discard. Mobile navigation reuses shared dialog focus/lifecycle and closes on desktop resize."
+  ],
+  "browser": {
+    "formId": "form_a0bd065ea67a",
+    "title": "应用首页 · 对标验收",
+    "publishedVersion": 1,
+    "entryId": "entry_971732f4456f",
+    "recordCount": 1,
+    "values": "HOME-001 text, checkbox 选项2, 数字1=2",
+    "verified": [
+      "Created via home, configured six fields, saved and published.",
+      "Saved draft, cold reloaded, submitted the same ID; record management confirms exactly one record.",
+      "Continue filling retains selected form query.",
+      "Home → edit → return current form; home → data management; backend → textual return-home action.",
+      "Mobile 390x844, sidebar search, selection, Escape focus restoration and desktop resize.",
+      "Avatar opens shared menu and closes with Escape."
+    ],
+    "consoleWarningsOrErrors": []
+  },
+  "checks": {
+    "fullFrontend": {
+      "tests": 1441,
+      "files": 146,
+      "log": "tmp/application-home-frontend-final.log"
+    },
+    "finalTargeted": {
+      "tests": 21,
+      "files": 4,
+      "log": "tmp/application-home-targeted-final.log"
+    },
+    "build": {
+      "result": "passed",
+      "log": "tmp/application-home-build-final.log",
+      "note": "Existing large-chunk warning remains."
+    },
+    "sites": {
+      "tests": 4,
+      "log": "tmp/application-home-sites.log"
+    }
+  },
+  "visual": "design-qa.md",
+  "screenshots": [
+    "docs/screenshots/jdy-application-home-reference.png",
+    "docs/screenshots/jdy-application-home-desktop.png",
+    "docs/screenshots/jdy-application-home-mobile.png",
+    "docs/screenshots/jdy-application-home-submitted.png"
+  ],
+  "limits": [
+    "Local app path still uses existing local publication/collection rules; no new real account or server integration claim.",
+    "Backend runtime tests not rerun because backend was not changed.",
+    "Whole project R1-R8 acceptance and migration obligations remain incomplete."
+  ],
+  "files": {
+    "frontend/src/router/index.ts": "114df398d8e046b7d857ee514bcd27d9eebdcbd9b21c467afb0a9b69a13f0890",
+    "frontend/src/components/shared/DesignerHeader.vue": "cb92da1a4a80d89a9c3677122c377e8266e4568cf02c7c6a400d31b40d91b08e",
+    "frontend/src/features/workspace/ApplicationHomeView.vue": "fe13e79d2d1794890169c7b937a532c48e803d4b3297a7b3fb581ffda65d9174",
+    "frontend/src/features/workspace/CreateFormDialog.vue": "eb9a49ce86178d87488a652c5c941bf3ed6d7d8ae986b311d24a389eeb70f246",
+    "frontend/src/features/workspace/FormListView.vue": "3de23e46276978328eaf0cdb1cf37a33288d01a2712df156ca30c60408eb9f40",
+    "frontend/src/features/forms/FormSectionView.vue": "b3f8c6ae9c20d155ed9132b2056abadb22127ea85d05e2266950bb496b845cc4",
+    "frontend/src/features/forms/components/FormFilling.vue": "5489d7662b7ba32d93647db7bd4f3146e89c42e17d555c96dc49ff0d40088465",
+    "frontend/src/features/forms/components/FormRuntime.vue": "4ff73738d3414b324b4f7a05ab45955487184b31387ac54bb4e3d5ef8b0936ac",
+    "frontend/src/workspace.css": "41f5818186c7f5fe62a288e94a5445ce611a1c17155cf6bb86d7349dbf61f3a8",
+    "frontend/tests/application-home.test.ts": "d89a48e0f9441cee3a9e6b3458c18735ce18a8e8e2e6ce7e6624a8b6b0b10985"
+  },
+  "protected": {
+    ".openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+    "worker/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "scripts/prepare-sites-build.mjs": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+    "tests/sites-worker.test.mjs": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf"
+  }
+}

@@ -1,0 +1,119 @@
+{
+  "recordedAt": "2026-10-11T07:00:33.888191+08:00",
+  "scope": "FD25 O1–O6 finite OCR implementation; full Jiandaoyun parity remains incomplete",
+  "goalStatus": "active",
+  "designQaFinalResult": "blocked",
+  "newTests": 16,
+  "focused": {
+    "tests": 62,
+    "files": 5,
+    "log": "tmp/ocr-focused.log"
+  },
+  "frontend": {
+    "tests": 1274,
+    "files": 130,
+    "log": "tmp/ocr-frontend-final.log"
+  },
+  "build": {
+    "contracts": true,
+    "vueTypecheck": true,
+    "frontend": true,
+    "sitesPackaging": true,
+    "backendTypecheck": true,
+    "log": "tmp/ocr-build-final.log"
+  },
+  "sites": {
+    "passed": 4,
+    "log": "tmp/ocr-sites.log"
+  },
+  "format": {
+    "filesChecked": 13,
+    "passed": true,
+    "log": "tmp/ocr-format-final.log"
+  },
+  "fixedBugRedEvidence": "tmp/ocr-column-precision-red.log",
+  "acceptanceCounts": {
+    "已验收": 2,
+    "部分完成": 51,
+    "未完成": 0
+  },
+  "onlyChangedAcceptanceGroup": "FD25",
+  "sourceFreezeVerified": 16,
+  "protectedUnchanged": {
+    ".openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+    "worker/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "scripts/prepare-sites-build.mjs": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+    "tests/sites-worker.test.mjs": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf"
+  },
+  "sitesOutputsPresent": [
+    "dist/client/index.html",
+    "dist/server/index.js",
+    "dist/.openai/hosting.json"
+  ],
+  "browser": "docs/qa-files/jdy-ocr-browser.json",
+  "sources": [
+    "https://hc.jiandaoyun.com/doc/12165",
+    "https://hc.jiandaoyun.com/doc/12154"
+  ],
+  "notVerified": [
+    "live OCR service or actual document recognition",
+    "all template/backend executions, billing and account logs",
+    "action-field exclusion from formula/query/filter/lookup sources",
+    "actual invoice 200 rows and full restricted-member combinations",
+    "main numeric mapping of multiple invoice rows against source semantics",
+    "precise matched-density source visuals",
+    "full backend/database tests this batch",
+    "actual GPS/map/SMS",
+    "PDF/Excel output this batch",
+    "complete R1–R8/F1–F10 acceptance"
+  ],
+  "hashes": {
+    "packages/contracts/src/ocr.ts": "638bf6956fe2eeb58a440d0495f8f0afc7fe2fb034a8faa0474c19463f72f5ec",
+    "packages/contracts/src/form.ts": "418347798e88943d6c16976a92913092255bc7b92ea74adec7aee7d231d9190f",
+    "packages/contracts/src/index.ts": "93aef76ef2fe52c317cd48d6937c621bbe66a0eee49bb9cfbca7cefc02beb41b",
+    "packages/contracts/src/data-view.ts": "268bd9c8a5a635f493e45745a468f63bbe01a692bd842093b8ec18a47df2d4ab",
+    "frontend/src/domain/ocr.ts": "37b8a283eac4960abca989ae268b2c0fdfcee09af8165c9564d9a6858271f07f",
+    "frontend/src/domain/form.ts": "4b31f2fd85361217cc424a889c456d5aa164e090ed391ed5a5ee2d25166e4fda",
+    "frontend/src/domain/fieldValidation.ts": "7227a92282287f1a2bec038b55d4df33b7aab548ed07a40875515e5386ca953a",
+    "frontend/src/features/forms/FormDesignerView.vue": "9fff8253f9295edffae15ada96648480a43334a1c420f535861c85a6aba60469",
+    "frontend/src/features/forms/components/OcrFieldInspector.vue": "14a1eef4bc2e0b193ce3605f4800f38927031b20c26caf30f5dfbef2258cc1c2",
+    "frontend/src/features/forms/components/OcrRecognitionDialog.vue": "9b22db57f0199e2c2a7414f857bcf90613f6fbd9aca6b31f3eace977b1516e03",
+    "frontend/src/features/forms/components/FieldInspector.vue": "409f3e72726f0ed60ed5ef6c598fd095c850601984eeed27a19778dcb794d116",
+    "frontend/src/features/forms/components/FieldControl.vue": "52c3aa8b387aca50fccbd3777e2a5f7d6ac229640ff7476834eb4cbd20fd4084",
+    "frontend/src/features/forms/components/FormRuntime.vue": "0ad84e5c81823e693a3ffa9e9c062f1157dc036b208de1732ecfa23421bee862",
+    "frontend/src/services/ocr.ts": "83b8f6281dd7c75898044cc294df959b7ddbfb4a19544f52c74639fdeed165f7",
+    "frontend/tests/ocr-fields.test.ts": "96c19b75fbf6971b3c9f1eb3412a8a67cdc8b2989aa0c8b4f47efba6cabd6a52",
+    "frontend/tests/ocr-runtime.test.ts": "8c3d41fc5b8899aa44270a3193290b9dd6ee4e925121a7fe87797c04a851ad04",
+    ".openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+    "worker/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "scripts/prepare-sites-build.mjs": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+    "tests/sites-worker.test.mjs": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf",
+    "dist/client/index.html": "b54f82f75246a5c510426d1846792680113106cbbe4051a343093ea13d07e8fe",
+    "dist/server/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "dist/.openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+    "docs/jiandaoyun-form-designer-plan.md": "a1e7a55e9dd6be50256c7c47979e2c760538c2eb0f1c4c9d3f4f0e8d58d59c8b",
+    "docs/form-designer-acceptance.md": "526096eb9be4fd5a51bb600f9175058df8dfbe78338f69e5edac6cdb77f30ed6",
+    "design-qa.md": "d97af1bb27c26d643f6b6d6bdd5099078897e35f4d264c32b33e49afec62523c",
+    "docs/qa-files/jdy-ocr-browser.json": "177303b00371cd246ad546e74100c02b34e754e96e36c7381157dc04ea3d0750",
+    "docs/qa-files/jdy-ocr-final-dom.txt": "8a9b66d6259ed11928d4bbe1c6e56f2cd28a41abdd904541a1bb67595d17531a",
+    "docs/qa-files/SYN-OCR.png": "80c0ac423eab4a6c08d4ba01eaee33d22ed96319a2dbaae968636422473dc925",
+    "docs/reference-captures/jdy-ocr-inspector.png": "62c222178456397c5d1276b877c5bb3ff3d7cb5bbbce9b0146b62a2fffc2814e",
+    "docs/reference-captures/jdy-ocr-rules.png": "863432f9fe1fa0b8c54820b77a8066095d2f5a4aa829b38c65c0a663c9d952cc",
+    "docs/reference-captures/jdy-ocr-rules-source.json": "f76177a606cd29a1d3839e874514bd68d899241a82f8df14e893130197d3735f",
+    "tmp/ocr-focused.log": "135d504994ba2bb4fc9bedcc5fba936764404bd02713b3ccbe313ba798e84b00",
+    "tmp/ocr-frontend-final.log": "8ab84298193288dfccf7ea0c6c0487aa02a8ce94053b45e4f4a9ebc964e928de",
+    "tmp/ocr-build-final.log": "f426e0aefda9f2d6fd3ab1f891d112a3153840c784104576486b5204061997b8",
+    "tmp/ocr-sites.log": "0f1a26b3dc145e73395a8879dd35a80d1f942854713f2bd589dd0d195bb71822",
+    "tmp/ocr-format-final.log": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+    "tmp/ocr-column-precision-red.log": "bcc056f670b231ca9a0e30ce6f618c867998ca9bf55a8f3b14cc61577b9d4ee6",
+    "docs/screenshots/jdy-ocr-designer-final.png": "0a4d36c1f8093f5c35ab5602a4cd8f1b9267161af204ecb7bd391bffbb5e6380",
+    "docs/screenshots/jdy-ocr-designer-unconfigured.png": "74ecbde03e35b038bbb67bdbba16bd91c2264c0d1d16cb5789cd0bcea6a4a186",
+    "docs/screenshots/jdy-ocr-rules-comparison.png": "0de79b73669b0791c8a5d6d4ea19f01b3e22a2d87f702ae8feb43951758dba9c",
+    "docs/screenshots/jdy-ocr-rules-existing.png": "638096e61978eee9c1ff935850fe46e544b456aadddfbf00bd185d935a05b057",
+    "docs/screenshots/jdy-ocr-rules-focus-comparison.png": "43a698145093f95990de73faab86ab27de6f4e7b7a67ee9811ad4829468dd31f",
+    "docs/screenshots/jdy-ocr-rules-mobile.png": "896cdc9b7db42baf8f7279bad6efd6a065f5105e5258f003d0b45697374bd6cb",
+    "docs/screenshots/jdy-ocr-rules-new.png": "cddcbfbbcba4b86e09ec45763c44f6568b3cd4a706c6735409857606514477d3",
+    "docs/screenshots/jdy-ocr-runtime-mobile.png": "3dc5e254fb6d8c940366a742c32a95c434e88c77dcae7abe0926091785f289ac",
+    "docs/screenshots/jdy-ocr-runtime-unavailable.png": "054da31b3f733de9feb298f48ed199439df487dada5d8e49a3d3bfc776956d75"
+  }
+}

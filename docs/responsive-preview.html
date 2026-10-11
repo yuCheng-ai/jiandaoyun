@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>本地响应式验收</title>
+<style>
+body { margin: 16px; font: 13px system-ui; background: #eef1f5; color: #344053; }
+label { margin-right: 12px; } input { width: 420px; } input, select, button { padding: 6px; }
+iframe { display: block; width: 390px; height: 844px; border: 1px solid #bac5d2; margin-top: 16px; background: white; }
+</style>
+<p>同源页面在固定宽度的框架中运行，使用当前浏览器的本地数据；用于检查窄屏布局。</p>
+<form id="controls"><label>本地页面路径 <input id="path" value="/#/apps/oa"></label><label>宽度 <select id="width"><option>390</option><option>750</option><option>1280</option></select></label><button>打开预览</button></form>
+<iframe title="响应式应用预览" src="/#/apps/oa"></iframe>
+<script type="module">
+const frame = document.querySelector('iframe');
+document.querySelector('#controls').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const path = document.querySelector('#path').value;
+  if (!path.startsWith('/#/')) return;
+  frame.style.width = document.querySelector('#width').value + 'px';
+  frame.src = path;
+});
+</script>
+</html>

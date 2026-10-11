@@ -1,0 +1,235 @@
+{
+  "date": "2026-10-11",
+  "timezone": "Asia/Shanghai",
+  "scope": "SBF09 formula prerequisites and merged member-group permission-scoped recovery",
+  "goalStatus": "active",
+  "fullVisualQA": "blocked",
+  "acceptanceGroups": {
+    "verified": 1,
+    "partial": 50,
+    "unfinished": 2,
+    "total": 53,
+    "workPercentage": null
+  },
+  "implementation": [
+    {
+      "path": "frontend/src/domain/editorDraftAdapters.ts",
+      "sha256": "025cd56a42a22c9aee45305e54f4696d50df4e81a481c86b15c734fa300ce4e1"
+    },
+    {
+      "path": "frontend/tests/subform-permission-recovery.test.ts",
+      "sha256": "9a79ed0846a389b5600f66fd709c1cf048d09e4e564a13107a718a268e04a399"
+    },
+    {
+      "path": "frontend/tests/member-recovery.test.ts",
+      "sha256": "41326b7f7e0a870ed0cb71b237390d4e600d6ce5ae604c69c801bff19416517c"
+    }
+  ],
+  "observedExistingRestriction": {
+    "path": "frontend/src/features/forms/components/FieldInspector.vue",
+    "sha256": "bba22060e7723afffbd95856f69529d79364bd993ffbafd22e496f8bb550dffc",
+    "notChanged": true,
+    "types": [
+      "text",
+      "textarea",
+      "number",
+      "datetime",
+      "address"
+    ],
+    "actualNumberInspectorDefaultControlsAbsent": true,
+    "allTypeBrowserStatesVerified": false
+  },
+  "documents": [
+    {
+      "path": "docs/jiandaoyun-form-designer-plan.md",
+      "sha256": "099b45d0ea5a1f8f4a9f06f95dba40de5c86e0156cad211135052fd35408a26f"
+    },
+    {
+      "path": "docs/form-designer-acceptance.md",
+      "sha256": "cc8f2f687955f2c418b03f1ac673ee584f0058a3efe36a2cee84ad8bdcbfdc5c"
+    },
+    {
+      "path": "docs/implementation-plan.md",
+      "sha256": "e689d22710ede564bf2784ff89584d79cc6a8f30a72c9ff42fa65688f99e36b9"
+    },
+    {
+      "path": "docs/frontend-closure.md",
+      "sha256": "6c17d932e4fb82d0bee70502d1c5bffd460ec161049d3ae5d714e29bfee0dfeb"
+    },
+    {
+      "path": "docs/development-plan.md",
+      "sha256": "15512bd9d8d7b0b34efd6b56d49d161ce99842a0c291260823ca0aabf81469ae"
+    },
+    {
+      "path": "design-qa.md",
+      "sha256": "61b1c7f011c7719a647257bfccee37b373c4e2b4c89b2a8f507f82f1cf53ac0e"
+    }
+  ],
+  "newRegressionCases": 4,
+  "originalFormulaFailures": 2,
+  "intermediateManualOverrideFailure": 1,
+  "verified": {
+    "focusedTests": 113,
+    "focusedFiles": 6,
+    "allFrontendTests": 1168,
+    "allFrontendFiles": 121,
+    "fullBuild": true,
+    "sitesTests": 4,
+    "formattedCodeFiles": 3,
+    "backendRuntimeRetested": false,
+    "physicalDevice": false,
+    "actualFilesRetested": false
+  },
+  "actualLocalJourney": {
+    "tabId": "209",
+    "formId": "form_81abb1658edb",
+    "formTitle": "子表公式与合并权限 · 对标验收",
+    "fields": 5,
+    "versions": [
+      1,
+      2
+    ],
+    "finalFormalRecordCount": 2,
+    "formulaFill": {
+      "version": 1,
+      "rootChange": [
+        "SYN-A",
+        "SYN-B"
+      ],
+      "readonlyFormulaValue": "SYN-B",
+      "protectedSourceRowQuantity": 44,
+      "manualProduct": "SYN-FORMULA-MANUAL",
+      "manualQuantity": 7,
+      "coldRecovery": true,
+      "draftId": "entry_e0cab0ef3912",
+      "draftCreatedAt": "2026-10-11 02:15:51",
+      "sameIdAfterSubmission": true
+    },
+    "mergedEdit": {
+      "version": 2,
+      "entryId": "entry_55a85f5881f7",
+      "createdAt": "2026-10-11 02:18:42",
+      "groupNames": [
+        "仅插入商品",
+        "数量编辑与新增"
+      ],
+      "actor": "张三",
+      "desktopSavedAt": "2026-10-11 02:19:24",
+      "mobileSavedAt": "2026-10-11 02:19:56",
+      "initialRowCount": 3,
+      "finalRowCount": 5,
+      "sourceQuantity": [
+        44,
+        45,
+        46
+      ],
+      "finalProducts": [
+        "SYN-MERGED-INSERT",
+        "SYN-B-ONE",
+        "SYN-MERGED-BASE",
+        "SYN-MERGED-EXTRA",
+        "SYN-MERGED-APPEND"
+      ],
+      "finalQuantities": [
+        7,
+        46,
+        7,
+        7,
+        0
+      ],
+      "insertedQuantityReadonlyBeforeSave": true,
+      "existingProductReadonly": true,
+      "coldRecoveryAndExplicitSave": true,
+      "insertedAndAppendedBecomeExistingAfterSave": true
+    },
+    "singleGroupChecks": {
+      "insertionGroupExistingCellsReadonly": true,
+      "quantityGroupMenu": [
+        "复制到末尾"
+      ],
+      "oldV1RecordStillReadonly": true
+    },
+    "mobileCssViewport": [
+      390,
+      844
+    ],
+    "mobilePageScrollWidth": 390,
+    "finalDesktopViewport": [
+      1280,
+      720
+    ],
+    "freshWarningsAndErrors": []
+  },
+  "sourceAccountModified": false,
+  "localSourceModified": false,
+  "sourceVisualComparisonNew": false,
+  "sourceDocs": [
+    "https://hc.jiandaoyun.com/doc/9020",
+    "https://hc.jiandaoyun.com/doc/10735",
+    "https://hc.jiandaoyun.com/doc/11259"
+  ],
+  "screenshots": [
+    {
+      "path": "docs/screenshots/jdy-subform-formula-restored.jpg",
+      "size": [
+        1280,
+        720
+      ],
+      "sha256": "bbe4c86003aa85b7cf3c2a0b20d952ee1179ec8428ea1af7fd8382fad23b003f",
+      "visuallyInspected": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-merged-restored.jpg",
+      "size": [
+        1280,
+        720
+      ],
+      "sha256": "9ff3a7106cef3cdfce3318b4e6e3ac99a4612c339529e150058e857bd2b751a9",
+      "visuallyInspected": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-merged-mobile-restored.jpg",
+      "size": [
+        390,
+        844
+      ],
+      "sha256": "1e8b10f220f1ad726d980f7f5b514921f8750ad91ed4405b4266d9a3f46e5451",
+      "visuallyInspected": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-formula-merge-record-final.jpg",
+      "size": [
+        1280,
+        720
+      ],
+      "sha256": "94c4aafaf86f69654ded16d4dfceddfcd3b62b625b19df537c06613c9a585680",
+      "visuallyInspected": true
+    }
+  ],
+  "protected": {
+    ".openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+    "worker/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "scripts/prepare-sites-build.mjs": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+    "tests/sites-worker.test.mjs": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf"
+  },
+  "packagedArtifacts": {
+    "dist/client/index.html": "618e53f00e7bd46d14fdf891288539751ee3280e85d56b56a0e0410df660476a",
+    "dist/server/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "dist/.openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947"
+  },
+  "logs": {
+    "red": "tmp/subform-formula-merge-red.log",
+    "overrides-red": "tmp/subform-formula-merge-overrides-red.log",
+    "focused": "tmp/subform-formula-merge-focused.log",
+    "all-frontend": "tmp/subform-formula-merge-all-frontend.log",
+    "build": "tmp/subform-formula-merge-build.log",
+    "sites": "tmp/subform-formula-merge-sites.log",
+    "format-check": "tmp/subform-formula-merge-format-check.log"
+  },
+  "unfinished": [
+    "SBF10 batch-delete, expanded view and quick filling",
+    "Final R5 revocation, older-cache and full dynamic combinations",
+    "R7 native restricted execution and original entry consolidation",
+    "Complete source visual and fixed R1–R8/F1–F10 acceptance"
+  ]
+}

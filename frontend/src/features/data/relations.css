@@ -1,0 +1,19 @@
+.relation-manager, .record-relations { border-top: 1px solid #e4e9f0; margin-top: 26px; padding-top: 20px; }
+.relation-manager h3 { font-size: 14px; margin: 0; }
+.relation-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; }
+.relation-grid .collab-field { margin: 8px 0; }
+.relation-options { display: flex; flex-wrap: wrap; gap: 14px; padding: 14px; border: 1px solid #e4e9f0; border-radius: 5px; }
+.relation-options legend { color: #637083; font-size: 12px; }
+.relation-section-title { margin-top: 22px; justify-content: space-between; }
+.relation-rule { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.relation-rule select, .relation-rule input, .relation-search input { min-width: 0; border: 1px solid #dce2eb; border-radius: 4px; padding: 7px 9px; font: inherit; background: white; }
+.relation-rule select, .relation-rule input { flex: 1; width: 100%; }
+.relation-rule .text-button { flex: 0 0 auto; }
+.relation-record-group { margin: 14px 0; padding: 14px; border: 1px solid #e4e9f0; border-radius: 5px; }
+.relation-search input { flex: 1; }
+.collab-table input[type="radio"], .collab-table input[type="checkbox"] { width: auto; min-width: 0; }
+@media(max-width: 650px) {
+  .relation-grid { grid-template-columns: 1fr; }
+  .relation-rule { display: grid; grid-template-columns: 1fr 1fr; }
+  .relation-record-group { padding: 10px; }
+}

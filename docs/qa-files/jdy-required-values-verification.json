@@ -1,0 +1,112 @@
+{
+  "date": "2026-10-11",
+  "scope": "G07 shared required/empty-value validation, container-aware dynamic checks, error focus and attachment continuity in original local forms",
+  "sources": [
+    {
+      "url": "https://hc.jiandaoyun.com/doc/9020",
+      "evidence": "Optional wholly empty rows skip child required checks; any populated child activates row checks; required subforms need content."
+    },
+    {
+      "url": "https://hc.jiandaoyun.com/doc/23030",
+      "evidence": "Rich text supports text formatting, links and images. Image-only value handling is validated against supported rendering, not an exact source empty-HTML implementation claim."
+    },
+    {
+      "url": "https://hc.jiandaoyun.com/zh_cn/doc/12277",
+      "evidence": "Field validation runs on submission; visibility/editability and workflow overrides are described separately."
+    },
+    {
+      "cache": "tmp/jdy-form-color-source.js",
+      "sha256": "07a54e31ccd5201216960b7f40a8d9cebde22b2ab96c25ad8f47ce9003a58038",
+      "evidence": "Inspected required initialization from allowBlank and the base checkValidate visibility gate. Kept visible readonly required constraints; full source entry-specific permission behavior is not established by this excerpt."
+    }
+  ],
+  "changes": [
+    "Ordinary strings are checked literally; only rich-text values use sanitized rendered text/image content. Reuse existing sanitizer and native inert template parsing, with no new parser/dependency.",
+    "Dynamic validation traverses container visibility and optional editable-only scope before children; malformed subform rows retain primary shape errors instead of crashing secondary checks.",
+    "Shared submit focus includes invalid subform cells and prefers rich-text editable bodies over toolbar selects.",
+    "Attachment cancellation observes semantic file values and field configuration/permissions, not recreated array references caused by editing an unrelated field. Actual replacement, readonly and unmount still invalidate stale completion."
+  ],
+  "checks": {
+    "reproduction": {
+      "logs": [
+        "tmp/required-values-before.log",
+        "tmp/required-values-focus-before.log",
+        "tmp/required-values-row-focus-before.log",
+        "tmp/required-values-upload-before.log"
+      ],
+      "failedTests": 8
+    },
+    "targeted": {
+      "log": "tmp/required-values-targeted-final.log",
+      "tests": 106,
+      "files": 8
+    },
+    "frontend": {
+      "log": "tmp/required-values-tests-final.log",
+      "tests": 1428,
+      "files": 144
+    },
+    "build": {
+      "log": "tmp/required-values-build-final.log",
+      "result": "passed; existing chunk-size warning"
+    },
+    "sites": {
+      "log": "tmp/required-values-sites.log",
+      "tests": 4
+    }
+  },
+  "browser": {
+    "formId": "form_c44953f1560e",
+    "formTitle": "必填与空值 · 对标验收",
+    "version": 1,
+    "draftAndRecordId": "entry_a8ea8f829317",
+    "verified": [
+      "Created and configured through UI; empty submission identifies five editable main-field errors. REF-001 readonly required default remains intact.",
+      "Literal <待补充> and numeric 0 pass; blank rich text, address and attachment fail. Optional empty subform row does not trigger child required.",
+      "Saving incomplete draft and cold reloading retains identity and inputs. Rich-text error focuses 图片说明 body (contenteditable=true), not the alignment selector.",
+      "Inserted only a synthetic SYN-OCR.png image in required rich text, chose 浙江省/杭州市/西湖区 and synthetic detail text, uploaded synthetic attachment.",
+      "Reproduced attachment disappearing when editing another field during upload, then repeated after fix; attachment persisted while updating 申请说明.",
+      "Row quantity 0 activates 商品编号 required; 390x844 submission focuses 商品明细 第1行 商品编号. Correcting with literal <SKU> succeeds.",
+      "Full draft cold reload retains rich image, file, address, readonly default and zero values. Mobile submission converts original draft to a single submitted record under the same ID.",
+      "Edited that record to <验收完成>, cold reloaded; same ID, one record, two loaded images, REF-001, <SKU> and both zero values retained. Browser warn/error logs empty; viewport reset."
+    ],
+    "screenshots": [
+      "docs/screenshots/jdy-required-values-mobile.png",
+      "docs/screenshots/jdy-required-values-record.png"
+    ]
+  },
+  "limits": [
+    "Complete all-field/source/member/workflow required semantics remain G07/R1/R5; visible readonly required remains enforced. No workflow behavior redesign.",
+    "Hidden-container invalid-choice cases and stale-upload timing are deterministic automated regressions; do not describe them as complete source-product or browser combination parity.",
+    "Original local forms verified. Backend build only; native database/API runtime, accounts, migration and server rich-text support not verified or completed.",
+    "Record-list rich-text summaries still expose literal blank entities and omit image-only descriptions; registered under R4. Rich-text body and file render correctly.",
+    "G09 visible-tab/insertion synchronization remains next; G02 word limits, maximum-image persistence and final visual/full-journey checks remain in existing queue."
+  ],
+  "files": {
+    "frontend/src/domain/form.ts": "1e35e87abefd54cfb04405ff48eae7fbe7bfa8bc2a015bc293422a6039bf0095",
+    "frontend/src/domain/richText.ts": "bd0de25e4c33248743c87b1d96a2f81be8acdeb57a577e88611903d3ed28b8ff",
+    "frontend/src/domain/fieldValidation.ts": "b6cdbd36edca688d0280df10710efda77261d63dbe9ae449cf6e0e5a68c8c62f",
+    "frontend/src/features/forms/components/FormRuntime.vue": "7ae5e2ce7ec475bd225a35aadab52f7f1b53e6d1c4b4c50825c613ac87cd598f",
+    "frontend/src/features/forms/components/FileFieldControl.vue": "cae763af2af2025a1957753ded489af62e8f553eff9e0e5c56e2d7f4652c81d8",
+    "frontend/tests/required-values.test.ts": "46fa5b080ef3b8684e0197ace4f894021d13e060a0bd70c4c9f2179b0394bb9c",
+    "frontend/tests/forms.test.ts": "6c921a39325c1a9c0b1e39918916f6e137913444ee26e215362992728ef18b5c",
+    "frontend/tests/subform-validation.test.ts": "75960740253f611aa00b612de360b1671798197d9c1e04ba57986ff0cfae666a",
+    "frontend/tests/form-tabs.test.ts": "5883fb1d9916f85e1f90a5fd6374753e152f5cc8c10c629d6979ce73da0a00ab",
+    "frontend/tests/file-fields.test.ts": "2a3d480d544b8a17adada0b4f8e53bd2d2090874b925851d6deabb5c1984daba"
+  },
+  "documents": {
+    "docs/jiandaoyun-form-designer-plan.md": "eedd0268b13cc11ca8b261c6e6280f36e25551033db4b5ba61acafdaaecd19e4",
+    "docs/form-designer-acceptance.md": "de6746b45822fc7f289caeb078934956a4fadbee89c6a9de2028be723be9bbf5"
+  },
+  "protected": {
+    ".openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+    "worker/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "scripts/prepare-sites-build.mjs": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+    "tests/sites-worker.test.mjs": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf"
+  },
+  "outputs": {
+    "dist/client/index.html": "50554f9b64a9ceb5e2f7b127328815418e5cdb8f7cd48adb5c438239c95baab8",
+    "dist/server/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "dist/.openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947"
+  }
+}

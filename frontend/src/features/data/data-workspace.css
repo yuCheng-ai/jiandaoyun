@@ -1,0 +1,28 @@
+.page-header-context { color: #87909e; font-size: 12px; margin-left: 20px; }
+.server-page-designer .header-utilities { margin-left: auto; margin-right: 22px; color: #637083; font-size: 13px; }
+.page-model-label { color: #718098; font-size: 12px; margin-left: 12px; }
+.page-editor-message { display: flex; align-items: center; justify-content: space-between; padding: 8px 20px; background: #edf5ff; color: #386692; font-size: 12px; }
+.page-editor-message.error { background: #fff1f0; color: #a5443f; }
+.page-existing-fields { display: grid; gap: 8px; }
+.page-existing-fields .palette-field { width: 100%; justify-content: flex-start; }
+.page-existing-fields .palette-field span { flex: 1; overflow-wrap: anywhere; }
+.page-existing-fields .palette-field small { flex-shrink: 0; color: #788692; font-size: 11px; }
+.page-existing-fields .palette-field.placed { background: #f5f8fa; }
+.page-binding-note { padding: 9px 10px; background: #f1f6fc; color: #55739b; border-radius: 4px; margin-bottom: 18px; font-size: 12px; line-height: 1.6; }
+.data-resource-tabs { display: flex; gap: 24px; border-bottom: 1px solid #e2e7ef; margin: 24px 0 20px; }
+.data-resource-tabs button { border: 0; border-bottom: 2px solid transparent; padding: 10px 0; background: transparent; cursor: pointer; color: #738095; font: inherit; }
+.data-resource-tabs button.active { color: #327dda; border-bottom-color: #327dda; }
+.data-object-grid { display: grid; grid-template-columns: 240px 1fr; gap: 18px; }
+.data-object-details { min-width: 0; padding: 22px; }
+.data-object-details .collab-table td.child { padding-left: 30px; }
+.data-title-input { border: 1px solid #dce2eb; padding: 7px 10px; border-radius: 4px; font: inherit; }
+.data-application-switch { max-width: 300px; }
+.collab-table input[type="checkbox"] { width: auto; min-width: 0; }
+@media(max-width: 800px) {
+  .page-header-context, .page-model-label { display: none; }
+  .server-page-designer .document-title { max-width: 180px; }
+  .server-page-designer .form-editor-toolbar { flex-wrap: wrap; height: auto; min-height: 48px; padding: 8px; gap: 6px; }
+  .data-object-grid { grid-template-columns: 1fr; }
+  .data-object-details { padding: 14px; }
+  .data-application-switch { max-width: 170px; }
+}

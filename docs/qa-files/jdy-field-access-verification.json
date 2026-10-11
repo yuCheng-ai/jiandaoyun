@@ -1,0 +1,99 @@
+{
+  "date": "2026-10-11",
+  "scope": "G04/G05 ancestor visibility/editability across ordinary local form controls, draft recovery, creation and member edits",
+  "source": {
+    "url": "https://hc.jiandaoyun.com/zh_cn/doc/12277",
+    "evidence": "2.2.6 describes field visibility/editability on member access; workflow-node overrides are stated separately. This batch preserves workflow behavior and does not claim workflow parity."
+  },
+  "changes": [
+    "Tab runtime forwards its readonly constraint to children and row controls; FieldControl readonly also disables editing directly.",
+    "Existing scopeFields can project inherited tab permission flags for input acceptance; recovery and creation reuse it without changing configuration/reference callers.",
+    "Draft recovery preserves hidden and readonly values; creation cannot inject child rows through a restricted tab.",
+    "Member edits check container visibility before descending; showing and editing a container in the same permitted command remains supported."
+  ],
+  "checks": {
+    "reproduction": {
+      "logs": [
+        "tmp/field-access-before.log",
+        "tmp/field-access-container-before.log"
+      ],
+      "failures": 4
+    },
+    "targeted": {
+      "log": "tmp/field-access-targeted-final.log",
+      "tests": 108,
+      "files": 7
+    },
+    "frontend": {
+      "log": "tmp/field-access-tests.log",
+      "tests": 1418,
+      "files": 143
+    },
+    "build": {
+      "log": "tmp/field-access-build.log",
+      "result": "passed"
+    },
+    "sites": {
+      "log": "tmp/field-access-sites.log",
+      "tests": 4
+    }
+  },
+  "browser": {
+    "formId": "form_87ef65b0da92",
+    "formTitle": "字段权限组合 · 对标验收",
+    "versions": [
+      1,
+      2
+    ],
+    "v1DraftAndRecordId": "entry_88cbe246d84d",
+    "v2RecordId": "entry_569aa2ff555e",
+    "verified": [
+      "V1 created through actual UI with editable 申请说明, readonly tab container, fixed text/default reference row, and hidden 内部标记.",
+      "Desktop and 390x844: tabs remain keyboard-navigable, child fields disabled, add/delete row entries absent, hidden field absent.",
+      "V1 draft cold reload retains REF-001 and 样品A; submit retains the same draft ID as the single record.",
+      "Synthetic form-only group 容器权限验收 assigned to local example member 张三; grant edits on parent/children cannot widen readonly designer settings, hidden-only tab omitted.",
+      "Member 390x844 edit changes only 申请说明 to 成员仅修改申请说明; cold reload retains original ID, REF-001 and 样品A.",
+      "V2 UI rule shows readonly container only when 申请说明 contains 展示; initial hidden, show/hide/show preserves expected defaults and readonly controls.",
+      "V2 submitted with 再次展示, cold reloaded; V1 original record still opens with its original visible tab container despite not matching the later rule.",
+      "Final two synthetic records, viewport restored, browser warn/error logs empty."
+    ],
+    "screenshots": [
+      "docs/screenshots/jdy-field-access-desktop.png",
+      "docs/screenshots/jdy-field-access-mobile.png",
+      "docs/screenshots/jdy-field-access-member.png",
+      "docs/screenshots/jdy-field-access-record.png"
+    ]
+  },
+  "limits": [
+    "Complete all-widget/source/permission combinations remain G04/G05/R5 obligations; this batch closes the ancestor-inheritance defects only.",
+    "Member execution verified in original local forms, not native backend permissions, real accounts or migration; backend build only.",
+    "Required/readonly and all empty-value semantics remain G07 follow-up; workflow semantics unchanged.",
+    "During fixture configuration, editing the second tab name left the first canvas tab visible while later additions belonged to the second; insertion/visible-tab synchronization needs G09/R6 follow-up.",
+    "Precise source visual matching, full output regression and maximum rich-image persistence remain existing scope.",
+    "Existing Vite chunk-size warning remains."
+  ],
+  "files": {
+    "frontend/src/domain/relations.ts": "9ce48898beda30383b51166800b1f8c0760996dc9815db5263288be038592a25",
+    "frontend/src/domain/access.ts": "3031be37eeeb06815a13981758833e3095d789d8a807756b2bda58faa0c515ec",
+    "frontend/src/domain/editorDraftAdapters.ts": "c4567378d446973056c3343a25be59ad164ce9ec12510e8603df0a281bea0956",
+    "frontend/src/features/forms/components/FormFields.vue": "0db52adb1d425cd30a3bd9ff48bb98c45e7ccccce6dba80d969158d32de385bb",
+    "frontend/src/features/forms/components/FieldControl.vue": "0af831c0cb32cc5cea49bc72cf988361561453ed9a09f608976ced3e4402d348",
+    "frontend/tests/form-tabs.test.ts": "6d65ff30be3845b52543b4d2eec709995a8790bf572ecbf35b0448733b799085",
+    "frontend/tests/access.test.ts": "864409f27eb4ed3f99b208a3224a8088244511fc6830c5ae3e89eb39a964dcc8"
+  },
+  "documents": {
+    "docs/jiandaoyun-form-designer-plan.md": "92ae68d6ce5706f1f49b4cf19752b1a9100068ac23bbbbab0685504834d3a362",
+    "docs/form-designer-acceptance.md": "c1c22e354d18cffdba6f6b5ab7e6bd8f9920294ec377e11a7920f5ec4358fc2e"
+  },
+  "protected": {
+    ".openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+    "worker/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "scripts/prepare-sites-build.mjs": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+    "tests/sites-worker.test.mjs": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf"
+  },
+  "outputs": {
+    "dist/client/index.html": "bd1b82e04164cda82e2530ae4b8d51413efdaaa6edb8ed71904f045f71ed2e3a",
+    "dist/server/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "dist/.openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947"
+  }
+}

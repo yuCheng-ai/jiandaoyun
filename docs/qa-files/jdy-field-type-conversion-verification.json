@@ -1,0 +1,190 @@
+{
+  "date": "2026-10-11",
+  "status": "基础文本／下拉／单选转换、静态及动态固定条件、字段间比较和其他补充内容已验；完整来源／权限组合仍待，FD01/FD05/FD07/G09保持部分完成",
+  "implemented": [
+    "在原转换入口中定义文本/下拉/单选与复选/下拉复选两组互换",
+    "文本边界重置专属属性，保留字段身份、标题、布局、容器归属及必填/显隐/可编辑",
+    "公式默认值及文本联动转单选保留明确失败原因",
+    "原有同类选项互换仍保留选项ID、动态来源、默认值及撤销语义",
+    "原属性栏已开放三类切换，脱敏边界使用现有确认弹窗且只产生一次撤销事务",
+    "显隐和常量筛选共用转换比较；区分文字与选项身份，按记录原发布字段解析，无法解析的负条件也拒绝匹配",
+    "条件编辑保留原选项身份与业务标签，编辑新常量标记当前语义；不复制动态来源记录进schema",
+    "权限、记录筛选和关联读取传入各记录的固定版本；当前草稿与历史发布版本互不改写",
+    "字段间比较按两侧版本解析独立选项身份，动态候选／关联／联动默认／提交／回填／导入复用；当前未转换公式输出选项ID的历史用法保留；缺失版本或不可读动态名称不通过负条件",
+    "动态转换保留来源表及字段引用；本表显隐规则在同一次可撤销编辑中转为已选文字，不复制整张来源数据；解析失败保留原设计并定位条件问题",
+    "固定条件编辑器及显隐配置读取动态来源选项，不套用尚未填写的本地级联输入；填写时仍使用原筛选",
+    "共用引用检查覆盖动态来源、联动默认和转换来源；删除重复的页面级联动检查，删除来源字段前提示受影响表单",
+    "其他补充为空时复用选项显示名称，不与未填写混同；有补充时按补充内容跨字段及跨版本文字比较，失效身份不通过负条件",
+    "本表显隐条件依赖其他选项时，类型切换保持原设计并指出规则；调整该条件后沿原切换和撤销操作继续，已有发布记录不改写"
+  ],
+  "verification": {
+    "focused": {
+      "tests": 26,
+      "files": 3,
+      "log": "tmp/field-type-final-focused.log"
+    },
+    "frontend": {
+      "tests": 1394,
+      "files": 141,
+      "log": "tmp/other-conversion-verified-tests.log"
+    },
+    "build": "tmp/other-conversion-verified-build.log",
+    "sites": "tmp/other-conversion-sites.log",
+    "protectedFiles": "4 unchanged; all 3 Sites artifacts present",
+    "browser": {
+      "formId": "form_889edcbd7a79",
+      "fieldIds": [
+        "field_e56be42c2613",
+        "field_46d863a22d93"
+      ],
+      "versions": "V1 select → V2 text",
+      "records": [
+        "entry_465af0161cc9",
+        "entry_19953230c99c"
+      ],
+      "verified": [
+        "下拉转文本，撤销／重做，保存及冷刷新",
+        "旧选项显隐条件在新文本填写中仍按选项一显示、选项二隐藏",
+        "V1旧记录保留原下拉，V2新记录使用文本，两条原ID记录均可读",
+        "文本转单选显示3个选项，画布撤销恢复文本；未新增发布版本"
+      ],
+      "screenshots": [
+        "docs/screenshots/jdy-field-type-runtime.png",
+        "docs/screenshots/jdy-field-type-history.png",
+        "docs/screenshots/jdy-field-type-designer.png"
+      ]
+    },
+    "fieldComparison": {
+      "regression": "frontend/tests/field-comparison.test.ts: 7 business cases; existing formula and subform-order regressions retained",
+      "focusedLog": "tmp/field-comparison-pinned-tests.log",
+      "formId": "form_644f60e301a4",
+      "sourceFormId": "form_889edcbd7a79",
+      "versions": "V1 筛选类别为下拉，V2 为文本；来源已有 V1 选项及 V2 文本记录",
+      "records": [
+        "entry_2e9dac3acbdd",
+        "entry_c4ca59902cc5"
+      ],
+      "verified": [
+        "配置保存、冷刷新、发布后独立选项字段能匹配来源两个版本",
+        "选项二清空失效选择且无候选；恢复选项一并选择旧版本记录提交成功",
+        "筛选类别改为文本，未修改原条件；发布V2后输入选项一可选择两个版本，选择新版本记录提交",
+        "记录管理冷刷新仍为两条提交记录，两个ID均保留"
+      ],
+      "screenshots": [
+        "docs/screenshots/jdy-field-comparison-candidates.png",
+        "docs/screenshots/jdy-field-comparison-text.png"
+      ]
+    },
+    "dynamicConversion": {
+      "regression": "dynamic-choice-conversion.test.ts: 8 cases; form-designer-saving.test.ts: 10 cases including atomic conversion/undo, unavailable-source failure and deletion cancellation",
+      "formId": "form_644f60e301a4",
+      "sourceFormId": "form_889edcbd7a79",
+      "versions": "V3 动态匹配记录及显隐条件 → V4 同字段转为文本，原条件自动转为对应文字",
+      "records": [
+        "entry_d64747c41107",
+        "entry_90e66f73c450"
+      ],
+      "verified": [
+        "级联输入为空仍可选择真实来源选项配置显隐，V3原下拉填写并提交",
+        "V4保存及冷刷新保留文本字段；条件配置显示原选项文字，其他文字隐藏说明、匹配文字显示说明并提交",
+        "V3记录编辑继续使用原下拉；冷刷新4条记录原ID均保留",
+        "固定文字等于筛选同时命中V1、V3、V4共3条记录；不等于只返回V2另一个选项；已清除验收筛选",
+        "回归覆盖正负旧常量、原权限范围、源记录删除／掩码／归档／歧义拒绝、撤销及失败不丢设计"
+      ],
+      "screenshots": [
+        "docs/screenshots/jdy-dynamic-conversion-condition.png",
+        "docs/screenshots/jdy-dynamic-conversion-runtime.png",
+        "docs/screenshots/jdy-dynamic-conversion-history.png",
+        "docs/screenshots/jdy-dynamic-conversion-filter.png"
+      ]
+    },
+    "otherConversion": {
+      "focused": {
+        "tests": 39,
+        "files": 4,
+        "log": "tmp/other-conversion-targeted.log"
+      },
+      "formId": "form_644f60e301a4",
+      "versions": "V5 含其他选项及显隐条件 → V6 调整显隐条件后切换文本",
+      "records": {
+        "emptySupplement": "entry_156017c4fe24",
+        "supplement": "entry_662ac5598a45",
+        "newText": "entry_a97beb7afc11"
+      },
+      "verified": [
+        "V5 其他补充内容为空和填写成都仓均能触发显隐及成功提交",
+        "依赖其他选项的显隐规则阻止失真转换，原字段及规则保留；在原设置中调整规则后可切换、保存刷新及发布V6",
+        "文字成都仓筛选命中V5补充和V6文本两条记录；文字其他只命中V5空补充，原筛选已清除",
+        "V5仍显示其他控件及补充内容；V6发布后可修改旧记录，刷新仍是entry_662ac5598a45且总数7",
+        "回归验证旧其他分类权限不授予新文本；显式文字条件分别按补充内容或其他名称匹配；新文本空值不冒充其他；切换失败不修改设计，调整后撤销恢复"
+      ],
+      "screenshots": [
+        "docs/screenshots/jdy-other-conversion-filter.png",
+        "docs/screenshots/jdy-other-conversion-history.png"
+      ]
+    }
+  },
+  "remaining": [
+    "完整来源／权限组合、真实原生服务端和旧应用迁移",
+    "早期已转换且未保留动态来源引用的配置不猜测恢复；未能解析的条件仍拒绝匹配"
+  ],
+  "source": {
+    "help": "https://hc.jiandaoyun.com/doc/9017",
+    "cachedScript": "tmp/jdy-form-edit-color-source.js",
+    "note": "官方帮助确认标题旁三类互换；公开编辑器代码用于核对专属属性重置。原同类动态来源能力保留，不照搬无实际必要的禁用。",
+    "otherHelp": "https://hc.jiandaoyun.com/doc/12292",
+    "otherNote": "官方帮助确认其他补充内容可为空及三类字段互换；不据此推断其历史权限或类型切换后的其他条件实现。本平台保留历史版本，无法等价转换的本表条件要求先调整；外部旧分类条件不自动变成文字权限。"
+  },
+  "files": {
+    "frontend/src/components/shared/CustomButtonBar.vue": "e17ec8a9fa4eed6514ea50b2095e085247386ec02e42087cc308ae4840c94759",
+    "frontend/src/domain/access.ts": "a2fbb1a7b2117c0aa61745ccfd08d7a526b6e71e1e0f3eb02310ee34e1abc42b",
+    "frontend/src/domain/automation.ts": "ba264ad7767f189e69ec6680e0003005673baa2418f89c848282d7710471e92a",
+    "frontend/src/domain/buttons.ts": "138e78ef8fa5b47798dbe9122b61387050835f900972aea7a607033081c649cf",
+    "frontend/src/domain/conditionValues.ts": "1d5b124f496d19a984bc3773007e2d81e3b3f2efdd8276c650ed93d4ab0be221",
+    "frontend/src/domain/editorDraftAdapters.ts": "327febe5c52996e078bc0cba26dddfb798c658e7f2e2a62e440b76143eeb293c",
+    "frontend/src/domain/extensions.ts": "694e983fab41c512d77e4879fa06aa35ec9b0ca3c00b05c41c8aa043fd5b45fc",
+    "frontend/src/domain/fieldConfig.ts": "b4be64e2480939004a7adf37fe0849a8066a94058d47161d3054cd0fc52d6163",
+    "frontend/src/domain/fieldValidation.ts": "128b6d7da1f107c73ac5aad85ffc941c5d994ffc7780643c5293eadbda2b403a",
+    "frontend/src/domain/form.ts": "217835a24bf1abcaf6af1bab6d4f64e87fa6d07a08a9eebae530a52275d38538",
+    "frontend/src/domain/formValidation.ts": "90d176efa3d5322b1225acd7412b000f56256b22f7891c1a32a052d91c5cc96d",
+    "frontend/src/domain/frontendEventValues.ts": "f50dc0a207cff806b90202b915358edb0bb3652b96ff0073a1809aa6f1237bf6",
+    "frontend/src/domain/frontendRequests.ts": "e8dea434e4c2261adfc0782ca754776062f14daf38a6fdd416b21d658f21b623",
+    "frontend/src/domain/frontendSelections.ts": "3f04550459e4623d274be47d3a052ad2a0f11dd1b8011564359f94dbfefc8576",
+    "frontend/src/domain/payments.ts": "c6a0e3a64003708a3fc39fc47aeb1c8f9c9e57d73f333668c10511782a89534a",
+    "frontend/src/domain/presentation.ts": "0f4cf3010ef5e42acb37a26ecc43abcd3d89cb53232765ef9748dd09c5ef42c2",
+    "frontend/src/domain/quickFill.ts": "8713b11ec6f9d0e9f44f149e4cdb76c3fc71b86e6d4159478aeab47905756f11",
+    "frontend/src/domain/recordBatch.ts": "d956817fe56d71cf5a9a1b034b4ffc25f56a640ec1666fd1fb9f231cba64ebe7",
+    "frontend/src/domain/recordImport.ts": "9c3c1080f5becea9225f233b6bcb05024009a401d19590906adcc8731f75c907",
+    "frontend/src/domain/records.ts": "bf8627021a85947837c1d403af281e89b679300022f6efe40501676cc4d15a50",
+    "frontend/src/domain/relations.ts": "dd0e2d359cd8ae1635b54ab7a338fdaec38514f160defb8d4152027bb2ff8a3e",
+    "frontend/src/domain/reminders.ts": "68cf49b36ac861f3c18946177c74bd3ec3df52d55da67490e96d54dde8861aca",
+    "frontend/src/domain/subformQuickFill.ts": "7deceabeb9e12b7fccc7c26cbad5ffb9f6210b11ef01744a00fc0bcf8f537dec",
+    "frontend/src/domain/visibility.ts": "9d1749ee2f094c7f82498efa262d4a5f58b63b4dce36f87b5de3ce9dfb3a12cb",
+    "frontend/src/features/forms/FormDesignerView.vue": "3903ee617c1d6c2ef13ba71bf3c4ff822451fe1db6c224e39e7463018acebc92",
+    "frontend/src/features/forms/components/DataFilterEditor.vue": "b94e480359552798c950b6258c531662e641db9bf4182287603d448e6553946d",
+    "frontend/src/features/forms/components/FieldControl.vue": "cd013654b14a19a92118166480cc7fdcb438575f5b82eac25896bd54c4d75b5e",
+    "frontend/src/features/forms/components/FieldInspector.vue": "a1837a2d7bc9fdeaef823390ea0923d4c06cb79ab1f9c74407c91316f2153fd7",
+    "frontend/src/features/forms/components/FormFields.vue": "a04df1a2bc30f72d1a33960be23b3ec42af182f79744b6c6af36c870bbc662d4",
+    "frontend/src/features/forms/components/InlineRecordEditor.vue": "2f9f4525d9737133b5d86231b0e4553e61bea69c169dd13bd26fe46649ced6a3",
+    "frontend/src/features/forms/components/QuickFillDialog.vue": "c90f671efd39f698c337647008e97dce2f41716c90ac88b16c190e880ecf51fd",
+    "frontend/src/features/forms/components/RecordBatchDialog.vue": "e8bddeddcd4ade972bd15e07c989efde85ae2133d29f089db1baeab434f03ec5",
+    "frontend/src/features/forms/components/RecordBody.vue": "f48f2551be6a6cd4ae0f6003f4f165c1dfd36ffc692aabde1b600c5cdc756eb0",
+    "frontend/src/features/forms/components/RecordImportCorrection.vue": "aaa14d1ddad767d8786cd8545da79973185625254258f41cd392721578e5fa8b",
+    "frontend/src/features/forms/components/RecordList.vue": "3cf37ecd06a6c14ae799652a290db1218a4c4f128b46d898468771fafdd0a966",
+    "frontend/src/features/forms/components/RelationControl.vue": "35e68d7efbf4e51a40e055b58eb15618311aa48a7a1dc46ca8dc4ed4623bfdd9",
+    "frontend/src/features/forms/components/VisibilityRules.vue": "aa2ff35da855782354e2c4bf51e17869d754235f070a4b8da85ed434a9cbc4f6",
+    "frontend/tests/field-comparison.test.ts": "5d4b8c608ca5287d821a44d712d08c383e96bb4c8484b459b7b735bbc6998960",
+    "frontend/tests/field-type-conversion.test.ts": "77b5df1778d086867e43639aabd363c623b4742923d0a108ce763f428c09dc81",
+    "frontend/tests/field-type-runtime.test.ts": "f002c8bebc5cf15a1836c6ff6079d437a898ba290205404a160e30334e2eda63",
+    "frontend/tests/form-designer-saving.test.ts": "0f7ba52ebdc1a2350ef248b4a800e59af591e9fef094cedfe4c89aafb1f355ff",
+    "frontend/tests/relations.test.ts": "0f488401bf0a8688fdae4a0b2fb527416483f70b5a7b31a8af51ecda63d3a6eb",
+    "frontend/tests/subform-defaults.test.ts": "403b708154c4f376c7f658f947d1a8dc5c7e42d127bfe08493cee288ef9ef970",
+    "packages/contracts/src/form.ts": "2cc3fe2bc7a5b6bd0d7446923d961525d09d237a5be21657a39253d76d6cfda6",
+    "frontend/tests/dynamic-choice-conversion.test.ts": "b0a35b554a99182c0aa70e05ff2c355c082e927bbf7f379c69023f31c5ab8a06"
+  },
+  "notVerified": [
+    "真实数据库/HTTP运行",
+    "完整权限/来源组合",
+    "1:1整体交付"
+  ]
+}

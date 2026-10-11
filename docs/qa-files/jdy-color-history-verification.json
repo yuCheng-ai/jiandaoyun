@@ -1,0 +1,171 @@
+{
+  "date": "2026-10-11",
+  "timezone": "Asia/Shanghai",
+  "goalTurnClassification": "progress",
+  "previousTurnClassification": "no progress — status restatement; implementation resumed against the existing color-list gap",
+  "scope": "Existing shared custom-color history and apply behavior; no added product pages or new goal scope",
+  "status": "Shared color gap closed; complete Jiandaoyun goal remains active and partial",
+  "source": {
+    "accountFormModified": false,
+    "restoredTo": "#/data",
+    "viewport": {
+      "width": 1280,
+      "height": 720,
+      "dpr": 1
+    },
+    "menu": {
+      "width": 248,
+      "height": 240,
+      "x": 982,
+      "y": 352
+    },
+    "customPanel": {
+      "width": 258,
+      "height": 280,
+      "x": 879,
+      "y": 272
+    },
+    "publicAssets": [
+      {
+        "url": "https://g.jdycdn.com/static/app/pc/assets.25a363def4812d5a.js",
+        "sha256": "4ab8c4918e3aa012beab8207e0dffdd3ad3314f38eb9b4a2da146285137c554a"
+      },
+      {
+        "url": "https://g.jdycdn.com/static/app/pc/jdy-design.530a34abef313597.js",
+        "sha256": "66bb17ff7b76f3be05d941ce915f077f9c889d6a0488d963105b2ece3928fc26"
+      }
+    ],
+    "confirmedRules": [
+      "per-user local preference key",
+      "seven normalized distinct custom colors",
+      "new custom color prepended on custom-popup close",
+      "palette recommendations excluded from history",
+      "existing-color selection does not reorder list",
+      "field current custom color displayed without preference write on open",
+      "current valid color initializes HSV; missing color starts white"
+    ],
+    "limitations": [
+      "Source account custom-color list was empty; filled-list appearance was not changed or tested on that account",
+      "Source confirmation button/theme variants remain in the original backlog",
+      "RGB out-of-range blur currently restores the previous value; source public component clamps to 0–255. Invalid HEX blur also differs. These remain exposed input-boundary gaps in the same R1 group."
+    ]
+  },
+  "implementation": {
+    "files": [
+      "frontend/src/App.vue",
+      "frontend/src/repositories/customColors.ts",
+      "frontend/src/features/forms/components/OptionColorPicker.vue",
+      "frontend/src/features/forms/components/CustomColorPanel.vue",
+      "frontend/src/features/forms/components/RichTextEditor.vue",
+      "frontend/tests/custom-color-picker.test.ts",
+      "frontend/tests/custom-colors.test.ts",
+      "frontend/tests/divider-appearance.test.ts",
+      "frontend/tests/rich-text.test.ts"
+    ],
+    "newTests": 8,
+    "owner": "Existing local member identity for /apps; separate account prefix for /applications. Real account switching was not browser-tested.",
+    "personalPreferenceFailure": "Field color applies without workspace save or recovery request; in-memory picker remains usable",
+    "pendingPreview": "Cleared on field color, disabled state or owner change; base identity/color rechecked on apply",
+    "historyRefresh": "Read current preferences on opening and committing; no per-option global storage listeners"
+  },
+  "verification": {
+    "finalFrontend": {
+      "files": 132,
+      "tests": 1294,
+      "log": "tmp/custom-colors-frontend-final.log"
+    },
+    "build": {
+      "exit": 0,
+      "log": "tmp/custom-colors-build-final.log"
+    },
+    "sites": {
+      "passed": 4,
+      "log": "tmp/custom-colors-sites-final.log"
+    },
+    "format": {
+      "files": 9,
+      "log": "tmp/custom-colors-format-check.log"
+    },
+    "initialRed": "tmp/custom-colors-red.log — six relevant assertions failed against original behavior",
+    "initialBuildFailure": "tmp/custom-colors-build-type-error.log — test mock this annotation; repaired",
+    "backendDatabaseTests": "not rerun; no backend logic edits",
+    "sourceHashes": {
+      "frontend/src/App.vue": "1aa7ca3ad6e017a77f4089b3b703c4d392d4c1df45cb7762a12fd1adc563feb3",
+      "frontend/src/repositories/customColors.ts": "37073202c08de7809b9998dab4320a5170405be1fe8f5d9ffaca573ab19765a2",
+      "frontend/src/features/forms/components/OptionColorPicker.vue": "2d05d02c97890828bb789c5ffa02ecc7308e22defdbd8b4bd9b4b7b733e1c551",
+      "frontend/src/features/forms/components/CustomColorPanel.vue": "7c782ce49cbd759dcf9d158d6b8ca12a9e7f96a94a917075c8523f6b6bf948d8",
+      "frontend/src/features/forms/components/RichTextEditor.vue": "23ec70a6381dd083e60ab2c6b47c41cc578a4f7ddfdbd1199a49455c2dd4807b",
+      "frontend/tests/custom-color-picker.test.ts": "a535f12d77043962fee20cd4f14ece0eeb976da8ca07a6d7a6d04061b84ab5e6",
+      "frontend/tests/custom-colors.test.ts": "963fc3e09f9a6b9f29dd44056ed50051972ff37be170cbcd5350b16c7f807c38",
+      "frontend/tests/divider-appearance.test.ts": "8f4bf7a0f9261c0331222ce7a94215e9f3e3a756feee63653e41dd17b61aa6d6",
+      "frontend/tests/rich-text.test.ts": "f37915bf53b04a8d2c3496c439215c40186ac91a8b48f95168ca2c675319c295"
+    }
+  },
+  "browser": {
+    "formId": "form_695dffcb8d19",
+    "initialTitleColor": "#123456",
+    "finalTitleColor": "#123456",
+    "fieldsAdded": 0,
+    "versionsPublished": 0,
+    "businessRecordsWritten": 0,
+    "memberSwitch": "张三 to 李四 then restored 张三; local/demo only",
+    "desktop": {
+      "width": 1280,
+      "height": 720,
+      "dpr": 1,
+      "pageWidth": 1280
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "dpr": 1,
+      "pageWidth": 390
+    },
+    "consoleWarnError": [],
+    "steps": "docs/qa-files/jdy-color-history-browser.json",
+    "finalDom": "docs/qa-files/jdy-color-history-final-dom.txt",
+    "screenshots": [
+      "docs/screenshots/jdy-color-history-preview.png",
+      "docs/screenshots/jdy-color-history-shared-reloaded.png",
+      "docs/screenshots/jdy-color-history-other-member.png",
+      "docs/screenshots/jdy-color-history-mobile.png",
+      "docs/screenshots/jdy-color-history-final.png"
+    ]
+  },
+  "visualComparison": {
+    "full": "2560x720, source/current each1280x720 DPR1, no resize; background field selection differs",
+    "focusMenu": "496x240, exact248x240 crops",
+    "focusCustom": "516x280, exact258x280 crops",
+    "localPositionDifference": "menu/custom y351/y271 vs source352/272",
+    "reviewed": [
+      "menu paired full",
+      "menu paired focus",
+      "custom paired focus",
+      "mobile",
+      "final"
+    ],
+    "notProven": "Source filled-list visual state, exact full-screen 1:1 and real mobile keyboard"
+  },
+  "protectedFiles": {
+    ".openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+    "worker/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "scripts/prepare-sites-build.mjs": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+    "tests/sites-worker.test.mjs": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf"
+  },
+  "sitesArtifacts": {
+    "dist/client/index.html": {
+      "bytes": 471,
+      "sha256": "0fb1c52ead53fd2e4c9122901f52501e3701820a0b9237d256c729065a042ee6"
+    },
+    "dist/server/index.js": {
+      "bytes": 483,
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389"
+    },
+    "dist/.openai/hosting.json": {
+      "bytes": 31,
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947"
+    }
+  },
+  "acceptance": "2 verified /51 partial /0 unimplemented; groups are unequal and not percentages",
+  "next": "Fixed queue item2: align remaining exposed color-input boundaries and other field properties, then R2–R8; workflow unchanged"
+}

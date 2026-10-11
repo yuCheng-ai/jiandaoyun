@@ -1,0 +1,164 @@
+{
+  "date": "2026-10-10",
+  "scope": "R1/SBF12 basic subfield widths and shared readable-save guard; all R1–R8/F1–F10 retained",
+  "goalStatus": "active",
+  "completionEstimate": "rough 70% for basic form designer only, unchanged; no overall completion rate",
+  "source": {
+    "url": "https://hc.jiandaoyun.com/doc/12325",
+    "updated": "2024-09-23",
+    "confirmed": [
+      "half/standard/double/custom mode names",
+      "custom maximum 1000px"
+    ],
+    "unverified": [
+      "original CSS density and exact standard width",
+      "complete custom interaction and minimum width",
+      "low-width rendering"
+    ]
+  },
+  "fixture": {
+    "formId": "form_d8c2caad8b20",
+    "fields": 9,
+    "publishedVersion": 9,
+    "publishedAt": "2026-10-10 20:43:40",
+    "records": 5,
+    "newRecordId": "entry_67ab62f468f5",
+    "version": 9,
+    "code": "SYN-005",
+    "quantity": 3,
+    "createdAt": "2026-10-10 20:44:40",
+    "editedAt": "2026-10-10 20:45:30",
+    "originalV4Record": "entry_b7b76591b0e1",
+    "oldRecordModified": false,
+    "otherOldRecords": "list checks only"
+  },
+  "browser": {
+    "double": 400,
+    "half": 100,
+    "undoRestored": 400,
+    "customMaximum": 1000,
+    "maximumPreviewWidth": 1000,
+    "savedCustomWidth": 320,
+    "publishedFillWidth": 320,
+    "recordEditWidth": 320,
+    "oldV4DefaultColumn": 200,
+    "invalidSave": "cold-load 1001 rejected, input retained, dirty still visible",
+    "mobile": {
+      "viewport": [
+        390,
+        844
+      ],
+      "pageWidth": 390,
+      "customInputRect": [
+        115,
+        771,
+        229.75,
+        32
+      ],
+      "runtimeQuantityWidth": 320,
+      "tableScroll": [
+        356,
+        1011
+      ],
+      "focusAfterClose": "预览",
+      "arrowKey": "sent but no scrollLeft movement evidence"
+    },
+    "finalViewport": [
+      1280,
+      720
+    ],
+    "finalTab": "183",
+    "dirty": false,
+    "warnError": []
+  },
+  "checks": {
+    "frontendTests": 1100,
+    "frontendFiles": 115,
+    "newFrontendTests": 9,
+    "backendParserTests": 2,
+    "sitesTests": 4,
+    "formattedFiles": 12,
+    "completeBuild": "passed",
+    "acceptanceGroups": 53
+  },
+  "remaining": [
+    "source exact width/custom states and low-width limits",
+    "cross-subform and inspector native drag",
+    "SBF07/SBF09–SBF12 remaining configuration",
+    "R1–R8/F1–F10 final acceptance",
+    "database/PDF/Excel not rerun",
+    "complete visual QA remains blocked"
+  ],
+  "protected": {
+    ".openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+    "worker/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "scripts/prepare-sites-build.mjs": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+    "tests/sites-worker.test.mjs": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf"
+  },
+  "artifacts": [
+    "dist/client/index.html",
+    "dist/server/index.js",
+    "dist/.openai/hosting.json"
+  ],
+  "hashes": {
+    "packages/contracts/src/form.ts": "a0e5263f0042d59a6f98d2b5224e58b64becb1795e9cff8b44dc597a7b4094aa",
+    "packages/contracts/src/form-layout.ts": "91b67590ef41ba085b70ece72f138f8f63cfbd059a283649510c559d5f151cab",
+    "packages/contracts/src/data-view.ts": "095bd58d9ce948e8d521af0ad033a986d6cfe7d235eae33e02fdd3bf249e8bb0",
+    "frontend/src/domain/form.ts": "cdb1d570407a6e223d1401064e560fc9b3e474a81aea845cde5e9f21b316b9e1",
+    "frontend/src/domain/fieldValidation.ts": "aaa02e321c586050cc3c712a79c4b129353d6fbfb76d0ad85c315d0ac7ba58d9",
+    "frontend/src/features/forms/components/FieldInspector.vue": "f28e8fd510bd9dac2e0e7adaf0746b1b14053ff84bab5a72a59f69d8827aee9f",
+    "frontend/src/features/forms/components/FieldCanvas.vue": "ed101f3ba310a1d4274df4c7848a62dec0da654ced709e4f3331ec562b83a830",
+    "frontend/src/features/forms/components/FormFields.vue": "a03212d0d1bc871db94b9b0ce9f7523e5362f071adb8dda3dd5542266124bac7",
+    "frontend/src/form-designer.css": "e39d9e7b6719f2298650dd0913d62b096713d704dd904e1377287dc57607abbc",
+    "frontend/src/stores/workspace.ts": "f3e74fa23ebe6c8e627c871887796c87bdf95e13215d71540a601808d41bc0f1",
+    "backend/src/schema.ts": "e7c915a7d8819010ca22af06720317176409e9beb5c4afe4930056e6c50128b5",
+    "backend/src/page-schema.ts": "26605f8c826f31e4def44fc7863f126717ce3881d5e305b5be446bc5960ed36d",
+    "frontend/tests/subform-width.test.ts": "1bb9534423b90d96a671a6dd5c827879519af087542c53280b38b08c830a716c",
+    "backend/tests/subform-width.test.ts": "aa61df3896bb7c37c0ae990a82fdf8f7af573f970e87175708d462ff32811b38",
+    "docs/jiandaoyun-form-designer-plan.md": "5926f2fc10df46d0362c770e5b7080011955d4d33ec5d59d3762ab75c6fc486f",
+    "docs/form-designer-acceptance.md": "c96acaa9337e2fa1190358f74944eb50885e9598f96c92dc52daa29b40037eaa",
+    "docs/frontend-closure.md": "eceb035486b7e97cf9907db13b535036179eb1a8acd8c5fe4c4be19a33c298d0",
+    "docs/implementation-plan.md": "d14e7582070ab55a66c8016c9d44d1f360c292ae524338cc9015d7c4e06cce9d",
+    "design-qa.md": "5c68b7d766913cd31a68f30b516dbed01dd905b31f3e5a8122c91d2fbd6d6984",
+    "tmp/subform-width-focused.log": "ee382ceff348eb9c19639be49c70b8024c02c692322038a23b5b4dfd2355c692",
+    "tmp/subform-width-save-focused.log": "94eaa934b498dbeea2d8a85de333fdf3776f2ed71b7ad1502a2cef1e6291b52f",
+    "tmp/subform-width-all-final.log": "c16022e4cb48c725ee3b0aa661cdf3bc34c0f2f100c4fddc3ef3d1b6367f9b68",
+    "tmp/subform-width-build-final.log": "3901961f112548c7a5bddbbfe434378257a1945027e7f2eaac41a69234e30b9c",
+    "tmp/subform-width-backend.log": "aefb903edbb5bdd7fe4b881aa7343339919cf4132d32b89ea511bc5456117f76",
+    "tmp/subform-width-sites-final.log": "20321992fbaf91f007f370a72176b95cf03b775a3cb703eff16bc78500bc7f6e",
+    "tmp/subform-width-format-final.log": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+    "docs/screenshots/jdy-subform-width-1000-preview-live.jpg": "9e1637b127794bf70bed47ec0340acee8cf65a2991ad878ba66dc21588cbc18f",
+    "docs/screenshots/jdy-subform-width-compare-focus.jpg": "4f2126470db4d9b481a6a55c5d48af89bd3129a968482271709353ca3cb77d7a",
+    "docs/screenshots/jdy-subform-width-compare-full.jpg": "063ed702702c3c251cce74024319a59b6ad25e2cf88267b37d58fbbb199e3658",
+    "docs/screenshots/jdy-subform-width-double-live.jpg": "c942fde5d421cad4eac27b91b328eb3ae43c61c3f936817bfb71c39c7ee0ecbf",
+    "docs/screenshots/jdy-subform-width-fill-live.jpg": "7ce3dd09606bf39469946c046750927da14192614e0945793a66e3d2b867498c",
+    "docs/screenshots/jdy-subform-width-final-live.jpg": "fe03c8dfbdc8e57d795e86b5dfc300aab7f4ac6fc072470ad04d6319967a8b1e",
+    "docs/screenshots/jdy-subform-width-invalid-fixed-live.jpg": "ad2b43a5e62d2b69a1e2b2a5642021ecf976699eb899a4895b9f3702cc6f9083",
+    "docs/screenshots/jdy-subform-width-invalid-live.jpg": "4979cd06546305a769a22fac8132d903bd4101cea473d21f5707aba5f0612552",
+    "docs/screenshots/jdy-subform-width-mobile-panel-live.jpg": "9a8c48f363454baf80485d4ed185ec112daced14272fdfe061459ac4cc17ea85",
+    "docs/screenshots/jdy-subform-width-mobile-preview-live.jpg": "5d68a3c38cdc68bcafbdd751438be9998004804fbab1bf9451cb53db85de4348",
+    "docs/screenshots/jdy-subform-width-old-v4-live.jpg": "48777e39d7efc97f649d1f8e8bb1ca7a8cb89d3f4c9c298889827e01eb568ec9",
+    "docs/screenshots/jdy-subform-width-published-live.jpg": "9ba63389fd460a54cd2a44aa5daa7c3cadc8bdadfd3f8eb95735272dd5027544",
+    "docs/screenshots/jdy-subform-width-records-live.jpg": "0261e6f24ba6ac90ebd5f634d7ef38446a1e69a4715958966cc6d0bcf8e0e034",
+    "docs/screenshots/jdy-subform-width-saved-live.jpg": "6aab00ef18afaaf13099b38e081e2ef714b8ba328ad66e338b868850390acc1c",
+    "docs/screenshots/jdy-subform-width-source-animation.jpg": "e94934f19eaaf94e025d6ab1d0547b48c3bffaea02c239a14e054fd168e0cac0",
+    "docs/screenshots/jdy-subform-width-source-live.jpg": "20aaa74a036d79abdb9fd59b0f3ca7481b50fb662f06c8420e7710781ae66a88",
+    "docs/screenshots/jdy-subform-width-source-panel.jpg": "cfbe47dff69aa58a9225224acbd16d0d865994211800dcc27d1f65a2d8a2925c",
+    "docs/screenshots/jdy-subform-width-v9-updated-live.jpg": "165e6a9fdfed150d929789ede61e4f7d560fd980bc9832e23becf082e57139d8"
+  },
+  "comparisons": {
+    "full": [
+      2560,
+      752
+    ],
+    "focus": [
+      579,
+      115
+    ],
+    "sameInputViewed": true,
+    "sameMode": "double",
+    "originalCSSDensityUnknown": true,
+    "rescaling": "none in diagnostic files; viewing tool resized full to 2048×602",
+    "finalResult": "blocked"
+  }
+}

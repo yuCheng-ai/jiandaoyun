@@ -1,0 +1,130 @@
+{
+  "formId": "form_99310b3419f5",
+  "entryId": "entry_f30ea230254f",
+  "sourceFormId": "form_52adbcc501ee",
+  "publishedVersion": 1,
+  "fields": 9,
+  "initialPaste": [
+    [
+      "甲,不存在分类,甲",
+      "甲,SYN-临时A,甲",
+      "SYN-005,SYN-404",
+      "张三,王五,赵六,不存在成员",
+      "产品部,研发部,不存在部门",
+      "3",
+      "SYN-PARTIAL"
+    ],
+    [
+      "乙",
+      "乙,SYN-临时B",
+      "SYN-005",
+      "张三,重名导入验收",
+      "示例企业",
+      "3",
+      "SYN-DUPLICATE"
+    ],
+    [
+      "丙",
+      "丙",
+      "SYN-005",
+      "林悦,许清",
+      "研发部",
+      "2",
+      "SYN-LATER-QUANTITY"
+    ]
+  ],
+  "initialErrorCount": 6,
+  "editPaste": [
+    [
+      "甲",
+      "甲,SYN-临时A",
+      "SYN-005",
+      "张三,王五",
+      "产品部",
+      "2",
+      "SYN-DEPENDENCY-CLEAR"
+    ],
+    [
+      "乙",
+      "乙,SYN-临时B",
+      "SYN-005",
+      "张三,#MI-DUP01#,#MI-DUP02#",
+      "示例企业",
+      "3",
+      "SYN-IDENTIFIER-CORRECTED"
+    ],
+    [
+      "丙",
+      "丙",
+      "SYN-005",
+      "林悦,许清",
+      "研发部",
+      "3",
+      "SYN-LATER-CORRECTED"
+    ]
+  ],
+  "finalRows": [
+    [
+      "分类",
+      "标签",
+      "目录分类",
+      "参与人",
+      "参与部门",
+      "数量",
+      "备注"
+    ],
+    [
+      "甲",
+      "甲、SYN-临时A、SYN-手机标签",
+      "—",
+      "张三",
+      "产品部",
+      "2",
+      "SYN-MULTI-MOBILE-FINAL"
+    ],
+    [
+      "乙",
+      "乙、SYN-临时B",
+      "SYN-005",
+      "张三、重名导入验收、重名导入验收",
+      "示例企业",
+      "3",
+      "SYN-IDENTIFIER-CORRECTED"
+    ],
+    [
+      "丙",
+      "丙",
+      "SYN-005",
+      "林悦、许清",
+      "研发部",
+      "3",
+      "SYN-LATER-CORRECTED"
+    ]
+  ],
+  "finalViewport": {
+    "height": 720,
+    "pageWidth": 1280,
+    "width": 1280
+  },
+  "recordCount": 1,
+  "history": [
+    [
+      "提交数据",
+      "2026/10/11 05:54:35"
+    ],
+    [
+      "成员 张三 修改记录",
+      "2026/10/11 05:55:25"
+    ],
+    [
+      "成员 张三 修改记录",
+      "2026/10/11 05:56:00"
+    ]
+  ],
+  "mobileViewport": {
+    "width": 390,
+    "height": 844,
+    "pageWidth": 390
+  },
+  "coldRefreshedMemberExport": "张三,#MI-DUP01#,#MI-DUP02#"
+}

@@ -1,0 +1,161 @@
+{
+  "box": {
+    "bottom": 592,
+    "height": 240,
+    "left": 982,
+    "right": 1230,
+    "top": 352,
+    "width": 248,
+    "x": 982,
+    "y": 352
+  },
+  "font": "12px",
+  "html": "<div class=\"color-board-content\"><div class=\"color-board-item recommend\"><div class=\"item-label\">推荐颜色</div><div class=\"item-content\"><div class=\"color-item-box\"><div class=\"color-item\" style=\"backgrou",
+  "padding": "16px",
+  "parts": [
+    {
+      "box": {
+        "bottom": 388,
+        "height": 20,
+        "left": 998,
+        "right": 1214,
+        "top": 368,
+        "width": 216,
+        "x": 998,
+        "y": 368
+      },
+      "cls": "item-label",
+      "font": "12px",
+      "margin": "0px 0px 12px",
+      "padding": "0px"
+    },
+    {
+      "box": {
+        "bottom": 514,
+        "height": 120,
+        "left": 994,
+        "right": 1218,
+        "top": 394,
+        "width": 224,
+        "x": 994,
+        "y": 394
+      },
+      "cls": "item-content",
+      "font": "12px",
+      "margin": "-6px -4px",
+      "padding": "0px"
+    },
+    {
+      "box": {
+        "bottom": 421,
+        "height": 24,
+        "left": 996,
+        "right": 1020,
+        "top": 397,
+        "width": 24,
+        "x": 996,
+        "y": 397
+      },
+      "cls": "color-item-box",
+      "font": "12px",
+      "margin": "3px 2px",
+      "padding": "0px"
+    },
+    {
+      "box": {
+        "bottom": 419,
+        "height": 20,
+        "left": 998,
+        "right": 1018,
+        "top": 399,
+        "width": 20,
+        "x": 998,
+        "y": 399
+      },
+      "cls": "color-item",
+      "font": "12px",
+      "margin": "0px",
+      "padding": "0px"
+    },
+    {
+      "box": {
+        "bottom": 421,
+        "height": 24,
+        "left": 1024,
+        "right": 1048,
+        "top": 397,
+        "width": 24,
+        "x": 1024,
+        "y": 397
+      },
+      "cls": "color-item-box",
+      "font": "12px",
+      "margin": "3px 2px",
+      "padding": "0px"
+    },
+    {
+      "box": {
+        "bottom": 419,
+        "height": 20,
+        "left": 1026,
+        "right": 1046,
+        "top": 399,
+        "width": 20,
+        "x": 1026,
+        "y": 399
+      },
+      "cls": "color-item",
+      "font": "12px",
+      "margin": "0px",
+      "padding": "0px"
+    },
+    {
+      "box": {
+        "bottom": 544,
+        "height": 20,
+        "left": 998,
+        "right": 1214,
+        "top": 524,
+        "width": 216,
+        "x": 998,
+        "y": 524
+      },
+      "cls": "item-label",
+      "font": "12px",
+      "margin": "0px 0px 12px",
+      "padding": "0px"
+    },
+    {
+      "box": {
+        "bottom": 582,
+        "height": 32,
+        "left": 994,
+        "right": 1218,
+        "top": 550,
+        "width": 224,
+        "x": 994,
+        "y": 550
+      },
+      "cls": "item-content",
+      "font": "12px",
+      "margin": "-6px -4px",
+      "padding": "0px"
+    },
+    {
+      "box": {
+        "bottom": 576,
+        "height": 20,
+        "left": 998,
+        "right": 1018,
+        "top": 556,
+        "width": 20,
+        "x": 998,
+        "y": 556
+      },
+      "cls": "add-item",
+      "font": "12px",
+      "margin": "6px 4px",
+      "padding": "0px"
+    }
+  ]
+}

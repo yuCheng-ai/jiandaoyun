@@ -1,0 +1,405 @@
+{
+  "date": "2026-10-11",
+  "scope": "SBF01 existing child-field editing and native pointer drag; no new product path",
+  "goal": "active",
+  "progress": {
+    "overall": "partially complete",
+    "percentage": null,
+    "acceptanceGroups": {
+      "verified": 2,
+      "partial": 49,
+      "unfinished": 2
+    },
+    "groupsAreNotEqualWorkUnits": true,
+    "closedThisBatch": [
+      "SBF01"
+    ]
+  },
+  "source": [
+    {
+      "url": "https://hc.jiandaoyun.com/doc/9020",
+      "checked": "child-field add/copy/delete/sort and original left palette/right inspector locations; prior capture retained",
+      "doesNotProve": "same-density visual parity or all child-field settings"
+    },
+    {
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/HTML_Drag_and_Drop_API/Drag_operations",
+      "checked": "event order and drop-target background; browser implementations differ",
+      "doesNotProve": "universal browser reproduction of observed failure"
+    }
+  ],
+  "implementation": {
+    "productionChange": "four dragenter.prevent.stop handlers: three canvas drop surfaces and the existing inspector row",
+    "kept": "original insertionIndex, moveField, type registry, stable IDs and undo/redo",
+    "newDataMetadata": false,
+    "layoutOrCssChanges": false,
+    "temporaryDiagnosticsRemoved": true
+  },
+  "nativeBeforeAfter": {
+    "browser": "IAB 3, local tab 209, desktop native pointer inputs",
+    "before": "actual cross-subform input emitted trusted dragstart/dragenter; no final dragover/drop and dragend dropEffect none",
+    "diagnostics": "temporary application console logs observed in tools, removed before final real-input recheck; no retained failure screenshot",
+    "after": [
+      "same cross-subform native path changes goods parent",
+      "inspector native handle sorts note/goods",
+      "two CtrlZ restore sort and cross-parent change",
+      "left palette native text drop inserts at intended position, CtrlZ restores",
+      "copy/delete/CtrlZ restores same copy ID, second CtrlZ undoes copy",
+      "save and cold reload retain all original six IDs"
+    ],
+    "notClaimed": "native phone touch drag or every browser/device"
+  },
+  "browser": {
+    "tabId": "209",
+    "formId": "form_2f81b2d45ec7",
+    "name": "子字段拖动 · 对标验收",
+    "fieldCount": 6,
+    "before": [
+      {
+        "id": "field_f95e792ac391",
+        "label": "明细一",
+        "parentId": null
+      },
+      {
+        "id": "field_773cf9ed54dc",
+        "label": "商品",
+        "parentId": "field_f95e792ac391"
+      },
+      {
+        "id": "field_a391c54707eb",
+        "label": "数量",
+        "parentId": "field_f95e792ac391"
+      },
+      {
+        "id": "field_264f278cec90",
+        "label": "明细二",
+        "parentId": null
+      },
+      {
+        "id": "field_7bd036515d41",
+        "label": "备注",
+        "parentId": "field_264f278cec90"
+      },
+      {
+        "id": "field_01de6575acf8",
+        "label": "主备注",
+        "parentId": null
+      }
+    ],
+    "afterSaveColdReloadAndFinalReopen": [
+      {
+        "id": "field_f95e792ac391",
+        "label": "明细一",
+        "parentId": null
+      },
+      {
+        "id": "field_a391c54707eb",
+        "label": "数量",
+        "parentId": "field_f95e792ac391"
+      },
+      {
+        "id": "field_264f278cec90",
+        "label": "明细二",
+        "parentId": null
+      },
+      {
+        "id": "field_7bd036515d41",
+        "label": "备注",
+        "parentId": "field_264f278cec90"
+      },
+      {
+        "id": "field_773cf9ed54dc",
+        "label": "商品",
+        "parentId": "field_264f278cec90"
+      },
+      {
+        "id": "field_01de6575acf8",
+        "label": "主备注",
+        "parentId": null
+      }
+    ],
+    "copiedThenDeletedAndRestoredId": "field_c5e81f12ecc9",
+    "copyUltimatelyUndone": true,
+    "publishedVersions": [
+      {
+        "version": 1,
+        "time": "04:21:00",
+        "children": {
+          "明细一": [
+            "商品",
+            "数量"
+          ],
+          "明细二": [
+            "备注"
+          ]
+        }
+      },
+      {
+        "version": 2,
+        "time": "04:23:52",
+        "children": {
+          "明细一": [
+            "数量"
+          ],
+          "明细二": [
+            "备注",
+            "商品"
+          ]
+        }
+      }
+    ],
+    "records": [
+      {
+        "id": "entry_8fe1c4e552f9",
+        "schemaVersion": 1,
+        "draftTime": "04:21:34",
+        "postV2DraftAndSubmissionTime": "04:24:36",
+        "deviceAtSubmit": [
+          390,
+          844
+        ],
+        "values": {
+          "明细一": {
+            "商品": "SYN-DRAG-OLD",
+            "数量": 11
+          },
+          "明细二": {
+            "备注": "SYN-OLD-NOTE"
+          },
+          "主备注": "SYN-OLD-MOBILE"
+        },
+        "finalDetail": "original child locations and values visually verified"
+      },
+      {
+        "id": "entry_75506caf3126",
+        "schemaVersion": 2,
+        "draftTime": "04:26:54",
+        "submittedTime": "04:27:01",
+        "draftColdReload": true,
+        "deviceAtSubmit": [
+          390,
+          844
+        ],
+        "values": {
+          "明细一": {
+            "数量": 22
+          },
+          "明细二": {
+            "备注": "SYN-NEW-NOTE",
+            "商品": "SYN-DRAG-NEW"
+          },
+          "主备注": "SYN-NEW-MAIN"
+        },
+        "finalDetail": "new locations and values visually and DOM verified"
+      }
+    ],
+    "finalFormalRecordCount": 2,
+    "duplicateSubmissions": false,
+    "finalViewport": [
+      1280,
+      720
+    ],
+    "viewportOverrideReset": true,
+    "warnErrorLogs": [],
+    "retainedOutput": "design page",
+    "uiAutomationNotes": [
+      "first screenshot immediately after viewport reset was still 390; desktop detail retaken at actual 1280, original replaced",
+      "one stale mobile module-combobox locator at desktop failed; fresh DOM showed navigation buttons, navigation then succeeded"
+    ]
+  },
+  "verification": {
+    "newFrontendTests": 2,
+    "focusedFrontend": {
+      "passed": 28,
+      "files": 3
+    },
+    "fullFrontend": {
+      "passed": 1215,
+      "files": 125
+    },
+    "fullBuild": "passed contracts/frontend/Sites preparation/backend TypeScript; existing chunk-size warning",
+    "sites": {
+      "passed": 4
+    },
+    "codeFormat": {
+      "passedFiles": 4
+    },
+    "databaseRun": false,
+    "fullBackendTestsRun": false,
+    "logs": [
+      {
+        "path": "tmp/subform-drag-focused-first.log",
+        "sha256": "83c2d11c98ec12bc53ce47082d4a4d0e9365f3cf5c2c5e4f22e9964abbe21e75",
+        "bytes": 545
+      },
+      {
+        "path": "tmp/subform-drag-frontend-final.log",
+        "sha256": "ccd29d8d64b84d4ed3dd793d6f25e7b398c49430a67eed658406850ef6af70e3",
+        "bytes": 51216
+      },
+      {
+        "path": "tmp/subform-drag-build-final.log",
+        "sha256": "45dde061087a4093c58c23a2f0c87b4d818b51a543f6098fe97f3e1c6f168ac6",
+        "bytes": 12625
+      },
+      {
+        "path": "tmp/subform-drag-sites-final.log",
+        "sha256": "e62fbb5efd707a0d04df9d2bdf87c61c8ca398dfc3e5df7ffee7c67c0f1386de",
+        "bytes": 896
+      },
+      {
+        "path": "tmp/subform-drag-format-final.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66
+      }
+    ]
+  },
+  "screenshots": [
+    {
+      "path": "docs/screenshots/jdy-subform-drag-designer.png",
+      "sha256": "2f91643ce8eb178050bff7636463a24df3ec884c7bd4953abf61eba340c492e8",
+      "bytes": 66626,
+      "pixels": [
+        1280,
+        720
+      ],
+      "viewed": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-drag-designer-final.png",
+      "sha256": "f83105aa2bb6a383508a01f091969c669c4591af64c1f1dc77cc3661ea2385a3",
+      "bytes": 57118,
+      "pixels": [
+        1280,
+        720
+      ],
+      "viewed": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-drag-old-mobile.png",
+      "sha256": "5b78ce443af4cf7e2796ac1bcc108a4acb276cb2ffc5cdfe9445590fa6961319",
+      "bytes": 2274,
+      "pixels": [
+        390,
+        844
+      ],
+      "viewed": false
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-drag-old-record-mobile.png",
+      "sha256": "5af6a50a52a4b3e1fefce3db8e87f303335ee6e9e415b024bb0c7f7ba5a844ed",
+      "bytes": 30769,
+      "pixels": [
+        390,
+        844
+      ],
+      "viewed": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-drag-new-record-desktop.png",
+      "sha256": "f5055fe7a8c86691cbb6b3d751f89a1d7ea1d43e6fb05b2d21a36bcd49f3ef78",
+      "bytes": 50698,
+      "pixels": [
+        1280,
+        720
+      ],
+      "viewed": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-drag-final-records.png",
+      "sha256": "7d077a7897970852baf68435c25d1fc670e67de61a16a8b8415700837d983cbf",
+      "bytes": 50842,
+      "pixels": [
+        1280,
+        720
+      ],
+      "viewed": true
+    }
+  ],
+  "codeFiles": [
+    {
+      "path": "frontend/src/features/forms/components/FieldCanvas.vue",
+      "sha256": "cf144888d21f6fed8c08c3f9a7932a06e283b1f61b52d82d73e10ffbe133b683",
+      "bytes": 9735
+    },
+    {
+      "path": "frontend/src/features/forms/components/SubformFieldInspector.vue",
+      "sha256": "2a1c264ed8056cbb04a8cf0de6d95de65edf426b2d2d3eeeea0ba12477be4f19",
+      "bytes": 8031
+    },
+    {
+      "path": "frontend/tests/subform-canvas.test.ts",
+      "sha256": "146d4c527fef63d2015d220c1ba9c8c7f53aac16fc8acffb042134fbc3d050e9",
+      "bytes": 6859
+    },
+    {
+      "path": "frontend/tests/subform-editing.test.ts",
+      "sha256": "c015d60a9a7c4cae9aad35d4569eb3774fd0e05947ce96dc59df8258a123446f",
+      "bytes": 17033
+    }
+  ],
+  "documents": [
+    {
+      "path": "docs/jiandaoyun-form-designer-plan.md",
+      "sha256": "ae1c60f2615f09c28497f89ea74d7f6f93c67d4d3c6aa1d3f3b80439b0bb4020",
+      "bytes": 360887
+    },
+    {
+      "path": "docs/form-designer-acceptance.md",
+      "sha256": "44ac7ee1cdba874c9db23ba31a7705cb42080b17602a7ea4af68c5dc2ffb17b0",
+      "bytes": 20408
+    },
+    {
+      "path": "design-qa.md",
+      "sha256": "57a356db54a635f1f38ef2b1c6710600a4d2bd858903d2acb37ea6bfe246d691",
+      "bytes": 309989
+    }
+  ],
+  "protectedFiles": [
+    {
+      "path": ".openai/hosting.json",
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+      "bytes": 31
+    },
+    {
+      "path": "worker/index.js",
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+      "bytes": 483
+    },
+    {
+      "path": "scripts/prepare-sites-build.mjs",
+      "sha256": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+      "bytes": 910
+    },
+    {
+      "path": "tests/sites-worker.test.mjs",
+      "sha256": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf",
+      "bytes": 2315
+    }
+  ],
+  "sitesArtifacts": [
+    {
+      "path": "dist/client/index.html",
+      "sha256": "dd11683164d9baf485a8289d718fa19ad94eb51e1112f0de1d01aad3b1e4ae55",
+      "bytes": 471
+    },
+    {
+      "path": "dist/server/index.js",
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+      "bytes": 483
+    },
+    {
+      "path": "dist/.openai/hosting.json",
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+      "bytes": 31
+    }
+  ],
+  "remaining": [
+    "SBF02 complete source/type boundaries, especially unsupported native drop",
+    "restricted member quick-fill and other existing row operations; withdrawal/old cache combinations",
+    "source precise density/default mode and all remaining R1–R8/F1–F10 conditions",
+    "backend native entry migration and actual database/runtime",
+    "physical touch device and current PDF/Excel output not reverified"
+  ],
+  "next": "existing restricted-member quick-fill path in SBF10; original fixed queue only",
+  "fullVisualResult": "blocked; goal remains active"
+}

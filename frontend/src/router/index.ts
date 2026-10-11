@@ -1,0 +1,110 @@
+import { createRouter, createWebHashHistory } from "vue-router";
+export const router = createRouter({
+  history: createWebHashHistory(),
+  routes: [
+    {
+      path: "/applications/:applicationId?",
+      name: "data-workspace",
+      component: () => import("../features/data/DataWorkspaceView.vue"),
+    },
+    {
+      path: "/applications/:applicationId/pages/:pageId/design",
+      name: "page-designer",
+      component: () => import("../features/data/PageDesignerView.vue"),
+    },
+    {
+      path: "/collaboration",
+      name: "collaboration",
+      redirect: "/applications",
+    },
+    {
+      path: "/admin/payments",
+      name: "payments",
+      component: () => import("../features/payments/PaymentsView.vue"),
+    },
+    {
+      path: "/apps/:appId/forms/:formId/members",
+      name: "member-view",
+      component: () => import("../features/forms/MemberPortalView.vue"),
+    },
+    {
+      path: "/apps/:appId/forms/:formId/extensions",
+      name: "extensions",
+      component: () => import("../features/extensions/ExtensionsView.vue"),
+    },
+    {
+      path: "/admin/organization",
+      name: "organization",
+      component: () => import("../features/organization/EmployeesView.vue"),
+    },
+    {
+      path: "/admin/members",
+      name: "members",
+      component: () => import("../features/organization/EmployeesView.vue"),
+    },
+    {
+      path: "/admin/roles",
+      name: "roles",
+      component: () => import("../features/organization/RolesView.vue"),
+    },
+    {
+      path: "/admin/permissions",
+      name: "permissions",
+      component: () => import("../features/organization/PermissionsView.vue"),
+    },
+    {
+      path: "/",
+      name: "home",
+      component: () => import("../features/workspace/WorkbenchView.vue"),
+    },
+    {
+      path: "/apps/:appId",
+      name: "application-home",
+      component: () => import("../features/workspace/ApplicationHomeView.vue"),
+    },
+    {
+      path: "/apps/:appId/manage",
+      name: "forms",
+      redirect: (to) => ({
+        path: `/apps/${to.params.appId}`,
+        query: to.query,
+      }),
+    },
+    {
+      path: "/apps/:appId/forms/:formId/design",
+      name: "designer",
+      component: () => import("../features/forms/FormDesignerView.vue"),
+    },
+    {
+      path: "/apps/:appId/forms/:formId/flow",
+      name: "workflow",
+      component: () => import("../features/workflow/WorkflowView.vue"),
+    },
+    {
+      path: "/apps/:appId/forms/:formId/:section(publish|data|fill)",
+      name: "form-section",
+      component: () => import("../features/forms/FormSectionView.vue"),
+    },
+    { path: "/:pathMatch(.*)*", redirect: "/" },
+  ],
+});
+
+router.afterEach((to, _from, failure) => {
+  if (failure) return;
+  const labels: Record<string, string> = {
+    "data-workspace": "应用",
+    "page-designer": "表单页面设计",
+    payments: "支付管理",
+    "member-view": "成员视图",
+    organization: "内部组织",
+    members: "成员信息管理",
+    roles: "角色管理",
+    permissions: "权限查询",
+    home: "工作台",
+    "application-home": "应用首页",
+    designer: "表单设计",
+    workflow: "流程设定",
+    extensions: "扩展功能",
+  };
+  document.title = `${labels[String(to.name)] || ({ publish: "表单发布", data: "记录管理", fill: "填写表单", extensions: "扩展功能" } as Record<string, string>)[String(to.params.section)] || "工作台"} · 流程工作台`;
+});

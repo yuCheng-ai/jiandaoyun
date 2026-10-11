@@ -1,0 +1,542 @@
+{
+  "date": "2026-10-10",
+  "goal_status": "active",
+  "scope": "Existing 30 frontend fields: code inventory, partial source gap review and bounded phone inspector cleanup",
+  "progress": {
+    "engineering_estimate_percent": 70,
+    "is_acceptance_rate": false,
+    "denominator": "Frontend form designer basic Jiandaoyun benchmark only",
+    "all_work_decomposed": false,
+    "work_packages": ["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8"],
+    "R1_status": "30-field structure and known gaps recorded; complete source-property and runtime acceptance pending"
+  },
+  "inventory_counts": {
+    "registry": 30,
+    "native_type_allowlist": 14,
+    "scalar_import_allowlist": 16
+  },
+  "native_type_allowlist": [
+    "text",
+    "textarea",
+    "number",
+    "datetime",
+    "radio",
+    "select",
+    "checkbox",
+    "multiselect",
+    "phone",
+    "member",
+    "members",
+    "department",
+    "departments",
+    "subform"
+  ],
+  "scalar_import_allowlist": [
+    "text",
+    "textarea",
+    "number",
+    "datetime",
+    "phone",
+    "serial",
+    "radio",
+    "select",
+    "checkbox",
+    "multiselect",
+    "member",
+    "members",
+    "department",
+    "departments",
+    "relation",
+    "address"
+  ],
+  "allowlist_caveats": [
+    "Type allowance is not a completed business acceptance journey",
+    "Subforms import through supported child columns and detail/merged rows; tabs flatten children",
+    "Reverse relations are excluded from scalar relation imports",
+    "Layout/actions/derived fields do not automatically require scalar import",
+    "Official signature field does not support ordinary import/export"
+  ],
+  "fields": [
+    {
+      "type": "text",
+      "label": "单行文本",
+      "current_implementation_or_partial_evidence": "标题／描述／提示、长度、默认值、必填／唯一、邮箱格式；自定义／联动／公式",
+      "known_gap_or_pending_check": "全部源格式、扫码／安全设置、文本与单选转换",
+      "work_packages_and_evidence_pointers": "R1/R2/R3；forms、default-links、formula-defaults",
+      "native_type_allowlisted": true,
+      "scalar_import_allowlisted": true,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "textarea",
+      "label": "多行文本",
+      "current_implementation_or_partial_evidence": "多行默认值及换行、新字段不默认限制字数、联动／公式",
+      "known_gap_or_pending_check": "完整源属性和历史长度配置组合",
+      "work_packages_and_evidence_pointers": "R1/R2/R3；forms、default-links、formula-defaults",
+      "native_type_allowlisted": true,
+      "scalar_import_allowlisted": true,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "number",
+      "label": "数字",
+      "current_implementation_or_partial_evidence": "数值／百分比、小数／千分位、范围、联动／公式；编辑保留精度",
+      "known_gap_or_pending_check": "完整来源配置／公式边界和视觉状态",
+      "work_packages_and_evidence_pointers": "R1/R2/R3；number-fields、formula-defaults",
+      "native_type_allowlisted": true,
+      "scalar_import_allowlisted": true,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "datetime",
+      "label": "日期时间",
+      "current_implementation_or_partial_evidence": "四种精度、填写当时／自定义／联动／公式、范围与共同日历",
+      "known_gap_or_pending_check": "源月份／时间细节、动态自定义范围全部状态",
+      "work_packages_and_evidence_pointers": "R1/R2/R3；date-fields、date-range、default-links",
+      "native_type_allowlisted": true,
+      "scalar_import_allowlisted": true,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "radio",
+      "label": "单选按钮组",
+      "current_implementation_or_partial_evidence": "稳定选项、默认、1000项批量、排序／颜色／排列、“其他”、同类切换",
+      "known_gap_or_pending_check": "动态来源全范围、文本转换、源自定义颜色／菜单",
+      "work_packages_and_evidence_pointers": "R1/R2；choice-editor、choice-settings、choice-text",
+      "native_type_allowlisted": true,
+      "scalar_import_allowlisted": true,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "checkbox",
+      "label": "复选框组",
+      "current_implementation_or_partial_evidence": "多默认、排序／颜色／排列／数量、临时添加、同类切换",
+      "known_gap_or_pending_check": "完整动态来源、含新增项总上限的源行为",
+      "work_packages_and_evidence_pointers": "R1/R2；choice-editor、choice-settings、choice-text",
+      "native_type_allowlisted": true,
+      "scalar_import_allowlisted": true,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "select",
+      "label": "下拉框",
+      "current_implementation_or_partial_evidence": "共用选择弹层、搜索／清空／键盘、默认、“其他”、同类切换",
+      "known_gap_or_pending_check": "完整来源／联动、源面板同状态对照",
+      "work_packages_and_evidence_pointers": "R1/R2/R6；choice-search、choice-text、relations",
+      "native_type_allowlisted": true,
+      "scalar_import_allowlisted": true,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "multiselect",
+      "label": "下拉复选框",
+      "current_implementation_or_partial_evidence": "全选／搜索结果全选、顺序、默认／数量、临时添加、同类切换",
+      "known_gap_or_pending_check": "搜索语义源实站确认、来源全范围与完整面板",
+      "work_packages_and_evidence_pointers": "R1/R2/R6；choice-search、choice-settings、relations",
+      "native_type_allowlisted": true,
+      "scalar_import_allowlisted": true,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "member",
+      "label": "成员单选",
+      "current_implementation_or_partial_evidence": "共用组织选择器、范围／默认、成员编号导入导出；本地与部分原生后台路径",
+      "known_gap_or_pending_check": "完整源属性、旧组织迁移、真实账号和最终受限路径",
+      "work_packages_and_evidence_pointers": "R1/R4/R5/R7；organization、server-organization-fields、record-import-organization",
+      "native_type_allowlisted": true,
+      "scalar_import_allowlisted": true,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "members",
+      "label": "成员多选",
+      "current_implementation_or_partial_evidence": "共用多选组织范围／默认、编号导入导出；部分原生后台路径",
+      "known_gap_or_pending_check": "多值完整来源、旧组织迁移和源配置逐项对照",
+      "work_packages_and_evidence_pointers": "R1/R2/R4/R7；organization、server-organization-fields",
+      "native_type_allowlisted": true,
+      "scalar_import_allowlisted": true,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "department",
+      "label": "部门单选",
+      "current_implementation_or_partial_evidence": "共用部门选择器、范围／默认、按部门ID导入导出；部分原生后台路径",
+      "known_gap_or_pending_check": "完整源属性、目录迁移与实际账号部门关系",
+      "work_packages_and_evidence_pointers": "R1/R4/R5/R7；organization、record-import-organization",
+      "native_type_allowlisted": true,
+      "scalar_import_allowlisted": true,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "departments",
+      "label": "部门多选",
+      "current_implementation_or_partial_evidence": "共用多选、范围／默认和编号导入导出；部分原生后台路径",
+      "known_gap_or_pending_check": "完整源配置、多值来源与目录迁移",
+      "work_packages_and_evidence_pointers": "R1/R2/R4/R7；organization、server-organization-fields",
+      "native_type_allowlisted": true,
+      "scalar_import_allowlisted": true,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "divider",
+      "label": "分割线",
+      "current_implementation_or_partial_evidence": "标题／描述和布局呈现，不作为普通填写值",
+      "known_gap_or_pending_check": "源分割线样式、各设备及输出中的呈现",
+      "work_packages_and_evidence_pointers": "R1/R6；FieldInspector、FormFields、form-layout",
+      "native_type_allowlisted": false,
+      "scalar_import_allowlisted": false,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "tabs",
+      "label": "多标签页",
+      "current_implementation_or_partial_evidence": "添加／改名；含字段标签删除保护；子字段在原作用域填写",
+      "known_gap_or_pending_check": "源完整属性、键盘切换、错误字段定位与设备布局组合",
+      "work_packages_and_evidence_pointers": "R1/R5/R6；FieldInspector、FormFields、forms",
+      "native_type_allowlisted": false,
+      "scalar_import_allowlisted": false,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": "Import traverses supported child fields; subform rows use merged/detail rows"
+    },
+    {
+      "type": "image",
+      "label": "图片",
+      "current_implementation_or_partial_evidence": "本地原文件保存、上传／下载／预览、规则、自定义／同应用联动默认",
+      "known_gap_or_pending_check": "图片处理、拖拽／粘贴、大图打印、原生文件存储",
+      "work_packages_and_evidence_pointers": "R1/R2/R4/R7；file-fields、default-links",
+      "native_type_allowlisted": false,
+      "scalar_import_allowlisted": false,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "file",
+      "label": "附件",
+      "current_implementation_or_partial_evidence": "本地原文件保存、上传／下载、规则及同应用联动默认",
+      "known_gap_or_pending_check": "完整预览操作、跨应用／来源明细、原生文件存储",
+      "work_packages_and_evidence_pointers": "R1/R2/R4/R7；file-fields、default-links",
+      "native_type_allowlisted": false,
+      "scalar_import_allowlisted": false,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "address",
+      "label": "地址",
+      "current_implementation_or_partial_evidence": "四种精细度、级联／搜索、完整填写、自定义／联动、Excel列与纠错回导",
+      "known_gap_or_pending_check": "全部源属性与视觉；原生后台地址仍不支持",
+      "work_packages_and_evidence_pointers": "R1/R2/R4/R7；address-fields、default-links、record-import-address",
+      "native_type_allowlisted": false,
+      "scalar_import_allowlisted": true,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "location",
+      "label": "定位",
+      "current_implementation_or_partial_evidence": "当前仅输入位置名称或坐标的文本框",
+      "known_gap_or_pending_check": "没有结构化定位、地图／自动获取／范围规则；经纬度公式未接通",
+      "work_packages_and_evidence_pointers": "R1/R2/R3；FieldControl；官方定位说明",
+      "native_type_allowlisted": false,
+      "scalar_import_allowlisted": false,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "subform",
+      "label": "子表单",
+      "current_implementation_or_partial_evidence": "明细增删、稳定行身份、子字段权限／依赖、选数／快捷填报和合并行导入",
+      "known_gap_or_pending_check": "源行默认／行操作／汇总属性完整核对、明细来源全边界",
+      "work_packages_and_evidence_pointers": "R1/R2/R4/R5；FormFields、lookup、quick-fill、record-import-details",
+      "native_type_allowlisted": true,
+      "scalar_import_allowlisted": false,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": "Import traverses supported child fields; subform rows use merged/detail rows"
+    },
+    {
+      "type": "query",
+      "label": "查询",
+      "current_implementation_or_partial_evidence": "已有来源、条件、显示和查询运行路径",
+      "known_gap_or_pending_check": "源完整查询属性、来源全范围及权限／历史组合",
+      "work_packages_and_evidence_pointers": "R1/R2/R5；relations、lookup、FieldControl",
+      "native_type_allowlisted": false,
+      "scalar_import_allowlisted": false,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "lookup",
+      "label": "选择数据",
+      "current_implementation_or_partial_evidence": "主表单条／明细批量取数、显示列／筛选排序／映射、移动选择和记录复验",
+      "known_gap_or_pending_check": "跨应用／来源明细及另外来源、自动接收字段、完整源窗口",
+      "work_packages_and_evidence_pointers": "R1/R2/R5；lookup、relations、record-relations",
+      "native_type_allowlisted": false,
+      "scalar_import_allowlisted": false,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "signature",
+      "label": "手写签名",
+      "current_implementation_or_partial_evidence": "内嵌画布写入PNG及清除；支持只读呈现",
+      "known_gap_or_pending_check": "源添加／确认／横竖屏／复用／电脑扫码不同；空白签名、取消与迟到图片需验",
+      "work_packages_and_evidence_pointers": "R1/R4/R6；SignaturePad；官方手写签名说明",
+      "native_type_allowlisted": false,
+      "scalar_import_allowlisted": false,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "serial",
+      "label": "流水号",
+      "current_implementation_or_partial_evidence": "本地规则／计数、提交事务、手动回填和导入回滚已有专项回归",
+      "known_gap_or_pending_check": "原生计数、条码和完整源配置／输出",
+      "work_packages_and_evidence_pointers": "R1/R4/R7；serial、serial-edit-controls、record-import",
+      "native_type_allowlisted": false,
+      "scalar_import_allowlisted": true,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "phone",
+      "label": "手机",
+      "current_implementation_or_partial_evidence": "11位格式、必填／唯一、导入导出；新字段去掉多余配置，旧默认／长度兼容",
+      "known_gap_or_pending_check": "短信验证和TEXTPHONE未接通；源号段规则仍待完整核对",
+      "work_packages_and_evidence_pointers": "R1/R3/R4/R7；default-links、forms、server-field-types；本次实际记录",
+      "native_type_allowlisted": true,
+      "scalar_import_allowlisted": true,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "ocr",
+      "label": "文字识别",
+      "current_implementation_or_partial_evidence": "当前仅输入／粘贴识别后文本的多行框",
+      "known_gap_or_pending_check": "没有图片识别流程、类型／规则／目标字段配置与识别执行",
+      "work_packages_and_evidence_pointers": "R1/R2；FieldControl；官方文字识别说明",
+      "native_type_allowlisted": false,
+      "scalar_import_allowlisted": false,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "button",
+      "label": "按钮",
+      "current_implementation_or_partial_evidence": "点击进入已有前端事件、请求／插件／取数与回填；外部请求明确模拟",
+      "known_gap_or_pending_check": "取数批量／全来源、组织／文件结果、原生执行与完整源交互",
+      "work_packages_and_evidence_pointers": "R1/R2/R3/R7；frontend-events、frontend-event-values",
+      "native_type_allowlisted": false,
+      "scalar_import_allowlisted": false,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "calculated",
+      "label": "计算",
+      "current_implementation_or_partial_evidence": "原公式解析与只读计算、数字显示、依赖及子表作用域",
+      "known_gap_or_pending_check": "完整源函数目录、定位／手机等类型函数、全部异常与隐藏权限组合",
+      "work_packages_and_evidence_pointers": "R1/R3/R5；forms、formula-defaults",
+      "native_type_allowlisted": false,
+      "scalar_import_allowlisted": false,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "richtext",
+      "label": "富文本",
+      "current_implementation_or_partial_evidence": "共用编辑／格式清理、文字排版／链接／本地图片和填写",
+      "known_gap_or_pending_check": "完整源工具栏／图片操作、真实打印文件组合及原生存储",
+      "work_packages_and_evidence_pointers": "R1/R4/R6/R7；rich-text、RichTextEditor",
+      "native_type_allowlisted": false,
+      "scalar_import_allowlisted": false,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "relation",
+      "label": "关联数据",
+      "current_implementation_or_partial_evidence": "稳定记录引用、条件／映射／显示、历史与访问检查、标量键导入",
+      "known_gap_or_pending_check": "跨应用／来源明细、全部系统值／关系方向与最终组合",
+      "work_packages_and_evidence_pointers": "R1/R2/R4/R5；relations、record-relations、record-import-relations",
+      "native_type_allowlisted": false,
+      "scalar_import_allowlisted": true,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    },
+    {
+      "type": "relationTable",
+      "label": "关联子表",
+      "current_implementation_or_partial_evidence": "既有关系配置和相关行显示、只读／历史裁剪",
+      "known_gap_or_pending_check": "完整源关联子表行为、双向关系／明细权限、原生关系存储",
+      "work_packages_and_evidence_pointers": "R1/R2/R5/R7；relations、record-relations、FormFields",
+      "native_type_allowlisted": false,
+      "scalar_import_allowlisted": false,
+      "full_source_property_acceptance": "pending",
+      "container_import_note": null
+    }
+  ],
+  "sources": [
+    {
+      "url": "https://hc.jiandaoyun.com/doc/9015",
+      "role": "Field index and common inspector reference; does not establish complete 30-field property acceptance"
+    },
+    {
+      "url": "https://hc.jiandaoyun.com/doc/11207",
+      "role": "Phone format and optional SMS verification; local SMS and TEXTPHONE remain unsupported"
+    },
+    {
+      "url": "https://hc.jiandaoyun.com/doc/9019",
+      "role": "Structured location and device/map/default constraints absent in current text-only control"
+    },
+    {
+      "url": "https://hc.jiandaoyun.com/doc/12165",
+      "role": "OCR image/rule/target field path absent in current paste-text control"
+    },
+    {
+      "url": "https://hc.jiandaoyun.com/doc/12304",
+      "role": "Signature add/confirm/phone orientation/member reuse and desktop QR differ from inline canvas; no ordinary import/export"
+    }
+  ],
+  "source_reference": "docs/screenshots/jdy-phone-source-properties.png",
+  "source_account_writes": false,
+  "code_change": {
+    "files": [
+      "frontend/src/features/forms/components/FieldInspector.vue",
+      "frontend/tests/default-links.test.ts"
+    ],
+    "description": "Omit default/length controls for new phone fields; retain configured legacy default and unusual length controls; no schema/runtime/backend change",
+    "regression": [
+      "Legacy defaults remain editable and used as runtime defaults",
+      "Legacy length retains editing compatibility",
+      "Stable ID and schema parsing preserve configured values",
+      "Published copy remains unchanged"
+    ]
+  },
+  "local_qa": {
+    "id": "form_666c26c5862a",
+    "title": "字段收口 · 对标验收",
+    "published_version": 1,
+    "field_count": 2,
+    "record_id": "entry_a42b5d30223c",
+    "record_count_after_reload": 1,
+    "created": 1,
+    "updated": 0,
+    "phone": "synthetic 13800000000",
+    "note": "合成填写样例",
+    "saved_inspector_reloaded": true,
+    "new_phone_default_control_visible": false,
+    "new_phone_length_control_visible": false,
+    "required_and_unique_retained": true,
+    "ten_digit_submission_rejected": true,
+    "mobile_submission_succeeded": true,
+    "duplicate_submission_rejected": true,
+    "no_extra_record_after_rejected_submissions": true,
+    "console_warnings_errors": []
+  },
+  "mobile": {
+    "width": 390,
+    "height": 844,
+    "client_width": 390,
+    "scroll_width": 390,
+    "viewport_override_restored": true
+  },
+  "visual_acceptance": {
+    "source_and_local_inspector_pixels": [1280, 720],
+    "source_and_local_state_match": false,
+    "complete_pixel_parity_passed": false,
+    "remaining_differences": [
+      "Different field count and required/unique selections",
+      "Local SMS capability remains absent",
+      "Field-library scroll position differs"
+    ]
+  },
+  "verification": {
+    "frontend_tests": 976,
+    "frontend_test_files": 102,
+    "targeted_tests": 45,
+    "targeted_test_files": 3,
+    "full_build": "passed",
+    "sites_tests": 4,
+    "protected_files_unchanged": 4,
+    "code_format_files_passed": 2,
+    "backend_database_tests": "not rerun",
+    "nonblocking_build_warning": "Existing PDF/export chunks exceed 500kB",
+    "logs": [
+      "tmp/field-inventory-all.log",
+      "tmp/field-inventory-phone-targeted.log",
+      "tmp/field-inventory-build.log",
+      "tmp/field-inventory-sites.log",
+      "tmp/field-inventory-format.log",
+      "tmp/field-inventory-protected.log"
+    ]
+  },
+  "screenshots": [
+    {
+      "path": "docs/screenshots/jdy-field-inventory-phone-duplicate.png",
+      "pixels": [390, 844],
+      "encoding": "JPEG",
+      "reviewed": false
+    },
+    {
+      "path": "docs/screenshots/jdy-field-inventory-phone-inspector.png",
+      "pixels": [1280, 720],
+      "encoding": "JPEG",
+      "reviewed": true
+    },
+    {
+      "path": "docs/screenshots/jdy-field-inventory-phone-invalid.png",
+      "pixels": [1280, 720],
+      "encoding": "JPEG",
+      "reviewed": false
+    },
+    {
+      "path": "docs/screenshots/jdy-field-inventory-phone-mobile-fill.png",
+      "pixels": [390, 844],
+      "encoding": "JPEG",
+      "reviewed": false
+    },
+    {
+      "path": "docs/screenshots/jdy-field-inventory-phone-mobile-submitted.png",
+      "pixels": [390, 844],
+      "encoding": "JPEG",
+      "reviewed": true
+    },
+    {
+      "path": "docs/screenshots/jdy-field-inventory-phone-records.png",
+      "pixels": [1280, 720],
+      "encoding": "JPEG",
+      "reviewed": true
+    }
+  ],
+  "code_sha256": {
+    "frontend/src/domain/form.ts": "6c526b7e633ac835ef4e5090116e96fef0ee62d9436072ff060c539937849cf8",
+    "frontend/src/domain/recordImport.ts": "97b11b943d988fa99e1528000f9a247c475bce0c9f89be3f456ec60c9f1aa4e1",
+    "packages/contracts/src/field-runtime.ts": "e109fbe8b4aea41a98c3bff3472a856899ed4c1db6844667f7738b9027301b9a",
+    "frontend/src/features/forms/components/FieldInspector.vue": "5a8a99ddec9e2348bc1323ea1e2df16809aea9351d14ab10b8a62fdea574b906",
+    "frontend/src/features/forms/components/FieldControl.vue": "6c246888f0a865725e7397941b7969bc4169fc2eef378910a096177bf19d727d",
+    "frontend/src/features/forms/components/FormFields.vue": "1ebaddc1041be71fbd97b382ccec4728f1a8601fe73e727bc59f6d5fc96827b8",
+    "frontend/src/features/forms/components/SignaturePad.vue": "f1a8cb74a89905decae213fb565b6b236a60d1056e0bd43dc54db5b651093389",
+    "frontend/tests/default-links.test.ts": "e651c7081a1863c96e421bef91ebe322c2355eec80195fa7563dbaee132ac2e7"
+  },
+  "unfinished": [
+    "Complete property/source acceptance for all existing field types",
+    "Structured location, OCR frontend configuration/trial/error paths and execution adapter",
+    "Source signature confirmation/device/reuse paths and blank/cancel/load race checks",
+    "Phone SMS/TEXTPHONE and complete segment constraints",
+    "R2 through R8 existing source/formula/record/permission/visual/migration/final acceptance obligations",
+    "Native backend unsupported types and existing migration obligations"
+  ]
+}

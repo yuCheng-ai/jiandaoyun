@@ -1,0 +1,519 @@
+{
+  "date": "2026-10-10",
+  "timezone": "Asia/Shanghai",
+  "scope": "Subfield property list and shared insertion context; source 19-type registry boundaries, legacy preservation and saved V3/old V1/frontend/mobile checks.",
+  "status": {
+    "goal": "active",
+    "completeDesignerParity": "unfinished",
+    "fullVisualQA": "blocked",
+    "engineeringEstimate": {
+      "value": 70,
+      "scope": "Basic form designer only; rough estimate, no increment from test counts"
+    },
+    "nativeSubfieldListDrag": "unverified: observed start/over/end, no drop",
+    "planning": {
+      "acceptanceGroups": 53,
+      "equalWorkUnits": false,
+      "remainingSourcePropertiesEffortAndSchedule": "unfinished",
+      "workPackages": "R1–R8/F1–F10 preserved"
+    }
+  },
+  "source": {
+    "url": "https://hc.jiandaoyun.com/doc/9020",
+    "readDate": "2026-10-10",
+    "pageUpdatedDate": "2026-09-24",
+    "sourceAccountOperated": false,
+    "sourceFieldsAddedTypedOrSaved": false,
+    "embeddedSourceEditor": {
+      "naturalPixels": [
+        1910,
+        1338
+      ],
+      "renderedCSS": [
+        798,
+        559.609375
+      ],
+      "position": [
+        320,
+        143.65625
+      ],
+      "captureViewport": [
+        1280,
+        720
+      ],
+      "originalEditorCSSAndDPR": "unknown"
+    },
+    "exactTypeMenuVisual": "not captured",
+    "sourceTeachingAnnotationsCopiedIntoProduct": false
+  },
+  "sourceAllowedSubfieldTypes": [
+    "text",
+    "textarea",
+    "number",
+    "datetime",
+    "radio",
+    "checkbox",
+    "select",
+    "multiselect",
+    "member",
+    "members",
+    "department",
+    "departments",
+    "image",
+    "file",
+    "address",
+    "location",
+    "query",
+    "lookup",
+    "signature"
+  ],
+  "implementation": [
+    {
+      "path": "frontend/src/domain/form.ts",
+      "sha256": "c4a7c48845b29a8247181217e51225241b1763696d0eb369ed748c3fb2a90c8c",
+      "bytes": 42718,
+      "new": false,
+      "baselineSha256": "ff6400f7bcb3f3f9b59dc4ce032b92d41940d52b604078756746a1eee0777074",
+      "changed": true
+    },
+    {
+      "path": "frontend/src/features/forms/useFormDesigner.ts",
+      "sha256": "72d7a488315ad348ed7ee95e46282538c157c3d3ad5e576bfb30842bb6a30240",
+      "bytes": 14628,
+      "new": false,
+      "baselineSha256": "7326a18485b61480e41a20652a3eac93832b5a0b4ee095cd19c89ba2df92e380",
+      "changed": true
+    },
+    {
+      "path": "frontend/src/features/forms/FormDesignerView.vue",
+      "sha256": "af08ec41156b375b90e6b339886bfddf02bb55c4cfb6eafacf63676ad1347e4f",
+      "bytes": 19483,
+      "new": false,
+      "baselineSha256": "8c16fbd67fa0dcd1c46aa00f618f0ba27f7d172a0bfb8f930c22f6c1599afab5",
+      "changed": true
+    },
+    {
+      "path": "frontend/src/features/forms/components/FieldCanvas.vue",
+      "sha256": "5f4a4d2072a133911f2039ad62f1afd4dc364a39d4ca33de001abb9c52f12424",
+      "bytes": 9116,
+      "new": false,
+      "baselineSha256": "1644765af8ea17c5a4fcd093f8e0753136aaca07c53f1e8f177d99ae8895d4c2",
+      "changed": true
+    },
+    {
+      "path": "frontend/src/features/forms/components/FieldInspector.vue",
+      "sha256": "44f6b214cffd8fa1f9e88941a4f59e043e2b4ce4059aed37c49d8ebbc944a127",
+      "bytes": 18566,
+      "new": false,
+      "baselineSha256": "8e75bc1c23e0a513e5853a924d419c38d40fe4859e1e09c7567777f51a7b4972",
+      "changed": true
+    },
+    {
+      "path": "frontend/src/features/forms/components/SubformFieldInspector.vue",
+      "sha256": "19ca82b8fbcc71536b111a96e727bbc16cc6b38fe7b3428ab496456bf624434b",
+      "bytes": 7999,
+      "new": true
+    },
+    {
+      "path": "frontend/tests/subform-editing.test.ts",
+      "sha256": "c05e968bd7cb6c7cebae7c98f72218466601cdfa5161938de87db1e2ad99ff61",
+      "bytes": 15291,
+      "new": true
+    }
+  ],
+  "behavior": {
+    "sharedEditing": "Select/add/drop/history reconciliation derive insertion scope from actual parent, same-parent list sort preserves selection. No second field store/history.",
+    "typeBoundary": "New click/type-drop/cross-parent-move/copy use registry allowed types; unsupported old calculated columns load/reorder/restore unchanged, single-column new copies are rejected. Existing full-container copy retains compatibility configuration.",
+    "deletion": "Existing expression/reference confirmation and recycle/undo; defaultFormula remains boolean and uses existing expression references.",
+    "popup": "Shared nonmodal dialog layer; 19 types, two columns; keyboard arrows/Home/End, Escape/outside dismissal and focus return.",
+    "nativeDragBoundary": {
+      "observedTime": "2026-10-10T11:00:26.270Z",
+      "surface": "Earlier unsaved synthetic tab, temporary diagnostics removed before final build",
+      "events": [
+        "dragstart",
+        "dragover",
+        "dragend"
+      ],
+      "dropObserved": false,
+      "fieldMembershipChanged": false,
+      "dragoverSurface": "SECTION.form-design-scroll at 965,424; defaultPrevented=false",
+      "dragendSurface": "BUTTON.icon-button.subfield-sort at 702,140; dropEffect=none",
+      "cause": "not established",
+      "syntheticDOMDragIsNativeAcceptance": false
+    }
+  },
+  "actualLocalJourney": {
+    "formId": "form_d8c2caad8b20",
+    "title": "子表校验 · 对标验收",
+    "finalFieldCount": 9,
+    "finalVersions": [
+      1,
+      2,
+      3
+    ],
+    "version3PublishedAt": "2026-10-10 19:10:03",
+    "finalRootFieldIds": [
+      "field_9b461f05649b",
+      "field_5390d9e79eda",
+      "field_31db5c5da6ec"
+    ],
+    "originalSubformId": "field_5390d9e79eda",
+    "finalOriginalChildren": [
+      "field_6b9c47c853f4",
+      "field_fde90eefe11c",
+      "field_8b258a1abc41",
+      "field_a97c2484b62b"
+    ],
+    "copiedRestoredFieldId": "field_a97c2484b62b",
+    "secondSubform": {
+      "id": "field_31db5c5da6ec",
+      "label": "费用明细",
+      "children": [
+        "field_e3dad36c72b7",
+        "field_f8de917e3c88"
+      ]
+    },
+    "newRecord": {
+      "id": "entry_15e124414db8",
+      "version": 3,
+      "submittedAt": "2026-10-10 19:10:28",
+      "values": {
+        "业务名称": "合成子字段编辑申请",
+        "明细": [
+          {
+            "明细编号": "SYN-003",
+            "数量": 3,
+            "备注": "右侧新增",
+            "备注 副本": "恢复原字段"
+          }
+        ],
+        "费用明细": [
+          {
+            "费用说明": "左侧连续新增",
+            "金额": 12.5
+          }
+        ]
+      }
+    },
+    "oldRecords": [
+      {
+        "id": "entry_82bb61c4360c",
+        "version": 1,
+        "observed": "SYN-001, 2 rows including blank second row, old two-column detail and V1 print preview",
+        "edited": false
+      },
+      {
+        "id": "entry_8504783b0758",
+        "version": 1,
+        "observed": "SYN-002, quantity 2, old two-column detail and unchanged activity trace",
+        "edited": false
+      }
+    ],
+    "finalRecordCount": 3,
+    "saveRefreshVerified": true,
+    "newRecordReadBackAfterRefresh": true,
+    "pdfGeneratedOrPrinted": false,
+    "desktopViewport": [
+      1280,
+      720
+    ],
+    "responsive": {
+      "actualViewport": [
+        390,
+        844
+      ],
+      "DPR": 1,
+      "pageWidth": 390,
+      "menuRect": [
+        88,
+        85,
+        280,
+        388
+      ],
+      "endFocus": "手写签名",
+      "escapeFocus": "添加子字段",
+      "fieldCountAfterMenu": 9,
+      "actualNativeMobileDevice": "not tested",
+      "initial1280AttemptCountedAsMobile": false,
+      "overrideReset": true
+    },
+    "finalWarningsAndErrors": [],
+    "earlierUnsavedTemporaryFieldIdsAreSavedProof": false
+  },
+  "verification": {
+    "newTests": 10,
+    "initialBaseline": {
+      "failed": 7,
+      "passed": 1
+    },
+    "copyBoundaryRed": {
+      "failed": 1,
+      "passed": 9
+    },
+    "focused": {
+      "passed": 21,
+      "files": 3
+    },
+    "fullFrontend": {
+      "passed": 1076,
+      "files": 112
+    },
+    "build": "contracts, frontend vue-tsc/Vite, Sites packaging, backend tsc passed",
+    "sites": {
+      "passed": 4,
+      "failed": 0
+    },
+    "formattedCodeFiles": 7,
+    "backendDatabase": "not rerun",
+    "actualPDFAndExcelFiles": "not rerun",
+    "existingViteLargeChunkWarning": "retained",
+    "logs": [
+      {
+        "path": "tmp/subform-editing-baseline.log",
+        "sha256": "bd38c5e0a268e504f08566e20499ef70e676716f5432c3dacf4cebfb50fe4571",
+        "bytes": 9301
+      },
+      {
+        "path": "tmp/subform-editing-copy-red.log",
+        "sha256": "f71c27734107e074cd17601fa038f269cb8df6175e9f1e2cc4d1f5a7d70525ac",
+        "bytes": 4861
+      },
+      {
+        "path": "tmp/subform-editing-focused-final.log",
+        "sha256": "f5a3b8770e81e1c82f35ae06ff37101ef1a8a1c693d0a8678452dc25e7e810a0",
+        "bytes": 570
+      },
+      {
+        "path": "tmp/subform-editing-all-final.log",
+        "sha256": "c317a78239875f77fa852d0385d3b76c1f3451eef12ba74fcca54b141deba80f",
+        "bytes": 48905
+      },
+      {
+        "path": "tmp/subform-editing-build-final.log",
+        "sha256": "5829ba5788d35620f6153b101a4fb555edabf8ce6b6b1963cab6f8c46f315700",
+        "bytes": 12625
+      },
+      {
+        "path": "tmp/subform-editing-sites.log",
+        "sha256": "eb536577af91a4139f7b2d73df8cb2fdd65f28ba2b60c8ea567cdff3eedadcbb",
+        "bytes": 894
+      },
+      {
+        "path": "tmp/subform-editing-format-check.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66
+      }
+    ]
+  },
+  "docs": [
+    {
+      "path": "docs/form-designer-acceptance.md",
+      "sha256": "b5f9d20a386e1ccd81b3670e3c138d02d9bc43dea60d0195ccbf3e1ff4abf7bc",
+      "bytes": 14099
+    },
+    {
+      "path": "docs/jiandaoyun-form-designer-plan.md",
+      "sha256": "e0bc2775a966d365a36818546fe4e0fc88b140e774f1084ca8b48dbdaa1274ec",
+      "bytes": 286924
+    },
+    {
+      "path": "docs/frontend-closure.md",
+      "sha256": "71015cdaad8182975a196400d83e24b686c7e3e59627d48c735792b8ea6ece3e",
+      "bytes": 17782
+    },
+    {
+      "path": "docs/implementation-plan.md",
+      "sha256": "2689d482589acadbe09ba77506ff1eed07bdd0fdf13eeb773ea7bb75398cbfc6",
+      "bytes": 62423
+    },
+    {
+      "path": "design-qa.md",
+      "sha256": "6d2abd5d8fc084dfd729bf99411ce5acd72632d69ac0ba50275eb0d94e0a6576",
+      "bytes": 250038
+    }
+  ],
+  "screenshots": [
+    {
+      "path": "docs/screenshots/jdy-subform-add-source-doc-live.jpg",
+      "sha256": "1a02e758a697172835d896e3816f565cd417526b7905547d36f8b0983c75b9a1",
+      "bytes": 87485,
+      "format": "JPEG",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-add-source-editor-live.jpg",
+      "sha256": "c30cde168b8d67dc7ac4b60965358311fb33c49f09f39928c4f434196055ad88",
+      "bytes": 81166,
+      "format": "JPEG",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-type-menu-final-live.jpg",
+      "sha256": "503e4f43f5a47a858903b8935af6c3d49c6438bc72b3b100f7062b7123783827",
+      "bytes": 75433,
+      "format": "JPEG",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-editor-saved-live.jpg",
+      "sha256": "0a6a2229b0f6ca87babebf360c843d379e6e4e24b47b8f680b84063063114858",
+      "bytes": 76740,
+      "format": "JPEG",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-v3-submitted-live.jpg",
+      "sha256": "6d73cdced81f80b6974f23b335bbb67accc9ffa160746aab0be652207b3fe7b9",
+      "bytes": 46794,
+      "format": "JPEG",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-old-v1-detail-live.jpg",
+      "sha256": "3eb2c8ac317e4dff3f21b1acd7199c73f3433e18c070bb3e4aea1d7ff156f8ab",
+      "bytes": 54152,
+      "format": "JPEG",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-old-v1-version-live.jpg",
+      "sha256": "387172ffb1680c42590b6a29e7e86c556972e6b5928a09de738a5312d0d68f7b",
+      "bytes": 56049,
+      "format": "JPEG",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-menu-mobile-live.jpg",
+      "sha256": "f80236021650141d4ead8b893945d07bf8ccac83be17d88c5244b843d5550559",
+      "bytes": 42268,
+      "format": "JPEG",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-menu-mobile-end-live.jpg",
+      "sha256": "be6368542e805a6d19c8ce617b095c5af717bb9bb3a0856e10f657839eb9d86e",
+      "bytes": 41955,
+      "format": "JPEG",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-list-mobile-live.jpg",
+      "sha256": "05397281be883ed77acf8f6becdaef4717321b0731ae24fa94079ff3651755fe",
+      "bytes": 38957,
+      "format": "JPEG",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-v3-version-live.jpg",
+      "sha256": "b4ffef9e8e0c21b6f1829e2fd2a52f3bf6978895a9217b79e50cc5b01a0b56be",
+      "bytes": 58460,
+      "format": "JPEG",
+      "width": 1280,
+      "height": 720
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-editor-compare-full.jpg",
+      "sha256": "7bf9ecf853e33da0f1e0943d7c77e2be8167db51fc45ed05dd654cd25046eaa4",
+      "bytes": 264198,
+      "format": "JPEG",
+      "width": 2560,
+      "height": 752
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-editor-compare-focus.jpg",
+      "sha256": "2429fb9195c6f9e5f24c3d450855bfa42533b1cc31ac324618fd6e9d8f1b2bee",
+      "bytes": 55821,
+      "format": "JPEG",
+      "width": 769,
+      "height": 367
+    }
+  ],
+  "comparisons": {
+    "fullDimensions": [
+      2560,
+      752
+    ],
+    "focusedDimensions": [
+      769,
+      367
+    ],
+    "fullAndFocusedOpenedTogetherForEachComparison": true,
+    "sourceFocusedCrop": [
+      910,
+      440,
+      1108,
+      580
+    ],
+    "localFocusedCrop": [
+      970,
+      425,
+      1265,
+      675
+    ],
+    "sourceFocusedEnlargement": "2.39x for reading only; not proof of typography/density equality",
+    "remainingMajorDifference": "Source horizontal subform design table vs local vertical child cards (SBF12)"
+  },
+  "protected": [
+    {
+      "path": ".openai/hosting.json",
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+      "bytes": 31,
+      "unchanged": true
+    },
+    {
+      "path": "worker/index.js",
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+      "bytes": 483,
+      "unchanged": true
+    },
+    {
+      "path": "scripts/prepare-sites-build.mjs",
+      "sha256": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+      "bytes": 910,
+      "unchanged": true
+    },
+    {
+      "path": "tests/sites-worker.test.mjs",
+      "sha256": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf",
+      "bytes": 2315,
+      "unchanged": true
+    }
+  ],
+  "packagedArtifacts": [
+    {
+      "path": "dist/client/index.html",
+      "sha256": "3a1ae4a3c5b9be278242158180d250a7c8ebc1fc14915244b8a3b34506932622",
+      "bytes": 471
+    },
+    {
+      "path": "dist/server/index.js",
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+      "bytes": 483
+    },
+    {
+      "path": "dist/.openai/hosting.json",
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+      "bytes": 31
+    }
+  ],
+  "unfinished": [
+    "New subfield list native browser drag/drop and cross-parent move acceptance",
+    "SBF06 independent within-record unique/type rules/custom duplicate prompts",
+    "SBF07 whole-subform defaults/linking",
+    "SBF09/SBF10 row permissions and actions",
+    "SBF11 common 200-row boundary",
+    "SBF12 horizontal design table and complete desktop/mobile display configuration",
+    "SBF08/SBF13 final permissions, old versions and actual output combinations",
+    "Complete source properties and effort/schedule; R1–R8/F1–F10 final closure and native backend consolidation"
+  ]
+}

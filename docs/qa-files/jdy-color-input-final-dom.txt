@@ -1,0 +1,159 @@
+- banner:
+  - button "返回表单列表":
+  - textbox "表单名称": 分割线 · 对标验收
+  - navigation "表单设计导航":
+    - button "表单设计"
+    - button "流程设定"
+    - button "扩展功能"
+    - button "表单发布"
+    - button "数据管理"
+  - button "帮助":
+  - button "用户菜单：张三": 张
+- main:
+  - button "查看新手引导":
+    - text: 查看新手引导
+  - button "预览"
+  - button "保存"
+  - button "表单发布与访问链接":
+  - complementary:
+    - heading "常用" [level=3]
+    - button "添加单行文本":
+      - generic: 单行文本
+    - button "添加多行文本":
+      - generic: 多行文本
+    - button "添加数字":
+      - generic: 数字
+    - button "添加日期时间":
+      - generic: 日期时间
+    - button "添加单选按钮组":
+      - generic: 单选按钮组
+    - button "添加复选框组":
+      - generic: 复选框组
+    - button "添加下拉框":
+      - generic: 下拉框
+    - button "添加下拉复选框":
+      - generic: 下拉复选框
+    - button "添加成员单选":
+      - generic: 成员单选
+    - button "添加成员多选":
+      - generic: 成员多选
+    - button "添加部门单选":
+      - generic: 部门单选
+    - button "添加部门多选":
+      - generic: 部门多选
+    - button "添加分割线":
+      - generic: 分割线
+    - button "添加多标签页":
+      - generic: 多标签页
+    - heading "高级" [level=3]
+    - button "添加图片":
+      - generic: 图片
+    - button "添加附件":
+      - generic: 附件
+    - button "添加地址":
+      - generic: 地址
+    - button "添加定位":
+      - generic: 定位
+    - button "添加子表单":
+      - generic: 子表单
+    - button "添加查询":
+      - generic: 查询
+    - button "添加选择数据":
+      - generic: 选择数据
+    - button "添加手写签名":
+      - generic: 手写签名
+    - button "添加流水号":
+      - generic: 流水号
+    - button "添加手机":
+      - generic: 手机
+    - button "添加文字识别":
+      - generic: 文字识别
+    - button "添加按钮":
+      - generic: 按钮
+    - button "添加计算":
+      - generic: 计算
+    - button "添加富文本":
+      - generic: 富文本
+    - heading "关联" [level=3]
+    - button "添加关联数据":
+      - generic: 关联数据
+    - button "添加关联子表":
+      - generic: 关联子表
+    - button "字段回收站":
+      - text: 字段回收站
+  - region "表单设计画布":
+    - article:
+      - button "复制字段":
+      - button "删除字段":
+      - generic: 当前分区
+      - generic: 合成颜色说明
+    - article:
+      - generic: "*"
+      - generic "申请人"
+      - textbox "申请人" [disabled]:
+        - /placeholder: ""
+    - article:
+      - generic "申请部门"
+      - textbox "申请部门" [disabled]:
+        - /placeholder: ""
+    - article:
+      - generic: 填写说明
+      - generic: 请核对申请人和部门，再提交本表。
+    - article:
+      - generic: 新建分区
+  - complementary:
+    - tablist "表单配置类型":
+      - tab "字段属性" [selected]
+      - tab "表单属性"
+    - generic: "*"
+    - text: 标题
+    - generic: 分割线
+    - textbox "* 标题": 当前分区
+    - checkbox "显示标题" [checked]
+    - text: 显示标题
+    - generic: 描述信息
+    - button "粗体":
+      - generic: B
+    - button "斜体":
+      - generic: I
+    - button "下划线":
+      - generic: U
+    - generic "段落对齐":
+      - combobox "段落对齐":
+        - option "左对齐" [selected]
+        - option "居中"
+        - option "右对齐"
+        - option "两端对齐"
+    - button "文字颜色":
+      - generic: A
+    - generic "文字大小":
+      - generic: Tt
+      - combobox "文字大小":
+        - option "文字大小" [disabled] [selected]
+        - option "10 px"
+        - option "13 px"
+        - option "16 px"
+        - option "18 px"
+        - option "24 px"
+        - option "32 px"
+        - option "48 px"
+    - button "插入链接":
+    - button "取消链接":
+    - button "插入图片":
+    - textbox "字段描述信息"
+    - button "分割线样式":
+      - generic: 字段标题
+    - generic: 配色
+    - button "分割线颜色"
+    - generic: 标题颜色
+    - button "分割线标题颜色"
+    - text: 字段权限
+    - checkbox "可见" [checked]
+    - text: 可见
+    - generic: 字段宽度
+    - button "1/4"
+    - button "1/3"
+    - button "1/2"
+    - button "2/3"
+    - button "3/4"
+    - button "整行"

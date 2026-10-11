@@ -1,0 +1,48 @@
+import { after, before, test } from "node:test";
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { pageForModel, separateFormSchema, type FormSchema } from "@platform/contracts";
+import { harness, field, schema } from "./helpers";
+
+const h = harness();
+before(() => h.start()); after(() => h.close());
+test("applications scope catalogs and blank form creation is atomic and idempotent", async () => {
+  const command = { title: "独立验收应用", requestId: randomUUID() };
+  const application = await h.request("/applications", "POST", command, "admin", 201);
+  assert.deepEqual(await h.request("/applications", "POST", command, "admin", 201), application);
+  await h.request("/applications", "POST", { title: "越权", requestId: randomUUID() }, "editor", 403);
+  const create = { title: "直接拖入字段", applicationId: application.id, requestId: randomUUID() };
+  const editor = await h.request("/pages/new-business", "POST", create, "admin", 201);
+  assert.deepEqual(await h.request("/pages/new-business", "POST", create, "admin", 201), editor);
+  assert.equal(editor.object.applicationId, application.id);
+  assert.equal(editor.draft.definitionVersion, 0);
+  assert.deepEqual(editor.model.fields, []);
+  assert.equal((await h.request(`/data-objects?applicationId=${application.id}`)).length, 1);
+  assert.equal((await h.request(`/pages?applicationId=${application.id}`)).length, 1);
+  assert.deepEqual(await h.request(`/pages?applicationId=${application.id}`, "GET", undefined, "editor"), []);
+  assert.equal((await h.request("/applications", "GET", undefined, "editor")).some((item: any) => item.id === application.id), false);
+  await h.request(`/pages/${editor.draft.id}/editor`, "GET", undefined, "editor", 403);
+  await h.request("/pages/new-business", "POST", { ...create, applicationId: randomUUID(), requestId: randomUUID() }, "admin", 404);
+  assert.equal((await h.request(`/data-objects?applicationId=${application.id}`)).length, 1);
+  await h.request(`/pages/${editor.draft.id}/publish`, "POST", { expectedRevision: editor.draft.revision }, "admin", 400);
+});
+test("an incomplete dragged subform saves as a draft and publishes only after its columns exist", async () => {
+  const editor = await h.request("/pages/new-business", "POST", { title: "从空白开始", requestId: randomUUID() }, "admin", 201);
+  const pending = separateFormSchema(schema(field("items", "subform")) as unknown as FormSchema).model;
+  let draft = await h.request(`/pages/${editor.draft.id}`, "PUT", { ...editor.draft, expectedRevision: editor.draft.revision, baseDefinitionRevision: editor.object.revision, additions: pending.fields.map(field => ({ field })), schema: pageForModel(pending) });
+  assert.equal((await h.request(`/pages/${draft.id}/editor`)).draft.additions[0].field.children.length, 0);
+  await h.request(`/pages/${draft.id}/publish`, "POST", { expectedRevision: draft.revision }, "admin", 400);
+  const complete = separateFormSchema(schema(field("name"), field("items", "subform", { children: [field("item"), field("amount", "number")] })) as unknown as FormSchema).model;
+  const pageSchema = pageForModel(complete); pageSchema.controls[0]!.properties.required = true;
+  draft = await h.request(`/pages/${draft.id}`, "PUT", { ...draft, expectedRevision: draft.revision, additions: complete.fields.map(field => ({ field })), schema: pageSchema });
+  const published = await h.request(`/pages/${draft.id}/publish`, "POST", { expectedRevision: draft.revision }, "admin", 201);
+  assert.equal(published.definitionVersion, 1);
+  const object = await h.request(`/data-objects/${draft.definitionId}/draft`);
+  assert.equal(object.model.fields[0].required, false);
+  const runtime = await h.request(`/pages/${draft.id}/form`);
+  assert.equal(runtime.page.id, draft.id); assert.equal(runtime.definition.schema.fields[0].required, true);
+  const record = await h.request(`/pages/${draft.id}/records`, "POST", { pageVersion: 1, requestId: randomUUID(), values: { name: "首次发布", items: [{ item: "样例", amount: 2 }] } }, "admin", 201);
+  assert.equal(record.record.values.name, "首次发布");
+  assert.ok(record.record.values.items[0]._rowId);
+  assert.equal((await h.request(`/pages/${draft.id}/editor`)).draft.additions.length, 0);
+});

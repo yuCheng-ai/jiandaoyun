@@ -1,0 +1,95 @@
+{
+  "date": "2026-10-10",
+  "source": [
+    "https://hc.jiandaoyun.com/doc/9084",
+    "https://hc.jiandaoyun.com/doc/12099"
+  ],
+  "form": {
+    "id": "form_72b90012033f",
+    "version": 1,
+    "fields": 3,
+    "finalRecordIds": [
+      "entry_1678b2e9bf26",
+      "entry_280ac3730f67",
+      "entry_fd51f1a42e27"
+    ]
+  },
+  "syntheticEmployeeNumbers": [
+    "MI-DUP01",
+    "MI-DUP02"
+  ],
+  "browser": {
+    "ambiguousNames": {
+      "created": 0,
+      "errors": 2
+    },
+    "validationOn": {
+      "created": 1,
+      "errors": 1
+    },
+    "validationOff": {
+      "created": 2,
+      "errors": 0
+    },
+    "exportedMemberValues": [
+      "#MI-DUP02#",
+      "#MI-DUP01#",
+      "#MI-DUP01#"
+    ],
+    "roundtrip": {
+      "created": 0,
+      "updated": 3
+    },
+    "refreshPreservedIds": true,
+    "warningsAndErrors": [],
+    "viewport": [
+      1280,
+      720
+    ],
+    "mobileThisTurn": false,
+    "sameNameDepartmentsInBrowser": false
+  },
+  "checks": {
+    "frontend": 930,
+    "testFiles": 100,
+    "sites": 4,
+    "build": true,
+    "protectedFiles": 4,
+    "formatFiles": 5,
+    "backendDatabaseTests": false
+  },
+  "files": {
+    "jdy-import-validation-org-ambiguous.xlsx": {
+      "bytes": 16360,
+      "sha256": "570899422005012be86da24583abb4c50e63c3f50c709e4c9418a86adb9b577f"
+    },
+    "jdy-import-validation-org-exported.xlsx": {
+      "bytes": 17675,
+      "sha256": "80be2a617d732111f649cfec3eff155fb75e60a3873e287892549d9eca6644a0"
+    },
+    "jdy-import-validation-org-identifiers.xlsx": {
+      "bytes": 16344,
+      "sha256": "de58849c84bdf20536cc38d7b4aa487a960008598f3a30fa062163e2e773fb3a"
+    },
+    "jdy-import-validation-org-report.xlsx": {
+      "bytes": 16931,
+      "sha256": "ca8c21901ab771dc3c073b22c6f7e55cebc84ae1c1436359ab72dc87bba1760c"
+    },
+    "jdy-import-validation-org-template.xlsx": {
+      "bytes": 16267,
+      "sha256": "3dd280b3c571400250e655e3a22c9410636c84ed8f4b17227160d7492f0398dc"
+    }
+  },
+  "protectedHashes": {
+    ".openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+    "worker/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "scripts/prepare-sites-build.mjs": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+    "tests/sites-worker.test.mjs": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf"
+  },
+  "limitations": [
+    "Complete 1:1 acceptance remains incomplete.",
+    "Same-name department, multis and subform organization byte roundtrips covered by unit tests, not browser in this turn.",
+    "Online corrections and dedicated duplicate-ID report not implemented.",
+    "No native import execution or original account changes."
+  ]
+}

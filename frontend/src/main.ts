@@ -1,0 +1,20 @@
+import { createApp } from "vue";
+import { createPinia } from "pinia";
+import { router } from "./router";
+import App from "./App.vue";
+import "@vue-flow/core/dist/style.css";
+import "@vue-flow/core/dist/theme-default.css";
+import "@vue-flow/minimap/dist/style.css";
+import "./styles.css";
+import "./workspace.css";
+import "./form-designer.css";
+import "./organization.css";
+import "./extensions.css";
+import "./record-presentation.css";
+import "./access.css";
+import "./payments.css";
+import "./quick-fill.css";
+import "./workspace-recovery.css";
+import "./user-menu.css";
+
+createApp(App).use(createPinia()).use(router).mount("#app");

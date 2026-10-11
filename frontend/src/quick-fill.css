@@ -1,0 +1,255 @@
+.quick-fill-settings {
+  padding: 24px;
+}
+.quick-fill-notice {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 16px;
+  border-radius: 6px;
+  background: #f1f8f8;
+  color: #526776;
+  margin-bottom: 18px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.quick-fill-notice p {
+  margin: 0;
+}
+.quick-fill-notice .mode-tag {
+  white-space: nowrap;
+}
+.quick-fill-config-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 28px;
+  margin-top: 20px;
+}
+.quick-fill-config-grid h3 {
+  font-size: 14px;
+  margin: 0 0 10px;
+}
+.quick-fill-config-grid aside {
+  padding: 18px;
+  background: #f6f8fa;
+  border: 1px solid #e9edf2;
+  border-radius: 6px;
+  align-self: start;
+}
+.quick-fill-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  margin: 10px 0;
+  cursor: pointer;
+  line-height: 1.6;
+}
+.quick-fill-check input {
+  width: 15px;
+  height: 15px;
+  accent-color: #00ada0;
+  flex-shrink: 0;
+}
+.quick-fill-field-list {
+  margin-top: 12px;
+}
+.quick-fill-config-field {
+  padding: 8px 12px;
+  border: 1px solid #e4e9ef;
+  border-radius: 5px;
+  margin-bottom: 8px;
+}
+.quick-fill-config-field .config-label {
+  margin: 10px 0;
+  font-size: 12px;
+}
+.quick-fill-search {
+  width: 100%;
+}
+.quick-fill-footer-hint {
+  margin-right: auto;
+}
+.quick-fill-config-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+.quick-fill-config-footer > .button {
+  flex-shrink: 0;
+}
+.quick-fill-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  margin: 0 0 22px;
+  border: 1px solid #d6eeeb;
+  border-radius: 6px;
+  background: #f2faf9;
+}
+.quick-fill-entry strong {
+  font-size: 14px;
+}
+.quick-fill-entry p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #738092;
+}
+.quick-fill-entry p span {
+  display: inline-block;
+  margin-left: 8px;
+  color: #008f84;
+}
+.quick-fill-entry .button {
+  white-space: nowrap;
+}
+.quick-fill-steps {
+  display: flex;
+  padding: 0 0 16px;
+  list-style: none;
+  gap: 24px;
+  border-bottom: 1px solid #e7ebf0;
+  color: #8a97a8;
+  font-size: 13px;
+}
+.quick-fill-steps .active {
+  color: #009f95;
+  font-weight: 600;
+}
+.quick-fill-inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.quick-fill-result {
+  padding: 12px 16px;
+  margin-top: 12px;
+  border: 1px solid #e1e6ee;
+  border-radius: 6px;
+}
+.quick-fill-result.selected {
+  border-color: #91d6cf;
+  background: #fcfefe;
+}
+.quick-fill-evidence {
+  font-size: 12px;
+  color: #758499;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  max-height: 80px;
+  overflow: auto;
+  margin: 8px 0 12px;
+}
+.quick-fill-result .field-hint {
+  overflow-wrap: anywhere;
+}
+.quick-fill-unmatched {
+  background: #fff9ef;
+  border: 1px solid #f1dfbc;
+  padding: 12px;
+  border-radius: 5px;
+  font-size: 12px;
+}
+.quick-fill-unmatched p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.quick-fill-diffs article {
+  padding: 14px 0;
+  border-bottom: 1px solid #e7ebf0;
+  font-size: 13px;
+}
+.quick-fill-diffs article > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.quick-fill-diffs p {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr);
+  gap: 12px;
+  line-height: 1.7;
+}
+.quick-fill-diffs p span {
+  padding: 8px 12px;
+  background: #f4f6f9;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.quick-fill-diffs p span:last-child {
+  background: #edf8f6;
+}
+.quick-fill-diffs b {
+  align-self: center;
+  color: #98a5b2;
+}
+.quick-fill-ack {
+  padding: 12px;
+  background: #fff8eb;
+  border-radius: 5px;
+}
+.quick-fill-preview-values {
+  margin-top: 18px;
+  border-top: 1px solid #e1e6ee;
+}
+.quick-fill-preview-values dl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  font-size: 12px;
+}
+.quick-fill-preview-values dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.quick-fill-files {
+  list-style: none;
+  padding: 0;
+}
+.quick-fill-files li {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 8px 0;
+  font-size: 12px;
+}
+.quick-fill-files li span {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+@media (max-width: 650px) {
+  .quick-fill-settings {
+    padding: 16px;
+  }
+  .quick-fill-config-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+  .quick-fill-notice {
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px;
+  }
+  .quick-fill-steps {
+    gap: 12px;
+    font-size: 12px;
+  }
+  .quick-fill-entry {
+    align-items: flex-start;
+  }
+  .quick-fill-entry p span {
+    display: block;
+    margin: 4px 0 0;
+  }
+  .quick-fill-result {
+    padding: 10px;
+  }
+  .quick-fill-footer-hint {
+    width: 100%;
+  }
+}

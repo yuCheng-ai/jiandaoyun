@@ -1,0 +1,205 @@
+{
+  "date": "2026-10-10",
+  "goal_status": "active",
+  "form_id": "form_a6c7614e91f5",
+  "published_version": 1,
+  "field_count": 4,
+  "record_count": 1,
+  "record_id": "entry_ba03290b1fa0",
+  "sources": [
+    "https://hc.jiandaoyun.com/doc/12297",
+    "https://hc.jiandaoyun.com/doc/9037",
+    "https://hc.jiandaoyun.com/doc/13283",
+    "https://github.com/uiwjs/province-city-china"
+  ],
+  "region_dataset": {
+    "package": "@province-city-china/level",
+    "version": "9.0.0",
+    "license": "MIT",
+    "province_nodes": 34,
+    "full_region_parity_verified": false
+  },
+  "tests": {
+    "full_frontend": 955,
+    "files": 101,
+    "added": 9,
+    "final_address_and_frontend_requests": 21,
+    "sites": 4,
+    "formatted_frontend_files": 12,
+    "backend_database_tests_run": false
+  },
+  "mobile": {
+    "width": 390,
+    "height": 844,
+    "client_width": 390,
+    "scroll_width": 390,
+    "panel_left": 8,
+    "panel_right": 382,
+    "panel_top": 261,
+    "panel_bottom": 546
+  },
+  "source_writes": false,
+  "native_address_supported": false,
+  "address_import_supported": false,
+  "limitations": [
+    "Excel standard address column shape not verified; import/correction/roundtrip pending",
+    "All address default sources and region parity pending",
+    "Location/lng/lat extraction not implemented",
+    "Native backend address excluded by serverFieldTypes",
+    "Full same viewport/state and source mobile parity pending"
+  ],
+  "protected_files_unchanged": {
+    ".openai/hosting.json": true,
+    "worker/index.js": true,
+    "scripts/prepare-sites-build.mjs": true,
+    "tests/sites-worker.test.mjs": true
+  },
+  "sites_outputs": {
+    "dist/client/index.html": true,
+    "dist/server/index.js": true,
+    "dist/.openai/hosting.json": true
+  },
+  "files": {
+    "packages/contracts/src/address.ts": {
+      "sha256": "2e8c07ea78c9af5b22e7c95510c09ea0185b47276632742317256463da853ef6"
+    },
+    "packages/contracts/src/form.ts": {
+      "sha256": "40fd83d9c0e5b06d37b15ac8bc26e4e1f3a22751912a3f276b6d1625a4117cfd"
+    },
+    "packages/contracts/src/data-view.ts": {
+      "sha256": "25de6407aeead8ccc880d918f099bdc5da98064aac58103215ea46254f277d22"
+    },
+    "packages/contracts/src/index.ts": {
+      "sha256": "b3d4e4d370e583322c24469420e9952286becdc812791e8b9bed8d8fbf5cdbf1"
+    },
+    "frontend/package.json": {
+      "sha256": "383bfd2c30a3916d2a5a54f4998b6ee626dea5896fa27a6a42d51ff54620e96c"
+    },
+    "package-lock.json": {
+      "sha256": "49c14d27a8056abfe8a8980e3c7d3f1a2ff899a15d72df391c4147d8d5767282"
+    },
+    "frontend/src/domain/address.ts": {
+      "sha256": "c1ecbbc3a46e371605c7e6b2fa13256c30deb1bd97929b6ca6ae05164718f7e2"
+    },
+    "frontend/src/domain/form.ts": {
+      "sha256": "6c526b7e633ac835ef4e5090116e96fef0ee62d9436072ff060c539937849cf8"
+    },
+    "frontend/src/domain/fieldValidation.ts": {
+      "sha256": "9fac63d5b647e6e0ec2b6dfd33792737b82b974ccec6d8a2f9cb0baf38fc5067"
+    },
+    "frontend/src/domain/editorDraftAdapters.ts": {
+      "sha256": "6fdf0c7acb0170db170a6b4af31cff208470109bb9b0e35e10551accf2aa5350"
+    },
+    "frontend/src/domain/frontendEventValues.ts": {
+      "sha256": "e9897070412ef56cb389d5f2491e92627edd0d1431d53893e70b33ccda7cd2b1"
+    },
+    "frontend/src/domain/relations.ts": {
+      "sha256": "9ef6bfe1cf397b504af0e59e31e76495229fcfe5d52261f6a7e91a8d22387de2"
+    },
+    "frontend/src/domain/formula.ts": {
+      "sha256": "a6fe40ce88acb8973a47dc0f34cad8d5dfb30b995784f1d8e508188fdfb613d8"
+    },
+    "frontend/src/features/forms/components/AddressFieldControl.vue": {
+      "sha256": "3bd792fc38d9692073842d23aa89486ed1d8cd5c85f6839cfea4306239ae634b"
+    },
+    "frontend/src/features/forms/components/FieldControl.vue": {
+      "sha256": "6c246888f0a865725e7397941b7969bc4169fc2eef378910a096177bf19d727d"
+    },
+    "frontend/src/features/forms/components/FieldInspector.vue": {
+      "sha256": "603992431d3264f1b2ef64efc21045b5f954e7061b9427b9ceb81c81bc2d5309"
+    },
+    "frontend/src/form-designer.css": {
+      "sha256": "b917885e6224ff1824d3a8fe335fe45b2200b13f7b60fd56136d817937d27241"
+    },
+    "frontend/tests/address-fields.test.ts": {
+      "sha256": "9f0112c623974b490963be93556361051202f031115587bb02aadff5a0a2de8e"
+    },
+    "tmp/address-complete-all.log": {
+      "sha256": "d97d826d0f6b08572830194dc6f515c7794d770494ae64d63e3a99c011caa676"
+    },
+    "tmp/address-shared-value-tests.log": {
+      "sha256": "f441d4c8497f9362aed35a868087e0328d82de32af406c34c4cba9d7d218bc81"
+    },
+    "tmp/address-release-build.log": {
+      "sha256": "3f1b4388b6226611747426177b1851be9fa3166bf96a269699893ffb4dcb3ebe"
+    },
+    "tmp/address-release-sites.log": {
+      "sha256": "de4b0a69ef9cf4354f30d6e4e492807b1b67d1c73c61301e4a2812acacc1aa9d"
+    },
+    "tmp/address-release-format.log": {
+      "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    },
+    "docs/screenshots/jdy-address-final-record.png": {
+      "sha256": "383b1746a8a8d7cd4fbe0073c52233af91700ccd89a11ff137b5267774465a8b",
+      "width": 1280,
+      "height": 720,
+      "frames": 1
+    },
+    "docs/screenshots/jdy-address-parent-change.png": {
+      "sha256": "35e33b48dce9cb78a07be43148991710fea0c6821ed1afe5ee8e1c50325db33f",
+      "width": 1280,
+      "height": 720,
+      "frames": 1
+    },
+    "docs/screenshots/jdy-address-mobile.png": {
+      "sha256": "00f31f963a3e402e2dfc5ed5037c952218c619f90944472164a3bb7e0e9f49ed",
+      "width": 390,
+      "height": 844,
+      "frames": 1
+    },
+    "docs/screenshots/jdy-address-incomplete.png": {
+      "sha256": "65e06b9be7e65b847ee3124f1c0f5a45b9550c29d628796a5f516eaf85d43b72",
+      "width": 1280,
+      "height": 720,
+      "frames": 1
+    },
+    "docs/screenshots/jdy-address-submitted.png": {
+      "sha256": "363ca232eb655c1e8251ae82523ccfe48056c3de66af7b92610e595ac1c91778",
+      "width": 1280,
+      "height": 720,
+      "frames": 1
+    },
+    "docs/screenshots/jdy-address-official-cascade.png": {
+      "sha256": "feee61ac905ce00ac1f4a22f3a0ff17f5fafc31b4bd97edc385e99ef569307f7",
+      "width": 1699,
+      "height": 981,
+      "frames": 1
+    },
+    "docs/screenshots/jdy-address-designer.png": {
+      "sha256": "cf541e0c7f1b5ede5258e60cb724f13407565c84ce968fca39ad02e04dae6a43",
+      "width": 1280,
+      "height": 720,
+      "frames": 1
+    },
+    "docs/screenshots/jdy-address-official-validation.png": {
+      "sha256": "45e99e525a470f50d82e0afd0dc38d6834ed3cb294d33dd7060222222b9b88b2",
+      "width": 2539,
+      "height": 1720,
+      "frames": 1
+    },
+    "docs/screenshots/jdy-address-official.gif": {
+      "sha256": "ea72ce93fa5f47d99e87c87d24af607c821e1f0579f63a03437120a01ffeae6b",
+      "width": 1699,
+      "height": 981,
+      "frames": 113
+    },
+    "docs/screenshots/jdy-address-cascade.png": {
+      "sha256": "305a75cec4910c8a30e2e9467bbe63dcbdb6a63477393195f27009093293d4c2",
+      "width": 1280,
+      "height": 720,
+      "frames": 1
+    },
+    "docs/screenshots/jdy-address-official-inspector.png": {
+      "sha256": "6b613cb18325adee5ca323c93d62abb23e19257ed36833b568bdd169970b0218",
+      "width": 1923,
+      "height": 1346,
+      "frames": 1
+    },
+    "docs/screenshots/jdy-address-official-types.png": {
+      "sha256": "85805aa8dae239ae1e4b9a2228baef92158bb08a5265491cfb468dcdb064605e",
+      "width": 1914,
+      "height": 1335,
+      "frames": 1
+    }
+  }
+}

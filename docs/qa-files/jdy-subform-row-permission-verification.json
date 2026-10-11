@@ -1,0 +1,471 @@
+{
+  "verified_at": "2026-10-11T01:23:07.386275+08:00",
+  "goal_status": "active",
+  "previous_goal_turn_classification": "progress",
+  "current_goal_turn_classification": "progress",
+  "completion_percentage": null,
+  "scope": "先简到云表单设计器基础对标；原表单入口、原字段属性和成员组；不增加建模或协作产品概念，流程审批行为不升级。",
+  "acceptance": {
+    "total_groups": 53,
+    "verified": 1,
+    "partial": 50,
+    "unfinished": 2,
+    "changed_group": "SBF09 unfinished -> partial",
+    "all_of_SBF09_verified": false,
+    "unequal_groups_are_not_work_percentage": true
+  },
+  "source_edits_this_turn": [
+    {
+      "path": "packages/contracts/src/form.ts",
+      "bytes": 7860,
+      "sha256": "5b77a3030304d4adc13ee51557a8c27d4a7195cf710f8f70019efd8fa19db6cf",
+      "previous_sha256": "209aec6967389f244a2a930819599b67fa2ad56f168185a9fd6c545ff7c09453"
+    },
+    {
+      "path": "packages/contracts/src/subform.ts",
+      "bytes": 8524,
+      "sha256": "d76df878d8912f3115f9b355949cc8ad2e62d7ef16e3f22e241d1cbf545b7946",
+      "previous_sha256": "68c9f2f85748cadda7ed7b9bf8ee6082834604a7c1223c124f06309dbacb9f90"
+    },
+    {
+      "path": "frontend/src/domain/form.ts",
+      "bytes": 46271,
+      "sha256": "7aadbf7a0b6c34562ef648338668082903c4854d70fa1e8dec457cef618f7164",
+      "previous_sha256": "4e5944df2619ba182261d1dc28dc8cfc692bfbcce6ac0a9eb12bca11c3363f9e"
+    },
+    {
+      "path": "frontend/src/domain/access.ts",
+      "bytes": 27385,
+      "sha256": "98b51d71872ebdb5273eda310c29f8a268185e929f1b0df12a81017c2c1c30ca",
+      "previous_sha256": "b81ca293151a8db74d472aa353f2e025748ef467f644ee17e2ec9cc0f5950439"
+    },
+    {
+      "path": "frontend/src/domain/fieldValidation.ts",
+      "bytes": 14297,
+      "sha256": "9c5dec2a42a84bcfac238b03e2ae2106a481ffd070231eb7d5d87e927be7f68b",
+      "previous_sha256": "a569d365e3bf1f3548343a11394fc01b3b8426eef72f522d300be8bd1e399d0f"
+    },
+    {
+      "path": "frontend/src/features/forms/components/FieldInspector.vue",
+      "bytes": 24129,
+      "sha256": "bba22060e7723afffbd95856f69529d79364bd993ffbafd22e496f8bb550dffc",
+      "previous_sha256": "30ec643df6a1c1a58195d13ec997caeeb389ae611371b4b545f0ccdaf2804535"
+    },
+    {
+      "path": "frontend/src/features/forms/components/FormFields.vue",
+      "bytes": 25562,
+      "sha256": "736cbe3203c8db29e01713859585d7bb6a826a44cf0d7ba18027a8e87f348038",
+      "previous_sha256": "3dbcd171acef22c0982f462fb48bbfef8a513dbf2dbed3ae2339c67a8dd38799"
+    },
+    {
+      "path": "frontend/src/features/forms/components/FormRuntime.vue",
+      "bytes": 28673,
+      "sha256": "9f2b7ccc1eb891c74fb5bc2def7523e435044dfc9ca000ba54eefe58c68391b4",
+      "previous_sha256": "fd31cce99c088d7fe14b18263ee7c76fad74dc726d06f73b3ff0baaed8ef82c3"
+    },
+    {
+      "path": "frontend/src/features/forms/components/AccessGroupEditor.vue",
+      "bytes": 8983,
+      "sha256": "9430e18570de704c65f671bc152eb2263993212eb305e9616bcb82cff93cc043",
+      "previous_sha256": "64cb27633ac373c22d75dcd4dec5f4bd25641f96616341f0b0556fdd9b71d4db"
+    },
+    {
+      "path": "frontend/src/features/forms/MemberPortalView.vue",
+      "bytes": 21360,
+      "sha256": "e5cac5f19042c4c8028c60f9f6622c428e9fd9e1cf2f766a27f8e62a373a45f7",
+      "previous_sha256": "9f7cf5ff16918fb9ac1f02eecd289ed97a82cfb732159fd245187c2ad5c181f2"
+    },
+    {
+      "path": "frontend/src/features/forms/FormSectionView.vue",
+      "bytes": 21091,
+      "sha256": "6268dad323eaf776a04271b7b0f532a6f0f094b492a2027b3af6beb7ec7b17f4",
+      "previous_sha256": "17af9b3fd5c6b34d0e3c45efaa0fcc4f846715d1b98c161149c61263e6eadb65"
+    },
+    {
+      "path": "frontend/src/features/forms/components/SubformPermissionOptions.vue",
+      "bytes": 1250,
+      "sha256": "c772449d2c0231143e91d8877f6ae3bb6cb18caa2bc6ae4d67ee5b17bedabc01",
+      "new": true
+    },
+    {
+      "path": "frontend/src/domain/relations.ts",
+      "bytes": 26100,
+      "sha256": "994c5b91814fa6248bb4577c32d4c79d8847749b5283035d896da6b1e65ca049",
+      "previous_sha256": "be2445dfb48880c33be0eea46879268ec5f3ef50b5b2b2576bb3fca236289141"
+    },
+    {
+      "path": "frontend/src/stores/workspace.ts",
+      "bytes": 27281,
+      "sha256": "f9e223ba904286482c4aeb9076200e4ca88be897755698976d6d5840281e346b",
+      "previous_sha256": "229acf8b384ea6dede0481976fc34d4ad056c0faf5b8224edeff068656ec0451"
+    },
+    {
+      "path": "frontend/tests/subform-row-permissions.test.ts",
+      "bytes": 15192,
+      "sha256": "39858f7f2d7c732213929f8b28de9521e178d4024fd550fef42ce4609c3b6a74",
+      "new": true
+    },
+    {
+      "path": "packages/contracts/src/data-view.ts",
+      "bytes": 13519,
+      "sha256": "711fa4711b78b67055046d3c917d485ea066d508ec9b5d4d93f0cc2895ce6fb0",
+      "previous_sha256": "ad59d2b39e570eadc05c2b4e872d6217f72e078fd48c4399b3dbff3f62482497"
+    },
+    {
+      "path": "backend/src/schema.ts",
+      "bytes": 12647,
+      "sha256": "46fd317147b72b8d7a50ffd268e1a060210e832b0c7eb9e1bdc61b25a9e97310",
+      "previous_sha256": "8ae73f04f42256ed5143b708b14ca5a5f39ca4b6714cfdcfae4063d48df47087"
+    },
+    {
+      "path": "backend/src/page-schema.ts",
+      "bytes": 9561,
+      "sha256": "7e8d2f27b7952a0fb20c50b77f3c3297a718c707afe6bf790a19380d14027f45",
+      "previous_sha256": "26605f8c826f31e4def44fc7863f126717ce3881d5e305b5be446bc5960ed36d"
+    },
+    {
+      "path": "backend/tests/subform-row-permissions.test.ts",
+      "bytes": 1999,
+      "sha256": "cd151e2bb07620bbcce5052a39621b7042e6c9afff5ba2fcaf8391aa7be0cb4d",
+      "new": true
+    },
+    {
+      "path": "frontend/tests/subform-width.test.ts",
+      "bytes": 11195,
+      "sha256": "342677b9503b426d2fcdde830e914e9c6dfcc6bfd7b43bf61f608cfd34561ce6",
+      "previous_sha256": "1bb9534423b90d96a671a6dd5c827879519af087542c53280b38b08c830a716c"
+    }
+  ],
+  "documents": [
+    {
+      "path": "docs/jiandaoyun-form-designer-plan.md",
+      "bytes": 337354,
+      "sha256": "ea7224240191689475d8cda1861d4014ee275d82f37de576e61fea7a935310dd"
+    },
+    {
+      "path": "docs/form-designer-acceptance.md",
+      "bytes": 18661,
+      "sha256": "9a7d2df8d0b351158fdce50292da1033f51e88c5303b5b89469cad825e306467"
+    },
+    {
+      "path": "docs/frontend-closure.md",
+      "bytes": 21391,
+      "sha256": "79129ae8cc499ca1f05376e59b94fdac2d7b3bbeb0627d28b6788866c405fe2e"
+    },
+    {
+      "path": "docs/implementation-plan.md",
+      "bytes": 66032,
+      "sha256": "4036b513cf5ac332f61342b723589b525bbea52a941b83268327e9a5333fcc43"
+    },
+    {
+      "path": "docs/development-plan.md",
+      "bytes": 18918,
+      "sha256": "abf248ed83beb9e35eb082a92d092907762b6955025f111aa5c4d85b5dffd2f1"
+    },
+    {
+      "path": "design-qa.md",
+      "bytes": 289508,
+      "sha256": "56e93a753df98d37cdc356eab65fc64c15a998a360bd29ff86455d280146de86"
+    }
+  ],
+  "logs": [
+    {
+      "path": "tmp/subform-row-permission-frontend.log",
+      "bytes": 50151,
+      "sha256": "a5f8a9f72293e418ff9f3c8aaf1a880ade732867482d503e3f84f41bc87f9169"
+    },
+    {
+      "path": "tmp/subform-row-permission-focused.log",
+      "bytes": 1005,
+      "sha256": "081c850a93c07d77561fc4f9ead93b875de2b885577842648dede367067d30b6"
+    },
+    {
+      "path": "tmp/subform-row-permission-build.log",
+      "bytes": 12625,
+      "sha256": "551dba85bba5855cacdaec3f077508078cd572821ea533a9f807d38d93d967ad"
+    },
+    {
+      "path": "tmp/subform-row-permission-backend.log",
+      "bytes": 1528,
+      "sha256": "90eea72cc189f7369f44451219e5a2eb945bc464d3c58b84ffd67d0daf9b467f"
+    },
+    {
+      "path": "tmp/subform-row-permission-sites.log",
+      "bytes": 894,
+      "sha256": "53814b354c88dad50b978101dfdca42973ed9a087f4e1cce7737d0f927bec186"
+    },
+    {
+      "path": "tmp/subform-row-permission-format-check.log",
+      "bytes": 66,
+      "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    },
+    {
+      "path": "tmp/subform-row-permission-contracts.log",
+      "bytes": 59,
+      "sha256": "2501048318f7cf8dee1ef3ce57c4b036725f05cec5d73f62232c9c3be07f2602"
+    }
+  ],
+  "screenshots": [
+    {
+      "path": "docs/screenshots/jdy-subform-row-permission-source-help.jpg",
+      "bytes": 85813,
+      "sha256": "cfca26dec1615696f52d446685cce28c05a560b413305028397246a76ceb426e",
+      "pixels": [
+        1280,
+        720
+      ],
+      "opened_and_inspected": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-row-permission-source-fields.jpg",
+      "bytes": 78421,
+      "sha256": "d3769cf592432ab3eda0daae1a23d5a54565d862db358a058ca82dc9f8f64beb",
+      "pixels": [
+        1280,
+        720
+      ],
+      "opened_and_inspected": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-row-permission-designer.jpg",
+      "bytes": 68317,
+      "sha256": "eafe3b227958f9485d3f9d9cb3c12d94a585e22f314e2f0cb849c7c9885baf68",
+      "pixels": [
+        1280,
+        720
+      ],
+      "opened_and_inspected": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-row-permission-fill.jpg",
+      "bytes": 51842,
+      "sha256": "b471686ac26cbe0dc215c775d9c5a443a6a022ced521797c92f9ed065cc9eb36",
+      "pixels": [
+        1280,
+        720
+      ],
+      "opened_and_inspected": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-row-permission-group.jpg",
+      "bytes": 58412,
+      "sha256": "6b000f1a69829a4847d7e2084d27ea730129db5fa19a9d5e0990f61518684eaa",
+      "pixels": [
+        1280,
+        720
+      ],
+      "opened_and_inspected": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-row-permission-member-insert.jpg",
+      "bytes": 47838,
+      "sha256": "09a1ce36e72cf332a3f1922114f1da210a8bd2bc8a86b0386f01ac49c0c03503",
+      "pixels": [
+        1280,
+        720
+      ],
+      "opened_and_inspected": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-row-permission-mobile.jpg",
+      "bytes": 28253,
+      "sha256": "636fbf971c8cf06728dd41225f52f19e8cd75a0fd23c1a136c1fabb6d5ac721a",
+      "pixels": [
+        390,
+        844
+      ],
+      "opened_and_inspected": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-row-permission-empty-insert.jpg",
+      "bytes": 41571,
+      "sha256": "0eaa2755fbd2a0727ef47eeb86b5f239610c640650f5856389c4caf0139b33bd",
+      "pixels": [
+        1280,
+        720
+      ],
+      "opened_and_inspected": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-row-permission-record-final.jpg",
+      "bytes": 60101,
+      "sha256": "3fb45b4f84f190de739f77b8cc9cd86b27e7c940059b8da81cc00cc86e0e170f",
+      "pixels": [
+        1280,
+        720
+      ],
+      "opened_and_inspected": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-row-permission-comparison-full.jpg",
+      "bytes": 260279,
+      "sha256": "14073e5b900699a18e15a4a7258a0858dddd5915c084b1cf7967319820b18729",
+      "pixels": [
+        2560,
+        720
+      ],
+      "opened_and_inspected": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-row-permission-comparison-focus.jpg",
+      "bytes": 48940,
+      "sha256": "90e48b938edfa5c0312eb3ef55146a433078bf24bf9c2dc59f1fa9c35fb4147f",
+      "pixels": [
+        670,
+        420
+      ],
+      "opened_and_inspected": true
+    }
+  ],
+  "protected": [
+    {
+      "path": ".openai/hosting.json",
+      "bytes": 31,
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947"
+    },
+    {
+      "path": "worker/index.js",
+      "bytes": 483,
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389"
+    },
+    {
+      "path": "scripts/prepare-sites-build.mjs",
+      "bytes": 910,
+      "sha256": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6"
+    },
+    {
+      "path": "tests/sites-worker.test.mjs",
+      "bytes": 2315,
+      "sha256": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf"
+    }
+  ],
+  "build_artifacts": [
+    {
+      "path": "dist/client/index.html",
+      "bytes": 471,
+      "sha256": "4ab6e5c0e14f9c0119396ba98e63b3e9f93904884d469e1d1b600db67f4a4443"
+    },
+    {
+      "path": "dist/server/index.js",
+      "bytes": 483,
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389"
+    },
+    {
+      "path": "dist/.openai/hosting.json",
+      "bytes": 31,
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947"
+    }
+  ],
+  "checks": {
+    "frontend": {
+      "passed": 1156,
+      "files": 120,
+      "new_row_permission_tests": 18,
+      "focused_passed": 60,
+      "focused_files": 5
+    },
+    "backend": {
+      "passed": 5,
+      "files": 3,
+      "new_parser_tests": 2,
+      "capacity_database_api_tests": 2,
+      "full_suite_rerun": false
+    },
+    "build": "passed; existing large-chunk warning retained",
+    "sites": {
+      "passed": 4,
+      "failed": 0
+    },
+    "format": {
+      "passed_files": 19,
+      "existing_compact_style_retained": "backend/src/page-schema.ts"
+    },
+    "failure_note": "初始夹具不存在初始化方法、漏await，及原生工厂类型修正不计产品修复。删无来源排序限制；保留无ID完全可编辑记录的旧联动兼容，受限或已识别歧义仍拒绝。宽度期待45改72，原列宽与数据断言保持。实际发现行操作按钮换行，共同单元格修复后截图复验。未将测试全部描述为先失败后通过。"
+  },
+  "browser": {
+    "form_id": "form_03c2a24fce96",
+    "title": "子表行权限 · 对标验收",
+    "fields": 5,
+    "published_version": 1,
+    "published_at": "2026-10-11 01:00:42",
+    "entry_id": "entry_75eb47b44941",
+    "formal_entries": 1,
+    "row_count": 5,
+    "draft_saved_at": "01:01:32",
+    "same_id_submitted_at": "01:02:26",
+    "insert_saved_at": "01:03:17",
+    "edit_delete_copy_saved_at": "01:04:01",
+    "mobile_saved_at": "01:04:39",
+    "final_rows_item_quantity_note": [
+      [
+        "SYN-A-EDIT",
+        11,
+        "A内部"
+      ],
+      [
+        "SYN-COPY-MEMBER",
+        0,
+        "默认内部"
+      ],
+      [
+        "SYN-INSERT",
+        0,
+        "默认内部"
+      ],
+      [
+        "SYN-C",
+        0,
+        "默认内部"
+      ],
+      [
+        "SYN-MOBILE",
+        0,
+        "A内部"
+      ]
+    ],
+    "actor": "张三（本地体验）",
+    "member_only_insert_then_all_four_enabled": true,
+    "empty_insertion_only_ui_discarded_and_original_five_rows_preserved": true,
+    "empty_insertion_only_form_component_verified": true,
+    "empty_insertion_only_formal_save_ui_verified": false,
+    "readonly_qty_hidden_note_preserved": true,
+    "business_draft_refresh": true,
+    "editing_cache_envelope_full_combinations": false,
+    "source_form_untouched": "form_dc10c948bb38",
+    "mobile_viewport": [
+      390,
+      844
+    ],
+    "mobile_page_width": 390,
+    "keyboard": "Home -> 上方插入; Escape -> 订单明细第2行操作",
+    "final_viewport": [
+      1280,
+      720
+    ],
+    "final_page_width": 1280,
+    "warn_error_logs": [],
+    "user_account_source_mutated": false
+  },
+  "public_sources": [
+    "https://hc.jiandaoyun.com/doc/10735",
+    "https://hc.jiandaoyun.com/doc/9020"
+  ],
+  "next_queue": [
+    "SBF09受限联动／公式、编辑暂存／旧缓存组合",
+    "SBF10批删／展开／快捷填报与完整复制类型，并复验SBF11共同200实际边界",
+    "其余FD01–FD30及R2–R5/R7既有缺项",
+    "R6/R8和F1–F10统一交付验收"
+  ],
+  "not_verified": [
+    "全部生成来源与受限成员组合",
+    "编辑暂存和旧缓存实际恢复",
+    "批删、展开、快捷填报",
+    "复制插入200行实际组合和完整复制类型",
+    "原生受限行权限执行、成员组迁移及真实认证",
+    "实体手机",
+    "本轮实际PDF/Excel输出",
+    "完整源同状态、密度和像素视觉"
+  ],
+  "native_rules": "转换保留配置，定义和页面解析拒绝显式受限四项及 malformed flags。原生运行和成员组迁移不声称完成。",
+  "visual_final_result": "blocked; full source state/density unknown and full attribute/row-menu obligations remain"
+}

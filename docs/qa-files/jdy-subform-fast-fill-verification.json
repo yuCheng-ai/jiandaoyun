@@ -1,0 +1,365 @@
+{
+  "verifiedAt": "2026-10-10T19:24:22.211624+00:00",
+  "scope": "SBF10 subform spreadsheet quick fill and SBF11 actual 200-row verification; partial parity, goal active",
+  "source": [
+    "https://hc.jiandaoyun.com/doc/15941"
+  ],
+  "syntheticForm": {
+    "id": "form_4e9e90a0e88e",
+    "title": "子表快速填报 · 对标验收",
+    "versions": [
+      {
+        "version": 1,
+        "fieldCount": 6,
+        "publishedAtLocal": "2026-10-11 03:06:55"
+      },
+      {
+        "version": 2,
+        "fieldCount": 7
+      }
+    ],
+    "recordCount": 2,
+    "records": [
+      {
+        "id": "entry_aeb465c4dc95",
+        "version": 1,
+        "rowCount": 4,
+        "values": [
+          {
+            "item": "SYN-FAST-MOBILE",
+            "quantity": 11,
+            "note": "新说明"
+          },
+          {
+            "item": "SYN-A-TWO",
+            "quantity": 22,
+            "note": "第二行更新"
+          },
+          {
+            "item": "SYN-FAST-ONE",
+            "quantity": 7,
+            "note": "首行说明"
+          },
+          {
+            "item": "SYN-FAST-TWO",
+            "quantity": 7,
+            "note": "第二行说明"
+          }
+        ],
+        "historyLocal": [
+          "2026-10-11 03:08:23 draft",
+          "2026-10-11 03:08:51 submitted",
+          "2026-10-11 03:14:01 admin edit"
+        ],
+        "newV2PriceColumnAbsent": true
+      },
+      {
+        "id": "entry_8e71c4f5055a",
+        "version": 2,
+        "rowCount": 200,
+        "firstTwoQuantities": [
+          11,
+          22
+        ],
+        "thirdRow": {
+          "item": "SYN-CORRECTED",
+          "quantity": 7,
+          "price": 0
+        },
+        "lastRow": {
+          "item": "SYN-CAP-197",
+          "quantity": 7,
+          "price": 0
+        },
+        "historyLocal": [
+          "2026-10-11 03:12:13 draft",
+          "2026-10-11 03:12:14 submitted"
+        ]
+      }
+    ]
+  },
+  "actualBrowserChecks": [
+    "setting saved, cold reloaded and published",
+    "new two rows retain quantity default 7",
+    "readonly 999/888 paste discarded in position; note remains aligned",
+    "copy selected two-row TSV and undo verified",
+    "invalid numeric value corrected to 0 before applying",
+    "3 existing plus 198 pasted rejected atomically; 197 accepted and 200 saved/reloaded",
+    "full 200-row record only allows edit mode",
+    "390x844 changes old V1 item and saves without V2 price column",
+    "pristine add-to-edit mode switch closes without false unsaved prompt"
+  ],
+  "automatedOnlyChecks": [
+    "complete field conversion types and organization/date/address combinations",
+    "selected range bulk edits, drag fill and stable-ID remapping",
+    "current permissions and rejected parent write preserve input",
+    "205-row historical editing retains all rows",
+    "external collection excludes organization columns",
+    "native enabled execution explicitly rejected"
+  ],
+  "checks": {
+    "frontend": {
+      "files": 123,
+      "tests": 1194
+    },
+    "focused": {
+      "files": 7,
+      "tests": 99
+    },
+    "newFrontendTests": 17,
+    "newBackendConfigTests": 2,
+    "backendConfigFocused": 4,
+    "build": "passed including contracts, frontend, Sites packaging and backend TypeScript",
+    "sites": 4,
+    "format": {
+      "files": 13,
+      "result": "passed",
+      "baselineCompactPageSchemaExcluded": true
+    },
+    "databaseRuntime": "not re-tested",
+    "fullBackendRuntime": "not re-tested",
+    "buildWarning": "existing chunks larger than 500kB"
+  },
+  "acceptance": {
+    "total": 53,
+    "verified": 1,
+    "partial": 50,
+    "unfinished": 2,
+    "SBF10": "partial",
+    "SBF11": "partial",
+    "goal": "active",
+    "completionPercentage": null
+  },
+  "visual": {
+    "desktop": [
+      1280,
+      720
+    ],
+    "narrowViewport": [
+      390,
+      844
+    ],
+    "narrowDialog": {
+      "x": 16,
+      "y": 95.703125,
+      "width": 358,
+      "height": 652.59375,
+      "pageScrollWidth": 390
+    },
+    "sourceViewportDpr": "unknown; content differs",
+    "comparisons": "normalized width for structure only, no complete 1:1 visual pass",
+    "remaining": [
+      "fixed column inheritance",
+      "exact source density/font and same-state comparison",
+      "mapping search menu",
+      "complete source/field and restricted-member combinations"
+    ],
+    "finalResult": "blocked for complete visual acceptance; engineering goal active"
+  },
+  "code": {
+    "packages/contracts/src/form.ts": "99e4a2959cd2f43330cecaa758fa3069362a5e09a3fe44c700f7dd436f7b7dac",
+    "packages/contracts/src/data-view.ts": "778ee3f0864dc5d28d7de6d7a55e85fe25538e903fc59dbccde612526ad48d09",
+    "frontend/src/domain/form.ts": "708dec9e93493a74be345d69db30e2715f6de8ae04ac82e80f1f87fe846134a0",
+    "frontend/src/domain/recordImport.ts": "cd511466993d04f14534fc65003dac190653d988160362579456022dc1f43116",
+    "frontend/src/domain/subformQuickFill.ts": "1ee87250d340cd6dabc8dbfb86d4b1da2380dfd41d0f3889d545bd7fac0c515c",
+    "frontend/src/features/forms/components/FieldInspector.vue": "836a2e720e0ab88d8220de041288ac87adb09b7d15e9553d132612cb7f6696fa",
+    "frontend/src/features/forms/components/FormFields.vue": "424bebf116fb775094aa0188c9ef94ae8e6ccec78a871813bf52c399b0696514",
+    "frontend/src/features/forms/components/FormRuntime.vue": "7f7ad39b8699baa906d6d6f079014949d5af6295a476a382318edda0e00d1ed0",
+    "frontend/src/features/forms/components/SubformQuickFillDialog.vue": "443e112032adbe3c688084b7e57f5b9165f7a4fe24ede9d2ebd4f0717a96173b",
+    "frontend/src/features/forms/FormSectionView.vue": "d48e8cb97e5b43207821431d86ae812d724c54afcc197f76842d57eb21dee14b",
+    "backend/src/schema.ts": "8e0b7d5bd38f2cb3e7d404f88cdb69fe6bf475c60408eff44bd75c7d4915f84c",
+    "backend/src/page-schema.ts": "2c835ec017cd92c12c9db849c057d4246adb50e7ffa983ccf3ee5bef0e0af2cd",
+    "frontend/tests/subform-quick-fill.test.ts": "f328b9fe40a3e4c844ea364f96a2bde1645c4837d23870b3b73c1764d2f4293c",
+    "backend/tests/subform-quick-fill.test.ts": "1c749f07872ab719411b1b77319d69035ca4e1fcc93c3824da78c89e106a58c9"
+  },
+  "documents": {
+    "docs/jiandaoyun-form-designer-plan.md": "cb265a98c86f0a0e29f23c0f295950be783ad7db9972a7cfe2637566f3272a55",
+    "docs/form-designer-acceptance.md": "67f5b72953163500a784864ed00b2420173cc98f004dc1cafd544e755511e687",
+    "design-qa.md": "aced649809258199b1e307b15b888908e97be8a3aa2ecd4e3d6f4d30255e2672"
+  },
+  "logs": {
+    "tmp/subform-fast-fill-focused-final.log": "473734f1d505e3e72a379adc222cfe10963306fb106f7cf82bbf5b0999875e99",
+    "tmp/subform-fast-fill-all-frontend-final.log": "8d2ffd62bbccab3ecf3ed85b371f2fdde9cf5911d7488a48af520a3ed82ee176",
+    "tmp/subform-fast-fill-build-final.log": "ff78f914f732030f405cc73163736b1b837b5747c9ddc0142d85df01e8d5b712",
+    "tmp/subform-fast-fill-backend-final.log": "25e557a1bb1b7be8f338e42acad23c11586c9d2d86c6dabc3935a4e97b3e5c7d",
+    "tmp/subform-fast-fill-sites-final.log": "9839c044e75f52014b8548b2ace3a885e06ab25e70ff2978d5d28999edc6fc32",
+    "tmp/subform-fast-fill-format-final.log": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+  },
+  "protected": {
+    ".openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+    "worker/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "scripts/prepare-sites-build.mjs": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+    "tests/sites-worker.test.mjs": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf"
+  },
+  "sitesArtifacts": {
+    "dist/client/index.html": "8454984e327fc15cf403559135100e40c533a7ff355b21a5715232d4e9b9dd5d",
+    "dist/server/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "dist/.openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947"
+  },
+  "images": [
+    {
+      "path": "docs/screenshots/jdy-subform-fast-fill-200-edit.jpg",
+      "sha256": "ebafdbcde9575d1d5867a391e4643b7f7e398780c1b0fe2332461b4c25e752ed",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG",
+      "frames": 1,
+      "visuallyReviewed": false,
+      "note": null
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-fast-fill-cap-rejected.jpg",
+      "sha256": "6e7e4f1004ccff0e9d4c5a33c289a03ad2f4e43d29a3ec8a6e047b833c2a99c1",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG",
+      "frames": 1,
+      "visuallyReviewed": false,
+      "note": null
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-fast-fill-edit.jpg",
+      "sha256": "b03f95b1653247ab26682da1aa11c1a63ed62157c8c8aab28c6f52511a973c0b",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG",
+      "frames": 1,
+      "visuallyReviewed": false,
+      "note": null
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-fast-fill-error.jpg",
+      "sha256": "be6409b2cb0f9092b832d327b0cfaa489882dd78a99c0786928ce07802bed464",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG",
+      "frames": 1,
+      "visuallyReviewed": false,
+      "note": null
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-fast-fill-final.jpg",
+      "sha256": "424e67e7e064fccaceb1c3eac2acf02e8b4f0483afae4568915f0ceb8f6a479a",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG",
+      "frames": 1,
+      "visuallyReviewed": true,
+      "note": null
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-fast-fill-grid-comparison.jpg",
+      "sha256": "4c8f3974029b474dcab39efeed7521093079d106b77049795fce897c09df5c01",
+      "size": [
+        2560,
+        813
+      ],
+      "format": "JPEG",
+      "frames": 1,
+      "visuallyReviewed": true,
+      "note": null
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-fast-fill-input.jpg",
+      "sha256": "fb57a92c0dc09d0e195106debf563e1b45a30e00b31f374b67dea0216259c93c",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG",
+      "frames": 1,
+      "visuallyReviewed": false,
+      "note": null
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-fast-fill-map-official.png",
+      "sha256": "3b84de24cfff07193adc58a35d5796aa076063ce560a00e46565b4049dc44174",
+      "size": [
+        1309,
+        841
+      ],
+      "format": "PNG",
+      "frames": 1,
+      "visuallyReviewed": true,
+      "note": null
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-fast-fill-mapping-comparison.jpg",
+      "sha256": "7782062287ebc758d64f6af34d4ee4123293c1ae5db2df7d018a6eb9b14d649e",
+      "size": [
+        2560,
+        858
+      ],
+      "format": "JPEG",
+      "frames": 1,
+      "visuallyReviewed": true,
+      "note": null
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-fast-fill-mapping.jpg",
+      "sha256": "8835da8906e5bb6943b82e6842553a94a7053ed4e43b38c299cda5dd5236663c",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG",
+      "frames": 1,
+      "visuallyReviewed": false,
+      "note": null
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-fast-fill-mobile.jpg",
+      "sha256": "85fecd80ccc944a11e5361ba7bca20aa53b3f6d60c8466670073619ad00f30fd",
+      "size": [
+        390,
+        844
+      ],
+      "format": "JPEG",
+      "frames": 1,
+      "visuallyReviewed": true,
+      "note": null
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-fast-fill-official.gif",
+      "sha256": "4940d5c413669a6ac2bb4a3d252cdbcf135ef7ec642f8f13b3280e6681171239",
+      "size": [
+        1887,
+        1145
+      ],
+      "format": "GIF",
+      "frames": 151,
+      "visuallyReviewed": false,
+      "note": "GIF frame 50 reviewed separately"
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-fast-fill-record-final.jpg",
+      "sha256": "e6e62e5468b984911ebad541f756c2a44765806efbc4b57c7a75fb264f4599e5",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG",
+      "frames": 1,
+      "visuallyReviewed": false,
+      "note": null
+    }
+  ],
+  "limits": [
+    "local browser/admin quick-fill journeys do not prove native execution or application migration",
+    "actual restricted-member quick-fill path not exercised this turn",
+    "physical phone and mobile system clipboard unverified",
+    "database and full backend not rerun",
+    "PDF/Excel file outputs not rerun",
+    "all R1-R8/F1-F10 obligations remain; workflow redesign deferred to user collaboration"
+  ]
+}

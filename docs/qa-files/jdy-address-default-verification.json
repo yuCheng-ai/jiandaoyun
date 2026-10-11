@@ -1,0 +1,139 @@
+{
+  "date": "2026-10-10",
+  "goal_status": "active",
+  "scope": "Local address custom and linked defaults using the existing designer, dialog and runtime; shared typed filter choices",
+  "sources": [
+    {
+      "url": "https://hc.jiandaoyun.com/doc/12297",
+      "evidence": "Official address inspector image shows a custom default source and structured address input"
+    },
+    {
+      "url": "https://hc.jiandaoyun.com/doc/9028",
+      "evidence": "Section 3.2 supports address linked defaults; 4.2 uses earliest submitted record for non-file fields"
+    },
+    {
+      "url": "https://hc.jiandaoyun.com/doc/9032",
+      "evidence": "Section 4.12 limits formula defaults to text, textarea, number and datetime"
+    }
+  ],
+  "source_account_writes": false,
+  "local_source": {
+    "id": "form_a6c7614e91f5",
+    "published_version": 1,
+    "field_count": 4,
+    "record_count": 3,
+    "modified_this_turn": false
+  },
+  "local_target": {
+    "id": "form_7faceb03921c",
+    "title": "地址联动 · 对标验收",
+    "published_version": 1,
+    "field_count": 3,
+    "record_count": 1,
+    "record_id": "entry_9b35338a7068",
+    "created": 1,
+    "updated": 2,
+    "published": 1
+  },
+  "browser": {
+    "default_sources": ["custom", "linked"],
+    "address_filter_operators": ["equals", "notEquals", "notEmpty"],
+    "address_filter_value_sources": ["field"],
+    "formula_option_present": false,
+    "saved_configuration_reloaded": true,
+    "first_match_prefilled": true,
+    "unrelated_note_preserved_manual_detail": true,
+    "reopen_preserved_manual_detail": true,
+    "changed_condition_refilled": true,
+    "unmatched_condition_cleared": true,
+    "record_id_unchanged_after_refresh": true,
+    "console_warnings_errors": []
+  },
+  "mobile": {
+    "width": 390,
+    "height": 844,
+    "inner_width": 390,
+    "client_width": 390,
+    "scroll_width": 390,
+    "picker_left": 8,
+    "picker_right": 382,
+    "picker_top": 431.28125,
+    "picker_bottom": 716.28125,
+    "compact_address_search": true,
+    "escape_closes_picker_only": true,
+    "focused_control_after_escape": "选择区县",
+    "actual_submit_succeeded": true,
+    "viewport_reset": true
+  },
+  "checks": {
+    "frontend_tests": 975,
+    "frontend_test_files": 102,
+    "new_tests": 10,
+    "targeted_tests": 81,
+    "targeted_test_files": 3,
+    "full_build": true,
+    "backend_database_tests_run": false,
+    "sites_tests": 4,
+    "formatted_frontend_files": 9,
+    "sites_outputs": {
+      "dist/client/index.html": true,
+      "dist/server/index.js": true,
+      "dist/.openai/hosting.json": true
+    },
+    "logs": [
+      "tmp/address-default-filter-targeted-final.log",
+      "tmp/address-default-final-all.log",
+      "tmp/address-default-final-build.log",
+      "tmp/address-default-final-sites.log",
+      "tmp/address-default-final-format.log"
+    ]
+  },
+  "screenshots": [
+    "docs/screenshots/jdy-address-default-custom.png",
+    "docs/screenshots/jdy-address-default-link-settings.png",
+    "docs/screenshots/jdy-address-default-designer-final.png",
+    "docs/screenshots/jdy-address-default-record-final.png",
+    "docs/screenshots/jdy-address-default-preview-first.png",
+    "docs/screenshots/jdy-address-default-preview-changed.png",
+    "docs/screenshots/jdy-address-default-mobile-fill.png",
+    "docs/screenshots/jdy-address-default-mobile-submit.png",
+    "docs/screenshots/jdy-address-default-reopen-preserved.png",
+    "docs/screenshots/jdy-address-default-no-match.png"
+  ],
+  "visual_limitations": {
+    "source_image": "docs/screenshots/jdy-address-official-inspector.png",
+    "source_image_dimensions": [1923, 1346],
+    "desktop_dimensions": [1280, 720],
+    "mobile_dimensions": [390, 844],
+    "source_viewport_and_dpr_unknown": true,
+    "same_size_same_state_full_parity": false,
+    "source_live_address_link_menu_verified": false
+  },
+  "native_backend_address_supported": false,
+  "unfinished": [
+    "native backend address execution",
+    "location and lng/lat TEXTLOCATION",
+    "complete regions and keyboard/menu comparison",
+    "source same-state desktop and mobile visual comparison",
+    "remaining existing field, formula, template, permission, version and application-entry obligations"
+  ],
+  "code_sha256": {
+    "frontend/src/domain/fieldConfig.ts": "c86ceae31dd5b8a2b4016f92ee07bbc3f65229ff3f03ef82409981dd8a30d8d6",
+    "frontend/src/domain/relations.ts": "a31f9115a778ab7b0af45ea8560093be5139f4d67b1dee319fdd7f2ecacda3bb",
+    "frontend/src/domain/fieldValidation.ts": "73cedbc9037ed27103b9144c93042cc2e13263233193c76ce8e999c86c871f69",
+    "frontend/src/features/forms/components/FieldInspector.vue": "20284a83bcaa323b215f777dd4d4f25cea0e3c388835cdc2b3b9755f8097e9e1",
+    "frontend/src/features/forms/components/DefaultLinkInspector.vue": "dbf5418fb30abe8c617536603bdc9e1a75e8df7639b50b515b727e7017c3b5dd",
+    "frontend/src/features/forms/components/DataFilterEditor.vue": "c66a26dd2d4428a67012f6f54431de37402c7543b5d33055227569cffe7a0d7e",
+    "packages/contracts/src/address.ts": "bcbfed932dbb3459a7a34db34f7c2e0ba6c78f4d420cdd4aad26cdb177e0dc5a",
+    "frontend/tests/default-links.test.ts": "ba565901e167f9df3a47bf2a36e2604b7b161877f02ef54cca3b44823d573e53",
+    "frontend/tests/address-fields.test.ts": "68112d2e474f849988bea5ccf0a9aad60fc948f21b5b808c804d25526812d22c",
+    "frontend/tests/lookup.test.ts": "f1a7d016c588222608bcc63b5465707bd30cd22cb3a27645652bcd360fc5c23a"
+  },
+  "protected_sha256": {
+    ".openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+    "worker/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "scripts/prepare-sites-build.mjs": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+    "tests/sites-worker.test.mjs": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf"
+  },
+  "protected_unchanged": true
+}

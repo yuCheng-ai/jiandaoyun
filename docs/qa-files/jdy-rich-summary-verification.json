@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-11",
+  "scope": "Local rich-text display/search/Excel summary; no workflow/filter semantics or stored-value conversion.",
+  "source": "https://hc.jiandaoyun.com/doc/23030",
+  "sourceRule": "Record table/search/export use text; detail and filling preserve rich content. Image-only text output is legitimately empty.",
+  "changes": [
+    "Reuse the sanitized fragment for visible-text extraction and rich-content checks.",
+    "Decode entities once, preserve block/BR separators, exclude unsafe text and link/image attributes.",
+    "displayValue remains the common record/presentation/export formatting entry. No independent import parser added."
+  ],
+  "checks": {
+    "targeted": "58 tests passed in 6 files; tmp/rich-summary-targeted-final.log",
+    "newTests": "5 tests including historical-schema search and real XLSX readback; frontend/tests/rich-text-summary.test.ts",
+    "fullFrontend": "1441 tests in 146 files passed with application-home work; tmp/application-home-frontend-final.log"
+  },
+  "limits": [
+    "No new browser rich-text editing session in this batch.",
+    "Rich-text filter operator behavior unchanged; full source toolbar/image behavior and native migration remain outstanding.",
+    "No invented rich-text subform support; an initial unsupported-child export assertion was removed after checking the registry and source."
+  ]
+}

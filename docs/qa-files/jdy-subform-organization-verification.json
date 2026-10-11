@@ -1,0 +1,388 @@
+{
+  "verified_at": "2026-10-10T23:16:07.503609+08:00",
+  "goal_status": "active",
+  "previous_goal_turn_classification": "progress",
+  "completion_percentage": null,
+  "scope": "单选成员／部门与附件子联动的实际配置、草稿、提交、记录修改、窄屏及原文件读取组合",
+  "acceptance": {
+    "total_groups": 53,
+    "states": {
+      "部分完成": 48,
+      "未完成": 4,
+      "已验收": 1
+    },
+    "SBF07": "部分完成；单选组织＋TXT附件子组合已补实际界面证据；完整类型／来源、受限成员、行身份仍待"
+  },
+  "source_edits_this_turn": false,
+  "code_unchanged_from_baseline": [
+    {
+      "path": "frontend/src/domain/frontendEventValues.ts",
+      "bytes": 12474,
+      "sha256": "76e581fe30f163a55275ee1f55420ef0d4bbc402ebeef48b0ef8a3c44ca61d70"
+    },
+    {
+      "path": "frontend/src/domain/relations.ts",
+      "bytes": 25341,
+      "sha256": "0484ef76831a28a2e38a176ea9fd2b7dfec9f2b247c3e236a98fcde38ec978cf"
+    },
+    {
+      "path": "frontend/src/domain/fieldValidation.ts",
+      "bytes": 14007,
+      "sha256": "7bb05c3b4d001956dd2faa2673ba4ce68b5b7b8b4115e57c6c410d95a8b10751"
+    },
+    {
+      "path": "frontend/src/features/forms/components/ChoiceFieldInspector.vue",
+      "bytes": 5903,
+      "sha256": "9209a3e82137258d4611647d8efe501cd84c79825f11dbf51e52a2402e841a12"
+    },
+    {
+      "path": "frontend/src/features/forms/components/RelationFieldInspector.vue",
+      "bytes": 7938,
+      "sha256": "99e36df5f015d760c52a969f68b5c07c02cbf2efba06896081b5089cfdbc35a4"
+    },
+    {
+      "path": "frontend/src/features/forms/components/DataFilterEditor.vue",
+      "bytes": 13160,
+      "sha256": "1f2c0c1983a3c5262e74f1a0e82fcab15fb5070198e78b8486b84574283da7a4"
+    },
+    {
+      "path": "frontend/src/features/forms/components/OrganizationFieldInspector.vue",
+      "bytes": 5622,
+      "sha256": "7f493a2a93d8eae2cd844d4c00b0843918f4bc940aa3ec4e9c406a7ad9daeb26"
+    },
+    {
+      "path": "frontend/tests/scoped-field-references.test.ts",
+      "bytes": 7657,
+      "sha256": "8e71558a6707eb3f8fb654a04feb44b6d80380505d8877dcbc030ce71d920177"
+    }
+  ],
+  "documents": [
+    {
+      "path": "docs/jiandaoyun-form-designer-plan.md",
+      "bytes": 321942,
+      "sha256": "15de72d7440ae13894b23e07f4234d10b3d3c9272f956a32114e523e59234a5d"
+    },
+    {
+      "path": "docs/form-designer-acceptance.md",
+      "bytes": 16993,
+      "sha256": "21545eb2c76fde5ef491f7c56013e8230eac95e909728143e4d9d47a5bcbbacc"
+    },
+    {
+      "path": "docs/frontend-closure.md",
+      "bytes": 21171,
+      "sha256": "b3edb77d750db52a8f97fd89f3e9709413926ed3f88fc5d2c3306e78488e6257"
+    },
+    {
+      "path": "docs/implementation-plan.md",
+      "bytes": 65812,
+      "sha256": "1aab49f32bdf1e778d7b91df7d34bbe940af6cbb49a34bbb78611f6075fe7310"
+    },
+    {
+      "path": "docs/development-plan.md",
+      "bytes": 18698,
+      "sha256": "581dea0fc92697f55cfa140d1fd9907b7401755f087cfaa506471ca1a16d4566"
+    },
+    {
+      "path": "design-qa.md",
+      "bytes": 279371,
+      "sha256": "de6fecd780406b0f01eeaa5334955a0d21381cdc43c6fc15780631e3ef4219ad"
+    }
+  ],
+  "logs": [
+    {
+      "path": "tmp/subform-organization-attachment-focused.log",
+      "bytes": 986,
+      "sha256": "6eeca9fcc756f0de8bb36fac5f6fcc2d3ce250d183529ab94e4a17b0301e2b68"
+    }
+  ],
+  "files": [
+    {
+      "path": "docs/qa-files/subform-organization-attachment.txt",
+      "bytes": 67,
+      "sha256": "dfb136437ed4101a5b525188bc7fb8ed21ed5d38224fa43924811dfa18316b77"
+    },
+    {
+      "path": "docs/qa-files/subform-organization-manual.txt",
+      "bytes": 66,
+      "sha256": "47a530f5a75c5b3a4c2a3f57b67ce51aed300236a70bb3c986077b5297676e9f"
+    },
+    {
+      "path": "docs/qa-files/jdy-subform-organization-downloaded.txt",
+      "bytes": 67,
+      "sha256": "dfb136437ed4101a5b525188bc7fb8ed21ed5d38224fa43924811dfa18316b77"
+    },
+    {
+      "path": "docs/qa-files/jdy-subform-organization-manual-downloaded.txt",
+      "bytes": 66,
+      "sha256": "47a530f5a75c5b3a4c2a3f57b67ce51aed300236a70bb3c986077b5297676e9f"
+    }
+  ],
+  "screenshots": [
+    {
+      "path": "docs/screenshots/jdy-subform-organization-source.jpg",
+      "bytes": 45783,
+      "sha256": "7bf69de32cf3c1737e2246cf191a3e4f77e6fc20a864ef0667a799e14b5bc65e"
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-organization-mapping.jpg",
+      "bytes": 79922,
+      "sha256": "072bc48aa6499a08ce18557f47acb41800e99a38fcd9bc3913dcb18377144989"
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-organization-draft.jpg",
+      "bytes": 50864,
+      "sha256": "43a72e0b02d032f76b34e0cf96b1d5ef60ba83c75dff1035f90cfe4d4ca093c6"
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-organization-record.jpg",
+      "bytes": 50955,
+      "sha256": "d1444c44356025ae3c3d1f5db76c76cb409216c2b4b7a2ce116e398fa97667b3"
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-organization-mobile-picker.jpg",
+      "bytes": 31747,
+      "sha256": "345a826a0e987b463ad3130e566d4698d32759f098e372b378ca5cd5528eb509"
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-organization-mobile-file.jpg",
+      "bytes": 26491,
+      "sha256": "748343f43467d3d5f16e0267f97a2db37e6980bb8be976d54cf33d392b096289"
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-organization-phone-record-final.jpg",
+      "bytes": 52767,
+      "sha256": "42a39643c0e72a60772bb8f998994ebbdc9e514fb1af827ad062c4f960b6a784"
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-organization-source-final.jpg",
+      "bytes": 50923,
+      "sha256": "7260e69191cbd4b14a47bdc4074ca0162330e51295d0e60524bae75c750f6f9e"
+    }
+  ],
+  "protected": [
+    {
+      "path": ".openai/hosting.json",
+      "bytes": 31,
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947"
+    },
+    {
+      "path": "worker/index.js",
+      "bytes": 483,
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389"
+    },
+    {
+      "path": "scripts/prepare-sites-build.mjs",
+      "bytes": 910,
+      "sha256": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6"
+    },
+    {
+      "path": "tests/sites-worker.test.mjs",
+      "bytes": 2315,
+      "sha256": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf"
+    }
+  ],
+  "build_artifacts": [
+    {
+      "path": "dist/client/index.html",
+      "bytes": 471,
+      "sha256": "7211b3e0802ec832333c211b20c638cb3f61f61a2aec0a0a8ed12980fdbda498"
+    },
+    {
+      "path": "dist/server/index.js",
+      "bytes": 483,
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389"
+    },
+    {
+      "path": "dist/.openai/hosting.json",
+      "bytes": 31,
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947"
+    }
+  ],
+  "checks": {
+    "focused": {
+      "passed": 52,
+      "files": 5,
+      "test_files": [
+        "subform-defaults",
+        "scoped-field-references",
+        "frontend-event-values",
+        "organization",
+        "file-fields"
+      ]
+    },
+    "full_frontend_rerun": false,
+    "full_build_rerun": false,
+    "sites_rerun": false,
+    "unchanged_code_baseline": {
+      "frontend": {
+        "passed": 1118,
+        "files": 117
+      },
+      "full_build": "passed",
+      "sites_passed": 4,
+      "evidence": "docs/qa-files/jdy-subform-reference-scope-verification.json",
+      "matched_code_files": 8,
+      "matched_protected_files": 4,
+      "matched_build_artifacts": 3
+    },
+    "actual_downloads": {
+      "linked_original_bytes": 67,
+      "manual_saved_record_bytes": 66,
+      "both_match_upload_bytes": true,
+      "download_event_tool_returned": false
+    }
+  },
+  "browser": {
+    "source": {
+      "form_id": "form_68db5861db4f",
+      "title": "子表组织附件 · 来源验收",
+      "fields": 5,
+      "version": 1,
+      "published_at": "2026-10-10 22:58:01",
+      "record_id": "entry_e7fbb6b556f9",
+      "submitted_at": "2026-10-10 23:01:39",
+      "record_count": 1,
+      "values_seen": [
+        "SYN-ORG-001",
+        "王五",
+        "研发部",
+        "subform-organization-attachment.txt"
+      ],
+      "recheck": "same ID/count/values and original single history entry; no updates after original submission"
+    },
+    "target": {
+      "form_id": "form_df9cc7028bb4",
+      "title": "子表组织附件 · 对标验收",
+      "fields": 6,
+      "version": 1,
+      "published_at": "2026-10-10 23:05:21",
+      "record_count": 2,
+      "creation": "normal design copy; no source records or versions copied",
+      "member_scope_reference": "经办明细 · 经办部门",
+      "member_scope_reference_id": "field_2f8e3c0f0476",
+      "whole_mapping_order": [
+        "经办人",
+        "经办部门"
+      ],
+      "source_mapping_ids": [
+        "field_cdb3ad5ed537",
+        "field_2f8e3c0f0476"
+      ],
+      "whole_source_subform_id": "field_5338896c0af9",
+      "source_key_id": "field_0b43f7216a4f",
+      "source_attachment_id": "field_6f0bb1436d2c",
+      "attachment_child_link": "source root 参考附件 filtered by 业务编号 = current root 业务编号",
+      "cold_saved_preview": [
+        "王五",
+        "研发部",
+        "subform-organization-attachment.txt"
+      ]
+    },
+    "desktop_record": {
+      "id": "entry_11eccc0bf48b",
+      "draft_at": "2026-10-10 23:07:17",
+      "submitted_at": "2026-10-10 23:07:35",
+      "modified_at": "2026-10-10 23:08:13",
+      "department_change_to_finance": "王五 cleared; picker only 赵六",
+      "selected_for_draft": [
+        "赵六",
+        "财务部",
+        "subform-organization-manual.txt"
+      ],
+      "cold_draft_reload": "same ID and manual values retained",
+      "same_id_submit": true,
+      "edit_department_change_to_engineering": "赵六 cleared; picker 王五/林悦/许清 including child departments",
+      "selected_for_edit": "林悦",
+      "cold_record_reload": [
+        "林悦",
+        "研发部",
+        "subform-organization-manual.txt"
+      ],
+      "history_count": 3,
+      "count_after_first_submit": 1
+    },
+    "phone_record": {
+      "id": "entry_dd8cd126095a",
+      "draft_at": "2026-10-10 23:09:46",
+      "submitted_at": "2026-10-10 23:10:20",
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "page_width": 390
+      },
+      "automatic_values": [
+        "王五",
+        "研发部",
+        "subform-organization-attachment.txt"
+      ],
+      "member_picker": {
+        "x": 16,
+        "y": 127,
+        "width": 358,
+        "height": 590,
+        "right": 374,
+        "bottom": 717,
+        "scroll_width": 356,
+        "option_count": 3
+      },
+      "escape_closed_picker": true,
+      "cold_draft_reload": "same ID and automatic values retained",
+      "file_window": {
+        "x": 16,
+        "y": 261.5,
+        "width": 358,
+        "height": 321,
+        "right": 374,
+        "bottom": 582.5,
+        "format_message_and_download_entry": true
+      },
+      "same_id_submit": true,
+      "desktop_detail_recheck": "same values and two history entries",
+      "manual_department_change_retest": false,
+      "manual_upload_retest": false,
+      "record_edit_retest": false
+    },
+    "final_viewport": {
+      "width": 1280,
+      "height": 720,
+      "page_width": 1280
+    },
+    "warn_error_logs": [],
+    "kept_tabs": [
+      "199",
+      "197",
+      "190"
+    ],
+    "temporary_source_recheck_tab_closed": true,
+    "external_account_writes": false,
+    "hidden_browser_storage_inspection": false,
+    "observations": [
+      "Initial add-row click while uploaded attachment display changed did not yield a row; after checking settled state the later click succeeded. No application root cause established.",
+      "Mapping button must use the observed 添加联动子字段 label; a background 添加子字段 click opened the discard prompt, and 继续编辑 retained input.",
+      "Download event observation timed out, but browser-created Downloads files matched original bytes and were copied as evidence."
+    ]
+  },
+  "public_sources": [
+    {
+      "url": "https://hc.jiandaoyun.com/doc/11259",
+      "verified": "whole-subform manual adjustment and parent-before-child linkage; full source/type scope remains incomplete"
+    }
+  ],
+  "next_queue": [
+    "SBF09/SBF10 shared row permissions and operations",
+    "SBF11 shared 200-row boundary",
+    "remaining SBF07/R2/R5 full types/sources/restricted members/row identity",
+    "fixed R1–R8/F1–F10 and final R6/R8 gate"
+  ],
+  "not_verified": [
+    "multi-member/multi-department and image combinations through full UI",
+    "all source/type combinations",
+    "restricted-member/row identity/permissions combinations",
+    "backend execution/database integration",
+    "real account",
+    "actual PDF/Excel this turn",
+    "physical phone",
+    "phone manual department/upload/edit paths",
+    "full source CSS/DPR visual parity"
+  ]
+}

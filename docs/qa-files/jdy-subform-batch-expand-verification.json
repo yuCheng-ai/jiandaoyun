@@ -1,0 +1,242 @@
+{
+  "verifiedAt": "2026-10-10T18:50:24.875144+00:00",
+  "scope": "SBF10 batch delete and expanded row filling; partial parity, goal remains active",
+  "source": [
+    "https://hc.jiandaoyun.com/doc/9020",
+    "https://hc.jiandaoyun.com/doc/10735",
+    "https://hc.jiandaoyun.com/doc/15941"
+  ],
+  "syntheticForm": {
+    "id": "form_7659592552e6",
+    "title": "子表批删与展开 · 对标验收",
+    "fieldCount": 5,
+    "publishedVersion": 1,
+    "recordCount": 1,
+    "recordId": "entry_63b8f218b92f",
+    "values": [
+      {
+        "item": "SYN-A-ONE",
+        "quantity": 11
+      },
+      {
+        "item": "SYN-MEMBER-COPY-MOBILE",
+        "quantity": 7
+      }
+    ],
+    "history": [
+      "2026-10-11 02:40:21 draft",
+      "2026-10-11 02:41:31 submitted",
+      "2026-10-11 02:42:41 member edit",
+      "2026-10-11 02:43:08 member edit"
+    ]
+  },
+  "checks": {
+    "frontend": {
+      "files": 122,
+      "tests": 1177
+    },
+    "focused": {
+      "files": 7,
+      "tests": 105
+    },
+    "newTests": 9,
+    "build": "passed, includes backend TypeScript compilation",
+    "sites": 4,
+    "format": 5,
+    "backendRuntime": "not re-tested"
+  },
+  "acceptance": {
+    "total": 53,
+    "verified": 1,
+    "partial": 50,
+    "unfinished": 2
+  },
+  "code": {
+    "frontend/src/features/forms/components/FormFields.vue": "d9462c28cbc6c8fa7b14d65dfce7c32605d9db9c2a4df227d067b099793a6d90",
+    "frontend/src/components/BaseDialog.vue": "a7f5d6a3b2c2d3e1d40d9c6c48413b050cc92dd061f68836255a22747254c6c0",
+    "frontend/src/form-designer.css": "dfb8782275e7082ceb25eaca38afc4e9569f39756216b9fd1f24c2f9d5434520",
+    "frontend/src/styles.css": "f547120459389167123ab7d6470cc236e128a7810ba4fd163aa5cd67c7e660f6",
+    "frontend/tests/subform-batch-expand.test.ts": "f1ea91d771adbc80a4aac77cc55bb5796969e9642418f0f3e9fd8ba01ae14501"
+  },
+  "documents": {
+    "docs/jiandaoyun-form-designer-plan.md": "d72779d457a1404580b5b1bd0164690dd172d32d4e746532d6a43955c71dceed",
+    "docs/form-designer-acceptance.md": "f84d7f1301d96b4f59723876eb72f0e973da3a53c979e1097d33b079a3830722",
+    "design-qa.md": "3e2aafebb34d789f56b3a2712d2985ca1354cd785f8a4cd8b38b0b99d05e700c"
+  },
+  "logs": {
+    "tmp/subform-batch-expand-final-all-frontend.log": "531d29410d5c0854822313e552c95405d7ad2ecc89e1ad42531a27275b015069",
+    "tmp/subform-batch-expand-final-focused.log": "cc872d49c858ef1cf34055c0a0d6560d102437755625a3af0794f2fdbe2075d7",
+    "tmp/subform-batch-expand-final-build.log": "8c89567b4770d89b2496b632d95a5e81fff5a88fcb5f11cf5c545c80f23b27e6",
+    "tmp/subform-batch-expand-sites.log": "1c56334b8721c0ec0e131d94987fb003e46e85b7c1a332b480b6d86e8341b97c",
+    "tmp/subform-batch-expand-format-check.log": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+  },
+  "protected": {
+    ".openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+    "worker/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "scripts/prepare-sites-build.mjs": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+    "tests/sites-worker.test.mjs": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf"
+  },
+  "sitesArtifacts": {
+    "dist/client/index.html": "97669912382b291e33f92f713c4f1cb3b725ca06adf1a6b70d30a9bc1aa2ff42",
+    "dist/server/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "dist/.openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947"
+  },
+  "images": [
+    {
+      "path": "docs/screenshots/jdy-subform-expand-official.png",
+      "sha256": "eb7b487df827adc550f834790f0957f3c00099774cb142aa29b0788745302645",
+      "size": [
+        1902,
+        1330
+      ],
+      "format": "PNG",
+      "frames": 1
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-batch-official.gif",
+      "sha256": "f526b7c34c17b8a78d6f594518661a60bd9c6a5f11574e0a12fe8a809fcaacd3",
+      "size": [
+        1435,
+        928
+      ],
+      "format": "GIF",
+      "frames": 180
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-expand-fill.jpg",
+      "sha256": "f634715d22698472891e8669348a7b1982ee7a0aefaac7661a612c0eff802a61",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG",
+      "frames": 1
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-batch-fill.jpg",
+      "sha256": "04ae8ad714d4a80d264cc60f40800e83246dcb98f099c8f448dfd94839618eaf",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG",
+      "frames": 1
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-expand-member.jpg",
+      "sha256": "63bf6530f328ec030e545bcaa9f59fc0b267bdb540cbf7adcd53963b3d1966e6",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG",
+      "frames": 1
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-expand-mobile.jpg",
+      "sha256": "6e49fc5f9513929edbb69cd6a6f18da2545919bc31bcc121cca17ee11272040b",
+      "size": [
+        390,
+        844
+      ],
+      "format": "JPEG",
+      "frames": 1
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-batch-mobile.jpg",
+      "sha256": "5f8e30c03f206c813c80f64d545f441b7855e5d89a86024aa89c68b4e58190ce",
+      "size": [
+        390,
+        844
+      ],
+      "format": "JPEG",
+      "frames": 1
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-batch-desktop.jpg",
+      "sha256": "cbd4a61771e4378e4be5ce3518615541b93352946610a1932fadd7f7f2710d68",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG",
+      "frames": 1
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-batch-expand-record-final.jpg",
+      "sha256": "9ba45170089acfa47dc4eaaaf885577a79e69d3034fc0cb0d907ef05035f6dfd",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG",
+      "frames": 1
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-expand-final.jpg",
+      "sha256": "7dcc7217c0b92a0d306f4679613594d345caf3542968d70a329458f585f1414f",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG",
+      "frames": 1
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-expand-comparison.jpg",
+      "sha256": "044edcec0ab1e9c6ed540570f1d968bd4f9db1fa0d521b5ccfbe4f63e0c00a83",
+      "size": [
+        2560,
+        895
+      ],
+      "format": "JPEG",
+      "frames": 1
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-expand-panel-comparison.jpg",
+      "sha256": "d404056f48d4805c219e40b461218ef1d1a6c420b735aeaa826864b3c6ba3421",
+      "size": [
+        840,
+        685
+      ],
+      "format": "JPEG",
+      "frames": 1
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-batch-comparison.jpg",
+      "sha256": "5d750808cbcc55b9939a8a3f757e72e85d7e0fe90414ca87b7776777ad88546c",
+      "size": [
+        2560,
+        828
+      ],
+      "format": "JPEG",
+      "frames": 1
+    }
+  ],
+  "visualQA": {
+    "result": "blocked",
+    "desktop": [
+      1280,
+      720
+    ],
+    "mobile": [
+      390,
+      844
+    ],
+    "mobilePageScrollWidth": 390,
+    "dialog": {
+      "x": 16,
+      "width": 358,
+      "height": 812
+    },
+    "sourceCssViewportAndDensity": "unknown; resized composites for structural comparison only",
+    "contentDifference": "3 source stationery fields vs 2 synthetic fields"
+  },
+  "remaining": [
+    "SBF10 subform quick filling with spreadsheet paste, matching and validation",
+    "200 row browser combinations and complete supported types/sources",
+    "R1-R8/F1-F10 remaining acceptance and native migration",
+    "full same-state source visual comparison",
+    "physical device and current-round PDF/Excel not re-tested"
+  ]
+}

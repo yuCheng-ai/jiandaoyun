@@ -1,0 +1,429 @@
+{
+  "date": "2026-10-10",
+  "scope": "TAB09 primary paths, common anchored-popover lifecycle and form footer in shared dialogs",
+  "status": "primary paths verified; full 1:1 acceptance incomplete",
+  "code": [
+    {
+      "path": "packages/contracts/src/form.ts",
+      "sha256": "8a1c969ffb74cefb41e87c9e28410c70a93442ecf87dfcba6792f74b11b4a002"
+    },
+    {
+      "path": "packages/contracts/src/form-layout.ts",
+      "sha256": "d978f258423d63c087d8d9c35b6c8473b10e13fe9ee959caeec7bfaf5be54e91"
+    },
+    {
+      "path": "packages/contracts/src/data-view.ts",
+      "sha256": "8613320928e707a1b37fcc347082bc2955bdd9431726cdc82143eba4654ddc89"
+    },
+    {
+      "path": "frontend/src/domain/form.ts",
+      "sha256": "6eaa7a238f59f23c488a6974e57dcadf3c6f453e410f41bcb68a7b68686b2cd4"
+    },
+    {
+      "path": "frontend/src/domain/fieldValidation.ts",
+      "sha256": "254f902847d5de12fc86ebf11e3d70f9bae8b9b1140c6e503e04347b7bbafacb"
+    },
+    {
+      "path": "frontend/src/features/forms/components/FormTabBar.vue",
+      "sha256": "8817eeb84a240aa7b9e504305b5192d6b1bb32d4a56a76cf12fcbeb1c380bb99"
+    },
+    {
+      "path": "frontend/src/features/forms/components/TabStylePicker.vue",
+      "sha256": "d5ca702d85f70ec016b7219281329d2a04742626e56dfb90bfdcaf59281f6502"
+    },
+    {
+      "path": "frontend/src/features/forms/components/FieldCanvas.vue",
+      "sha256": "b77efbf76856355816ab475ae2965754fa4a3e92fa4f8c05b1f65c8628650ad6"
+    },
+    {
+      "path": "frontend/src/features/forms/components/FormFields.vue",
+      "sha256": "f137350cefa0f69abad17b59d4bfc565ccf121f1cd34bef624da42698f8ddd0e"
+    },
+    {
+      "path": "frontend/src/features/forms/components/TabFieldInspector.vue",
+      "sha256": "2d629044c785eb9a8c0ec81793a6348d0e93903a93422766726ab6067fe29da1"
+    },
+    {
+      "path": "frontend/src/features/forms/components/OptionColorPicker.vue",
+      "sha256": "a0551e514a0bb23a1f65624dd619eb5537f06e4b7ae848632c43873693aa87a1"
+    },
+    {
+      "path": "frontend/src/features/forms/components/ExternalFormFrame.vue",
+      "sha256": "1a7423b47808faa1557f76047c9b07e2f28462c27b7291562aa10ee795fd97ef"
+    },
+    {
+      "path": "frontend/src/form-designer.css",
+      "sha256": "247f65d38331da6da3cc18d08bc1a43743a45ce52412e52208dfba3710c16625"
+    },
+    {
+      "path": "frontend/src/services/dialogStack.ts",
+      "sha256": "0995b76d9f72b078d453877b5dc84b7b1751ac6bfd65fae4786fea61b0d5f39c"
+    },
+    {
+      "path": "frontend/tests/form-tab-appearance.test.ts",
+      "sha256": "e42baa2c9a5f3e1d6b41d40a03c4712c58eaf124737c4170427e34f64bb927b0"
+    }
+  ],
+  "checks": {
+    "full": true,
+    "focused": true,
+    "build": true,
+    "sites": true,
+    "format": true,
+    "protected": true,
+    "artifacts": true
+  },
+  "automated": {
+    "newTests": 10,
+    "newTestFile": "frontend/tests/form-tab-appearance.test.ts",
+    "full": {
+      "tests": 1035,
+      "files": 106
+    },
+    "focused": {
+      "tests": 55,
+      "files": 5
+    },
+    "finalVisualChanges": "After the full and focused tests, two icon names and the shared modal-footer CSS changed. Browser QA and the complete build/Sites checks were repeated; the full behavior suite was not repeated for these visual-only edits."
+  },
+  "logs": [
+    {
+      "kind": "full",
+      "path": "tmp/tab-style-all.log",
+      "sha256": "171a2e3cc3d7e751bf8ed43875bc22cf6eba7ac32e1ed572aaf88b879f42e40c"
+    },
+    {
+      "kind": "focused",
+      "path": "tmp/tab-style-final-focused.log",
+      "sha256": "e29a40c48054799494db81d98f09af5da645b651d7662493708a86a56ff60670"
+    },
+    {
+      "kind": "build",
+      "path": "tmp/tab-style-build.log",
+      "sha256": "588baf7122ee1b3432cec581992fc839ff00b23be10360669aa56236c4ad7684"
+    },
+    {
+      "kind": "sites",
+      "path": "tmp/tab-style-sites.log",
+      "sha256": "adf302376b3e7e9a9fb96746b04fd6aa7072bb444282dd03c462f124b9e01260"
+    },
+    {
+      "kind": "format",
+      "path": "tmp/tab-style-format-check.log",
+      "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    }
+  ],
+  "protectedFiles": [
+    {
+      "path": ".openai/hosting.json",
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+      "unchanged": true
+    },
+    {
+      "path": "worker/index.js",
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/prepare-sites-build.mjs",
+      "sha256": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+      "unchanged": true
+    },
+    {
+      "path": "tests/sites-worker.test.mjs",
+      "sha256": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf",
+      "unchanged": true
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "dist/client/index.html",
+      "exists": true,
+      "sha256": "d0c11e489d1b00375b123a90a6cd609a03a54debac23e8b5bc1496a631e75a30"
+    },
+    {
+      "path": "dist/server/index.js",
+      "exists": true,
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389"
+    },
+    {
+      "path": "dist/.openai/hosting.json",
+      "exists": true,
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947"
+    }
+  ],
+  "sources": [
+    {
+      "url": "https://hc.jiandaoyun.com/doc/18980",
+      "file": "docs/screenshots/jdy-tab-style-picker-reference.png",
+      "pixels": [
+        1968,
+        1346
+      ],
+      "sha256": "d1f4e51d76d5e351daf7bb87b52a6533dc1debd7c61456a05cbc8b720aa51392"
+    },
+    {
+      "url": "https://hc.jiandaoyun.com/doc/18980",
+      "file": "docs/screenshots/jdy-tab-style-color-reference.png",
+      "pixels": [
+        1951,
+        1340
+      ],
+      "sha256": "93ba22b51ceb5921d1054676a2cc27bc2439c27320694e1c40798dbdf4992149"
+    }
+  ],
+  "browser": {
+    "sourceAccountMutated": false,
+    "viewportRestored": true,
+    "desktop": {
+      "width": 1280,
+      "height": 720,
+      "dpr": 1
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "dpr": 1,
+      "scrollWidth": 390
+    },
+    "styles": [
+      "line",
+      "top",
+      "card",
+      "solid",
+      "slant"
+    ],
+    "savedStyle": "card",
+    "savedCustomColor": "#2f7deb",
+    "colors": {
+      "customInput": "#345678",
+      "customInputComputed": "rgb(52, 86, 120)",
+      "ordinaryFallback": "rgb(0, 173, 165)",
+      "externalTheme4ButtonAndFallback": "rgb(45, 62, 161)",
+      "customExternalButtonAndFallback": "rgb(235, 80, 80)",
+      "customTabOverridesButton": "rgb(47, 125, 235)"
+    },
+    "paletteDesktop": {
+      "x": 987,
+      "y": 141,
+      "width": 284,
+      "height": 270,
+      "bottom": 411
+    },
+    "mobileStyleMenu": {
+      "left": 110,
+      "right": 378,
+      "top": 148,
+      "bottom": 460
+    },
+    "mobileColorPanel": {
+      "left": 98,
+      "right": 382,
+      "top": 511,
+      "bottom": 781
+    },
+    "resize": {
+      "before": "menu remained at x110 while its trigger moved to x987",
+      "after": "menu closed, focus restored to the style trigger, saved field settings preserved"
+    },
+    "footer": {
+      "desktop": {
+        "lastInputBottom": 510,
+        "footerTop": 545
+      },
+      "mobile": {
+        "lastInputBottom": 651,
+        "footerTop": 673
+      },
+      "positionInBaseDialog": "static",
+      "keyboardReachedLastInputAndSave": true
+    },
+    "consoleWarningsAndErrors": []
+  },
+  "fixture": {
+    "formId": "form_dd3025c0a366",
+    "latestVersion": 5,
+    "publishedAtLocal": "2026-10-10 15:29:57",
+    "businessFields": 9,
+    "tabs": 2,
+    "recordCount": 4,
+    "newRecord": {
+      "id": "entry_38d5954ac32b",
+      "version": 5,
+      "createdAtLocal": "2026-10-10 15:30:34",
+      "initialCopyAmount": 16,
+      "initialCopyCalculated": 32,
+      "savedCopyAmount": 18,
+      "savedCopyCalculated": 36,
+      "mainAmount": 17,
+      "mainCalculated": 34,
+      "draftSubmitAndEditSameId": true
+    },
+    "historicalRecords": [
+      {
+        "id": "entry_9b8b4293e82d",
+        "version": 1,
+        "longOriginalLabelPreserved": true,
+        "appearance": "line"
+      },
+      {
+        "id": "entry_110f18747394",
+        "version": 3,
+        "tabs": 3,
+        "appearance": "line",
+        "copyAmount": 12,
+        "copyCalculated": 24,
+        "mainAmount": 3,
+        "mainCalculated": 6
+      },
+      {
+        "id": "entry_6b4228da3023",
+        "version": 4,
+        "copyAmount": 14,
+        "copyCalculated": 28,
+        "mainAmount": 9,
+        "mainCalculated": 18
+      }
+    ]
+  },
+  "screenshots": [
+    {
+      "path": "docs/screenshots/jdy-tab-style-color-comparison-focus.png",
+      "sha256": "65e767a03221a23fcd0cca6d7733bad10dd0c93941668e0626d819b713cb79f8"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-color-comparison-full.png",
+      "sha256": "5c0fc8eab8c9fd9c0eb61fbe51538231627e73a131aff39a926d52ea3c96c236"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-color-final-comparison-focus.png",
+      "sha256": "f42a55374f12fe7c93f9a54e5fa2bd3893eba0fce88e95eaa4dd5307b1cab6a6"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-color-final-comparison-full.png",
+      "sha256": "51de5560cbf975d935759a8f13d44172d16b8a5a1cdcd53a8ff242942c6c69bf"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-color-final-live.png",
+      "sha256": "8229f4cbdea5a46a6090f689949f64160ad2d54f37dde1cc74ceaee360755916"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-color-live.png",
+      "sha256": "f57d229d7ea9b1e71744560697030d59d5d9b90f03f9d67156b3b5a8ccc07fe2"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-color-reference.png",
+      "sha256": "93ba22b51ceb5921d1054676a2cc27bc2439c27320694e1c40798dbdf4992149"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-custom-button-fallback-live.png",
+      "sha256": "18e56103f4379d4007902ed92e9afe4868387e7d2b1dfffc24c94bc6dd28793c"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-default-preview-live.png",
+      "sha256": "caf8e0da0a5fa9a3d29dac5410ffc791046d1d7295990c09227311c9c45d1465"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-external-custom-live.png",
+      "sha256": "3a2eb6fbda762eb5e8a229f2d54a55a9bb79a01b65aed3bac7b9714eeeea42f8"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-external-fallback-live.png",
+      "sha256": "3c8e082accc59a039b0bfc76c12f2f4e7f17d92666771c51d3f908902b6b6c55"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-footer-comparison-focus.png",
+      "sha256": "e21c31d6f283c4af15853aade225a4bcf90f792059a4b412317049b6a9c46b68"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-footer-comparison-full.png",
+      "sha256": "f783a332b740dc11454d25f5f56ba91a99621acaa5fdd561a1a45385e92eb91b"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-mobile-color-live.png",
+      "sha256": "b7a086dc6a61386ff22dfb029760db7032e114ecc4222d0c8691a5966867ebcc"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-mobile-draft-live.png",
+      "sha256": "11cb072ff10efa8a0b34511bf7373b882530eda851642a05ac56b2c4292b0c0b"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-mobile-picker-live.png",
+      "sha256": "ada02a9319dfa2e706ca0f17f7d7c113e04f6c288617ad6660080c2ad093342c"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-mobile-submitted-live.png",
+      "sha256": "9c6f6e1bf42f2d6e0786362a64bf78bf2d98de0781478c31a9dbbd3bd9c6dc70"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-picker-comparison-focus.png",
+      "sha256": "1c7e6f0ce8ea1faf6790c57682569ec9ee429cc4c1e13f12ca52d0011d2239b2"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-picker-comparison-full.png",
+      "sha256": "3695271f6a08f692825b5ec486ffb109cfde1eeeeb04f2eb5b067abe54470178"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-picker-final-comparison-focus.png",
+      "sha256": "2320ecad47256e70cda0c67fedc6963b9cbd3867d0651bc9e277f062f9d4b475"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-picker-final-comparison-full.png",
+      "sha256": "97cd0fb5a971883eb2bb6659c65cf1e0614b0729ea5e13e87e9986a4b352e82d"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-picker-final-live.png",
+      "sha256": "204029057bf9b37c9dc32d91198627a0f843b2313fb28470a843196b57fdfd53"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-picker-live.png",
+      "sha256": "4e165d9bd1ed1781244026b97f430e3127e98c18af7201bd0463da336c1bf0ce"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-picker-reference.png",
+      "sha256": "d1f4e51d76d5e351daf7bb87b52a6533dc1debd7c61456a05cbc8b720aa51392"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-records-live.png",
+      "sha256": "f21abac0e3d46dd69dc53c3f9d220fc5d8ccab14dc439daec8a512312fe6f68a"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-saved-live.png",
+      "sha256": "df88f1d248291ee10547400116ce254f80073c699df6d447cc4fec88d436ff2f"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-v1-mobile-history-live.png",
+      "sha256": "266b5f389a7954a2739d295499f3b3117c376d71d886b213248e4234cf0b7936"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-v3-history-live.png",
+      "sha256": "2834e0a81b589bdae805c81448cbc0dba2a8b882e690bfe463a3d71489a7ab78"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-v5-edit-after-footer-top.png",
+      "sha256": "03a24bf8258a740021da934a0567676b29e62f44ba460bbc7e2b10c495031a3f"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-v5-edit-before-footer.png",
+      "sha256": "dc9fdd1c8d2ca18d9382e36ed4c78aed54c0b8e032fa2b8d1104f504bf34171a"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-v5-edit-live.png",
+      "sha256": "ba7f26331a0cc5c9861d105146545c37b9e6a500a5bd8f9dd0e104b6a3fbfa95"
+    },
+    {
+      "path": "docs/screenshots/jdy-tab-style-v5-mobile-edit-live.png",
+      "sha256": "2c702c358a244267ade8633707176d5313ac9c93b85fb638faae2d16e075b80a"
+    }
+  ],
+  "visualQa": {
+    "report": "design-qa.md",
+    "result": "blocked",
+    "reason": "Source density and complete matching states, secondary custom-color UI, enterprise-theme changes and final restricted-member combinations remain unverified."
+  },
+  "limitations": [
+    "Native backend tabs and complete field support remain unfinished; database tests were not rerun.",
+    "No physical-device verification or external account/service execution was claimed.",
+    "R1–R8 and F1–F10 obligations remain; approximately 70% is still a rough form-designer estimate, not a platform completion rate."
+  ]
+}

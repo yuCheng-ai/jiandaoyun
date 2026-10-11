@@ -1,0 +1,554 @@
+{
+  "date": "2026-10-10",
+  "timezone": "Asia/Shanghai",
+  "scope": "SBF06 optional within-record uniqueness, linked global scope, shared duplicate prompt, five supported new child types; common clean cached-design reads and preservation of dirty editor/write conflict baselines.",
+  "status": {
+    "goal": "active",
+    "wholeDesignerParity": "unfinished",
+    "fullVisualQA": "blocked",
+    "engineeringEstimate": {
+      "value": 70,
+      "scope": "Rough basic designer engineering estimate; not acceptance percentage, no increment from tests"
+    },
+    "planning": {
+      "groups": 53,
+      "equalWorkUnits": false,
+      "remainingSourceEffortSchedule": "unfinished",
+      "workPackages": "R1–R8 / F1–F10 preserved"
+    }
+  },
+  "source": {
+    "url": "https://hc.jiandaoyun.com/doc/9020",
+    "section": "3.4",
+    "readDate": "2026-10-10",
+    "sourceAccountChanged": false,
+    "observedTeachingEditorImage": {
+      "url": "https://help-assets.jiandaoyun.com/69b92790-3c74-49df-bdef-72dd52a4dac5?attname=2026-09-15_10-01-29.png",
+      "naturalPixels": [
+        1917,
+        1346
+      ],
+      "renderedCSS": [
+        798,
+        560.890625
+      ],
+      "position": [
+        320,
+        184.546875
+      ],
+      "captureViewport": [
+        1280,
+        720
+      ],
+      "originalEditorCSSAndDPR": "unknown"
+    }
+  },
+  "behavior": {
+    "eligibleNewChildTypes": [
+      "text",
+      "select",
+      "lookup",
+      "member",
+      "department"
+    ],
+    "optionalMetadata": [
+      "uniqueInRecord",
+      "duplicateMessage"
+    ],
+    "globalScope": "Other records and siblings in the submitted record, legacy unique definitions retained",
+    "withinRecordScope": "Sibling detail rows within one submitted record only; blank rows exempt; main-field flags do not expand the scope",
+    "globalCheck": "Enables within-record checkbox; cannot disable within-record alone while global is enabled",
+    "globalOff": "Retains within-record flag and custom message",
+    "allOff": "Retains custom message without executing inactive constraint",
+    "legacyUnsupportedGlobal": "Preserved and can be turned off; new within-record flag not executed for unsupported types",
+    "nativeServer": "Unsupported new active rule rejected by definitions and separated model parser; native duplicate execution remains unimplemented",
+    "cleanReads": "Common read refresh updates only cached draft equal to its original baseline; object identity retained, genuinely edited drafts preserved; lock-guarded writes do not reread/clear their conflict"
+  },
+  "actualLocalJourney": {
+    "formId": "form_d8c2caad8b20",
+    "title": "子表校验 · 对标验收",
+    "fieldCount": 9,
+    "versions": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "version4": "2026-10-10 19:36:38 within-only / custom prompt",
+    "version5": "2026-10-10 19:38:01 within check disabled",
+    "version6": "2026-10-10 19:42:01 within check restored",
+    "version7": "2026-10-10 19:47:26 alternate prompt for clean-cache read test",
+    "version8": "2026-10-10 19:50:09 original custom prompt restored; within-only",
+    "finalRule": {
+      "unique": false,
+      "uniqueInRecord": true,
+      "duplicateMessage": "明细编号不能重复录入"
+    },
+    "newRecord": {
+      "id": "entry_b7b76591b0e1",
+      "version": 4,
+      "draftAt": "2026-10-10 19:37:20",
+      "submittedAt": "2026-10-10 19:39:19",
+      "modifiedAt": "2026-10-10 19:40:04",
+      "values": {
+        "业务名称": "合成单条重复校验申请",
+        "明细": [
+          {
+            "明细编号": "SYN-003",
+            "备注": "旧V4规则仍生效"
+          },
+          {
+            "明细编号": "SYN-004",
+            "数量": 0
+          }
+        ],
+        "费用明细": []
+      }
+    },
+    "duplicateErrors": 2,
+    "oldDraftStillEnforcedAfterV5": true,
+    "withinOnlyPermittedOtherRecordSYN003": true,
+    "sameIdAfterRetryAndEdit": true,
+    "finalRecords": 4,
+    "oldRecordV3": {
+      "id": "entry_15e124414db8",
+      "observedOriginalVersion": 3,
+      "observedOriginalValues": [
+        "SYN-003",
+        "3",
+        "右侧新增",
+        "恢复原字段",
+        "左侧连续新增",
+        "12.5"
+      ],
+      "historyUnchanged": "2026-10-10 19:10:28 submit only",
+      "edited": false
+    },
+    "oldV1RecordIds": [
+      "entry_82bb61c4360c",
+      "entry_8504783b0758"
+    ],
+    "oldV1EditedThisTurn": false,
+    "oldV1FullJourneyRerun": false,
+    "cleanReadActual": "Unedited V7 design cache navigated to records; other tab published V8; reentering designer showed V8 original prompt and checked within-record, no unsaved status",
+    "dirtyCacheActualFullJourney": "Not rerun; regression covers preservation and conflicts",
+    "desktopViewport": [
+      1280,
+      720
+    ],
+    "mobileViewport": [
+      390,
+      844
+    ],
+    "mobilePageWidth": 390,
+    "mobileMessageRect": [
+      137,
+      582,
+      231,
+      32
+    ],
+    "viewportReset": true,
+    "first1280AttemptsCountedAsMobile": false,
+    "finalFreshPreviewWarningsAndErrors": [],
+    "historicalDevelopmentErrors": "Wrong temporary writePending variable and Vue HMR errors were fixed; historical console entries not represented as an empty full log"
+  },
+  "verification": {
+    "newFrontendTests": 10,
+    "newNativeGuardTests": 1,
+    "fullFrontend": {
+      "passed": 1086,
+      "files": 113
+    },
+    "focused": {
+      "passed": 45,
+      "files": 4
+    },
+    "cleanReadRed": {
+      "failed": 2,
+      "passed": 18
+    },
+    "existingConflictFailures": "Initial refresh inside writes cleared two conflicts; fixed by bypassing read refresh while a lock-guarded command is pending",
+    "fullBuild": "contracts / vue-tsc / Vite / Sites packaging / backend tsc passed",
+    "nativeRuleGuards": {
+      "passed": 4,
+      "failed": 0
+    },
+    "sites": {
+      "passed": 4,
+      "failed": 0
+    },
+    "formatCheckedFiles": 8,
+    "backendDatabase": "not rerun",
+    "actualPDFAndExcel": "not rerun",
+    "physicalMobile": "not tested",
+    "nativeNewSubfieldListDrag": "not rerun; remains unverified",
+    "existingLargeChunkWarning": "retained",
+    "logs": [
+      {
+        "path": "tmp/subform-unique-focused-after-lock-final.log",
+        "sha256": "30d62cee3a0cb91520d4fbc9775eb24e0e0b90c1fd10fd66689cb6233c4c90e8",
+        "bytes": 873
+      },
+      {
+        "path": "tmp/subform-unique-all-verified.log",
+        "sha256": "7b926643f9477bef5a268d91fa1e99a9a8c1b07196474fe0f2d54eec1e0fa838",
+        "bytes": 50600
+      },
+      {
+        "path": "tmp/subform-unique-build-verified.log",
+        "sha256": "c98285fd01bb358f0f49da1904f4a9e2c1b4e303a8691b808eadc4c06e683da6",
+        "bytes": 12625
+      },
+      {
+        "path": "tmp/subform-unique-native-final.log",
+        "sha256": "636014a8e4c3d7c5a5af52e4b2033f0811858cd125d784b6da40b92fd47c84ac",
+        "bytes": 1260
+      },
+      {
+        "path": "tmp/subform-unique-sites-final.log",
+        "sha256": "7da186b5dee79024a2dcfaeed08061155f928709d91ae714295b0ce9e9ef987b",
+        "bytes": 894
+      },
+      {
+        "path": "tmp/subform-unique-format-final.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66
+      },
+      {
+        "path": "tmp/subform-unique-clean-read-red.log",
+        "sha256": "fe1c2c5084221711c064bcb335558868ba3ad94bccb25564513a784854e6c30a",
+        "bytes": 5344
+      }
+    ]
+  },
+  "implementation": [
+    {
+      "path": "packages/contracts/src/form.ts",
+      "sha256": "5f0faad0fd1280198e2437597c1ef17f783cdbd83c9b6b81d0ffaefb396758f9",
+      "bytes": 7152
+    },
+    {
+      "path": "packages/contracts/src/data-view.ts",
+      "sha256": "99ed67f04a7234ae3f627fac90fb53a13ebf65b2c13951367d8763c0b261552b",
+      "bytes": 13460
+    },
+    {
+      "path": "frontend/src/domain/form.ts",
+      "sha256": "d43a3a4b4fa599916e25118dfd0fcb76ca63a6d6066410c64640fba1f140ca24",
+      "bytes": 43791
+    },
+    {
+      "path": "frontend/src/features/forms/components/FieldInspector.vue",
+      "sha256": "93fe45686bead961d198bfe9a11c1120c8ef7aa9348da87fc71bcc375a5acbbb",
+      "bytes": 20600
+    },
+    {
+      "path": "frontend/tests/subform-unique.test.ts",
+      "sha256": "f0df97211dacd4b6f78e2be6fab52cde43e7df42fb089f0aad953f158b2f8f2f",
+      "bytes": 10787
+    },
+    {
+      "path": "backend/src/schema.ts",
+      "sha256": "0a1a318c7bc61ab43bc7e64b4bab4865a032cfbde35eaee3246c179820ee2ea6",
+      "bytes": 11912
+    },
+    {
+      "path": "backend/tests/form-validation.test.ts",
+      "sha256": "8668cb65b5dbc0734455b4a64591f0cf1eed83d9141554068882be2cfd28f765",
+      "bytes": 3557
+    },
+    {
+      "path": "frontend/src/stores/workspace.ts",
+      "sha256": "6e1b8f3d8c7960fffaeaca6129ee9ecc301a3ed0a775d9e3be11cdab50d63f28",
+      "bytes": 25981
+    },
+    {
+      "path": "frontend/src/stores/workspacePersistence.ts",
+      "sha256": "f035d32a418059e38446c5c5493d1da5ff84a57271014c022bf37efc3292b0e5",
+      "bytes": 10074
+    },
+    {
+      "path": "frontend/tests/workspace-transactions.test.ts",
+      "sha256": "6d9557939adf3450741c5a3573436966e48cbcc5201a2bbd304a1366d3f0d021",
+      "bytes": 18178
+    }
+  ],
+  "docs": [
+    {
+      "path": "docs/jiandaoyun-form-designer-plan.md",
+      "sha256": "ddf8881519f71c58b713353bf8debedf60844e15dae5be8c21d865572a7e8492",
+      "bytes": 291311
+    },
+    {
+      "path": "docs/form-designer-acceptance.md",
+      "sha256": "57ce9c0ec8edee7fa65511cc819bf1bb17422767c28b33e96890c1daf1ff712a",
+      "bytes": 14554
+    },
+    {
+      "path": "docs/frontend-closure.md",
+      "sha256": "c1cbc5a9ffb0068d3f23ea6edb5cbfddb28b69a5d94055bbaafdc816dd79f098",
+      "bytes": 18641
+    },
+    {
+      "path": "docs/implementation-plan.md",
+      "sha256": "0ddbfcc6bc1401617ec5de982896f047af5a95c53e556e8eb061df927548b042",
+      "bytes": 63282
+    },
+    {
+      "path": "design-qa.md",
+      "sha256": "36ff0ef91f50a09fb9ad5d31ceb96960a84e1848bd09521a45df7e8452554c9b",
+      "bytes": 253521
+    }
+  ],
+  "screenshots": [
+    {
+      "path": "docs/screenshots/jdy-subfield-unique-clean-read-final-live.jpg",
+      "sha256": "b00b175d44c0044ff1f6f371c6e6d91b1c186df74635198ff60ebd40e129e4d4",
+      "bytes": 76439,
+      "dimensions": [
+        1280,
+        720
+      ]
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-unique-compare-focus.jpg",
+      "sha256": "676b97b9d62c981188594413d52b24a81812050b6342d8c2df326a5f957081a5",
+      "bytes": 44600,
+      "dimensions": [
+        774,
+        368
+      ]
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-unique-compare-full.jpg",
+      "sha256": "5d5b53ca637e97b0ae7868412aae47362bc2bc5b67cfa396dfe3ecfe9e000bb8",
+      "bytes": 285457,
+      "dimensions": [
+        2560,
+        752
+      ]
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-unique-duplicate-live.jpg",
+      "sha256": "ae22f5154854401e3860533b1d106565302a157ba6201e7831408faeb6ca8beb",
+      "bytes": 50021,
+      "dimensions": [
+        1280,
+        720
+      ]
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-unique-final-live.jpg",
+      "sha256": "b00b175d44c0044ff1f6f371c6e6d91b1c186df74635198ff60ebd40e129e4d4",
+      "bytes": 76439,
+      "dimensions": [
+        1280,
+        720
+      ]
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-unique-global-live.jpg",
+      "sha256": "04e6b7e3076c653fecb15521baa6898dc96fe3f56cd4a2d408d76144abefc05e",
+      "bytes": 76699,
+      "dimensions": [
+        1280,
+        720
+      ]
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-unique-mobile-detail-live.jpg",
+      "sha256": "4416a0bf9c45a287249b17c2715bd6406d8bbb6c70695d728f617b4d82546367",
+      "bytes": 31886,
+      "dimensions": [
+        390,
+        844
+      ]
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-unique-mobile-edit-blocked-live.jpg",
+      "sha256": "ebe5511f602d69563f67f67f7ab1fc492864c7dc1b129339e34704d951cdaaf0",
+      "bytes": 34106,
+      "dimensions": [
+        390,
+        844
+      ]
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-unique-mobile-error-live.jpg",
+      "sha256": "81549eee2b8fc9e50a21096c57f18c12226466cef498ee091d33840c963492be",
+      "bytes": 33618,
+      "dimensions": [
+        390,
+        844
+      ]
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-unique-mobile-inspector-live.jpg",
+      "sha256": "127eac0a29e44fa84f8d0490e00486f4b7711b9649b2105c2b2057e8c9a3e73b",
+      "bytes": 39478,
+      "dimensions": [
+        390,
+        844
+      ]
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-unique-mobile-submitted-live.jpg",
+      "sha256": "ea811d987295347e8e081a71bec0a8f9d56cc3a47fd59de23d44f5970a4a1ef9",
+      "bytes": 30258,
+      "dimensions": [
+        390,
+        844
+      ]
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-unique-old-v3-live.jpg",
+      "sha256": "55d5b0b6f6adaf058ebaf7a31b885d1ae0c6497de5b8c0b05de17896b403c8cd",
+      "bytes": 61345,
+      "dimensions": [
+        1280,
+        720
+      ]
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-unique-old-v3-version-live.jpg",
+      "sha256": "41c098642bf559e30bafc457b257fa1e67b9d69f709fca6e02b36c11ca600676",
+      "bytes": 63709,
+      "dimensions": [
+        1280,
+        720
+      ]
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-unique-pinned-v4-live.jpg",
+      "sha256": "cdda86ae142c60cb8cdf51e59715306525be983cd0c001693547a226cb93e952",
+      "bytes": 50245,
+      "dimensions": [
+        1280,
+        720
+      ]
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-unique-saved-live.jpg",
+      "sha256": "110b086bcfce3c2c5b3bb2a24896eace884c1090238b6680e9e9b22fbfe3a1a8",
+      "bytes": 76425,
+      "dimensions": [
+        1280,
+        720
+      ]
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-unique-source-live.jpg",
+      "sha256": "9ba3ac05e72a892eb5bd415db989812875f293c35cc455a0cfcb9c72943ee841",
+      "bytes": 92247,
+      "dimensions": [
+        1280,
+        720
+      ]
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-unique-source-panel-live.jpg",
+      "sha256": "d22183cc50263d8f21543ec4db9bcee6069f9549c46577356e61b67764a19915",
+      "bytes": 95922,
+      "dimensions": [
+        1280,
+        720
+      ]
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-unique-v4-record-final-live.jpg",
+      "sha256": "1f50d0bf4f7bd66b46039b747351fee956057368aee9a82ba6b66a8c91b4b361",
+      "bytes": 62161,
+      "dimensions": [
+        1280,
+        720
+      ]
+    },
+    {
+      "path": "docs/screenshots/jdy-subfield-unique-v6-version-live.jpg",
+      "sha256": "5b9864409ea6a6a531c5ef59baccf5e0c6583f6937afa813fc92ca256f20769f",
+      "bytes": 36476,
+      "dimensions": [
+        390,
+        844
+      ]
+    }
+  ],
+  "comparisons": {
+    "full": "docs/screenshots/jdy-subfield-unique-compare-full.jpg",
+    "focused": "docs/screenshots/jdy-subfield-unique-compare-focus.jpg",
+    "fullAndFocusedOpenedTogether": true,
+    "sourceCrop": [
+      912,
+      468,
+      1108,
+      608
+    ],
+    "sourceEnlargement": "2.40x for readability only",
+    "localCrop": [
+      980,
+      300,
+      1260,
+      477
+    ],
+    "knownDifferences": [
+      "Horizontal source subform design vs vertical local cards (SBF12)",
+      "Original source CSS/DPR and exact font/spacing unknown",
+      "Source screenshot teal vs local disabled gray linked within-record checkbox; source reverse-toggle state still to verify",
+      "Source message help icon absent"
+    ],
+    "fullVisualResult": "blocked"
+  },
+  "protected": [
+    {
+      "path": ".openai/hosting.json",
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+      "bytes": 31
+    },
+    {
+      "path": "worker/index.js",
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+      "bytes": 483
+    },
+    {
+      "path": "scripts/prepare-sites-build.mjs",
+      "sha256": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+      "bytes": 910
+    },
+    {
+      "path": "tests/sites-worker.test.mjs",
+      "sha256": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf",
+      "bytes": 2315
+    }
+  ],
+  "packagedArtifacts": [
+    {
+      "path": "dist/client/index.html",
+      "sha256": "43c8e898c0410cbfaefa4a682be937ab215bf1bc890f19c4d1d37510c5dd1a79",
+      "bytes": 471
+    },
+    {
+      "path": "dist/server/index.js",
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+      "bytes": 483
+    },
+    {
+      "path": "dist/.openai/hosting.json",
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+      "bytes": 31
+    }
+  ],
+  "unfinished": [
+    "SBF12 horizontal design table and complete desktop/mobile display configuration",
+    "SBF01 native child-list drag/drop acceptance",
+    "SBF07 whole-subform defaults and linking",
+    "SBF09/SBF10 independent row permissions and actions",
+    "SBF11 common 200-row boundary",
+    "SBF06 final source/organization/lookup/member combinations and native execution",
+    "SBF08/SBF13 permission/history/output combinations",
+    "Remaining FD01–FD30, R1–R8 and F1–F10 complete closure, source properties, effort and schedule"
+  ]
+}

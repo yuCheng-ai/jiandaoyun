@@ -1,0 +1,379 @@
+{
+  "date": "2026-10-10",
+  "timezone": "Asia/Shanghai",
+  "scope": "Shared subform populated-row/required/global-unique validation, final ordinary-form submission check, draft/version regressions and finite field acceptance conditions.",
+  "status": {
+    "listedLocalPaths": "verified",
+    "completeDesignerParity": "unfinished",
+    "fullVisualQA": "blocked",
+    "goal": "active",
+    "roughProgressEstimate": {
+      "value": 70,
+      "scope": "Basic form designer only; engineering estimate, not a calculated acceptance percentage"
+    },
+    "planning": {
+      "scopeAndWorkPackages": "R1–R8 fixed, 30 registered field types inventoried",
+      "finiteAcceptanceGroups": {
+        "common": 10,
+        "field": 30,
+        "subform": 13,
+        "total": 53,
+        "equalWorkUnits": false
+      },
+      "allSourcePropertiesRemainingEffortAndSchedule": "unfinished",
+      "wholePlatformCompletionRate": "not established"
+    },
+    "unfinished": [
+      "Subform insertion context and source allowed-type boundaries",
+      "Independent within-record uniqueness/type allowlist/custom duplicate messages",
+      "Whole-subform defaults, independent row grants and row actions",
+      "Shared 200-row limit and desktop/mobile display options",
+      "Complete source-property checks and remaining effort/schedule",
+      "Final restricted-member/visual/integrated R1–R8 and F1–F10 closure",
+      "Native backend execution and migration obligations"
+    ]
+  },
+  "source": {
+    "accountReadOnly": true,
+    "sourceAccountOperatedThisTurn": false,
+    "fieldsAddedTypedOrSaved": false,
+    "primaryDocumentation": [
+      "https://hc.jiandaoyun.com/doc/9020",
+      "https://hc.jiandaoyun.com/doc/9015"
+    ],
+    "sourceEvidenceBoundary": "Official textual requirements read; no new source-account UI or full source screenshot coverage this turn."
+  },
+  "implementation": [
+    {
+      "path": "frontend/src/domain/form.ts",
+      "sha256": "ff6400f7bcb3f3f9b59dc4ce032b92d41940d52b604078756746a1eee0777074",
+      "bytes": 41946,
+      "new": false,
+      "baselineSha256": "1d3b22d95deefe3b324e9ec680d249fb706b70f7b85508baf08848517884eed3",
+      "changed": true
+    },
+    {
+      "path": "frontend/src/stores/workspace.ts",
+      "sha256": "5456b2968936665098873f1811b8399ddada63d9bac0c6dee601c5c604cb8e3d",
+      "bytes": 25792,
+      "new": false,
+      "baselineSha256": "23273a9ff027e09a6f87f0b370bcf56bc1f3518713e7e50f92563141b8a8d25e",
+      "changed": true
+    },
+    {
+      "path": "frontend/tests/subform-validation.test.ts",
+      "sha256": "fcb2090420f20e3487f97c870d7c6f2889c89b0c6b1217697c55c5637251b7a3",
+      "bytes": 8738,
+      "new": true
+    },
+    {
+      "path": "frontend/tests/extensions.test.ts",
+      "sha256": "3e1b9d1b59b4bb184034259d4fb16c9323b3d83e12d7e0681ff3aa6fef66f662",
+      "bytes": 15801,
+      "new": false,
+      "baselineSha256": "61ca8d2553063f71b0023df4b0ca2a556edad585a71730e378c0417c998d66d4",
+      "changed": true
+    },
+    {
+      "path": "frontend/tests/workspace.test.ts",
+      "sha256": "bef830a98af40dbbf98a97fe249139fe7c3059894f4b92000d1a1e160a6ff871",
+      "bytes": 6358,
+      "new": false,
+      "baselineSha256": "e6994c7572ba9efb2ac01d31b35ac8cc3aec83b8ff014e864dfb74225f2cf3d8",
+      "changed": true
+    }
+  ],
+  "sharedBehavior": [
+    "Blank optional subform rows skip child required checks; required subform needs a populated row",
+    "Known business values decide populated rows; numeric zero counts, unknown metadata and decorative fields do not",
+    "Global child uniqueness compares corresponding other-record rows and siblings in the same record",
+    "Invalid subform/row formats return field errors in domain validation; original row indexes and input values remain unchanged",
+    "All final ordinary-form submissions revalidate fields; incomplete drafts remain saveable",
+    "Published versions and original entry IDs are preserved"
+  ],
+  "permissionAudit": {
+    "creation": "Existing creationSchema uses the published ordinary-form definition; workflow start permissions remain unchanged",
+    "recordEdit": "Existing memberSchema and permission-aware merge still used",
+    "finalRestrictedMemberCombinations": "not newly browser-verified"
+  },
+  "verification": {
+    "newRegressionTests": 9,
+    "focused": {
+      "files": 3,
+      "passed": 33
+    },
+    "fullFrontend": {
+      "files": 111,
+      "passed": 1066
+    },
+    "build": "contracts, frontend type-check/Vite, Sites packaging and backend TypeScript passed",
+    "sitesPassed": 4,
+    "formatCheckedCodeFiles": 5,
+    "logs": [
+      {
+        "path": "tmp/subform-validation-all-final.log",
+        "sha256": "3c487c0f764a0c70b02a564612ff8c4056a84338cf254d71f50c9e4d23db83f2",
+        "bytes": 47870
+      },
+      {
+        "path": "tmp/subform-validation-final-focused.log",
+        "sha256": "50758a829e3d90f9a56a22c57857e24f5cb431fd238eb8b471ccca2ccc23899b",
+        "bytes": 530
+      },
+      {
+        "path": "tmp/subform-validation-build.log",
+        "sha256": "fac6e3d6e2304f6c0df3952fabecb49251571e8b80d9b05c2fef5ca2a5bf3f81",
+        "bytes": 12625
+      },
+      {
+        "path": "tmp/subform-validation-sites.log",
+        "sha256": "2840684719f97e7df81e48e179dcf6384094e1c90b36aabe02a8cbef283ba9bc",
+        "bytes": 895
+      },
+      {
+        "path": "tmp/subform-validation-format-check.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66
+      },
+      {
+        "path": "tmp/subform-validation-baseline.log",
+        "sha256": "16bcd1b00fba5348a2b4a13b48de57e904a04c52126c48b98e5eea623e89c48f",
+        "bytes": 9030
+      }
+    ],
+    "initialBaseline": "7 failed / 1 passed before implementation; the later ninth test adds incomplete-draft/old-version retry coverage",
+    "fixtureCorrection": "Existing employee submission fixtures now use actual field IDs and a synthetic valid required phone; the save-failure test still reaches persistence and asserts rollback",
+    "unchangedWarning": "Existing large-chunk Vite warning",
+    "backendDatabase": "not rerun",
+    "actualPdfOrExcelOutputs": "not rerun",
+    "physicalMobile": "not tested",
+    "parentRequiredAndMalformedInput": "new automated regressions only; no claim of full browser/raw-import coverage"
+  },
+  "browser": {
+    "localForm": {
+      "id": "form_d8c2caad8b20",
+      "title": "子表校验 · 对标验收",
+      "fields": {
+        "businessTitle": "field_9b461f05649b",
+        "subform": "field_5390d9e79eda",
+        "requiredCode": "field_6b9c47c853f4",
+        "quantity": "field_fde90eefe11c"
+      },
+      "versions": [
+        {
+          "version": 1,
+          "publishedAtLocal": "18:21:55",
+          "childUnique": true
+        },
+        {
+          "version": 2,
+          "publishedAtLocal": "18:23:34",
+          "childUnique": false
+        }
+      ],
+      "versionChange": "Only child unique was disabled in V2"
+    },
+    "records": [
+      {
+        "id": "entry_82bb61c4360c",
+        "label": "合成校验申请甲",
+        "definitionVersion": 1,
+        "status": "submitted",
+        "code": "SYN-001",
+        "rows": 2,
+        "blankSecondRowRetained": true
+      },
+      {
+        "id": "entry_8504783b0758",
+        "label": "合成校验申请乙",
+        "definitionVersion": 1,
+        "status": "submitted",
+        "code": "SYN-002",
+        "quantity": 2,
+        "createdAtLocal": "18:22:56",
+        "submittedAtLocal": "18:25:19",
+        "modifiedAtLocal": "18:25:54",
+        "sameIdFromDraftThroughSubmitAndEdit": true
+      }
+    ],
+    "finalRecordCount": 2,
+    "observedAssertions": [
+      "Zero in second row triggers required child error; clearing the only value allows that optional blank row",
+      "Desktop cross-record duplicate is rejected",
+      "V1 draft is still V1 after V2 disables unique; duplicate rejected at actual 390×844",
+      "Corrected V1 draft with quantity zero submits using its original ID",
+      "Old V1 record edit still rejects a duplicate after V2; correction saves using its original ID",
+      "Refresh/reopen shows V1, SYN-002, quantity 2 and final total 2"
+    ],
+    "priorBusinessRecordsChanged": false,
+    "viewport": {
+      "desktop": [
+        1280,
+        720
+      ],
+      "mobile": [
+        390,
+        844
+      ],
+      "mobileDpr": 1,
+      "mobilePageWidth": 390,
+      "initialWrongSizeAttemptsCounted": false,
+      "resetCalled": true,
+      "finalNormalPreviewMeasured": [
+        1280,
+        720
+      ],
+      "resetBoundary": "The tested existing tab retained its explicit size after reset; it was closed and a fresh normal preview confirmed default 1280×720."
+    },
+    "console": {
+      "finalMobileRecordWarningsAndErrors": [],
+      "finalDesignerWarningsAndErrors": [],
+      "normalHandoffWarningsAndErrors": []
+    },
+    "cleanup": {
+      "closedAgentTabs": [
+        "162",
+        "163",
+        "164",
+        "165",
+        "156"
+      ],
+      "handoffTab": "166",
+      "handoffPath": "#/apps/oa/forms/form_d8c2caad8b20/design"
+    },
+    "screenshots": [
+      {
+        "path": "docs/screenshots/jdy-subform-zero-validation-live.jpg",
+        "sha256": "296731359d8e17eb146db5f44d0d5aab64edfae4af9e4250f170faa7d419daea",
+        "bytes": 43591,
+        "mimeType": "image/jpeg",
+        "pixels": [
+          1280,
+          720
+        ]
+      },
+      {
+        "path": "docs/screenshots/jdy-subform-cross-record-duplicate-live.jpg",
+        "sha256": "03a39b858958c03a32724c58d93f5c3be338990b739472842d00720c4a6d2383",
+        "bytes": 41193,
+        "mimeType": "image/jpeg",
+        "pixels": [
+          1280,
+          720
+        ]
+      },
+      {
+        "path": "docs/screenshots/jdy-subform-v1-mobile-duplicate-live.jpg",
+        "sha256": "df8057a94d4420e546df8726ffa03e5d647df150c5f590ca5146e3a951749661",
+        "bytes": 26467,
+        "mimeType": "image/jpeg",
+        "pixels": [
+          390,
+          844
+        ]
+      },
+      {
+        "path": "docs/screenshots/jdy-subform-v1-mobile-submitted-live.jpg",
+        "sha256": "19da0ef2bddae210270e8ef4cfaef02762e50d6ff7f8b1c8b1429386d6febe85",
+        "bytes": 22189,
+        "mimeType": "image/jpeg",
+        "pixels": [
+          390,
+          844
+        ]
+      },
+      {
+        "path": "docs/screenshots/jdy-subform-v1-mobile-edit-duplicate-live.jpg",
+        "sha256": "8dcc59bd239d1d3599971d2942f72890dfb5c8ef22300abc3ebec2fbbe9a3642",
+        "bytes": 29282,
+        "mimeType": "image/jpeg",
+        "pixels": [
+          390,
+          844
+        ]
+      },
+      {
+        "path": "docs/screenshots/jdy-subform-v1-mobile-edit-saved-live.jpg",
+        "sha256": "d0ec6dced0587b79efcf49a89a11e91e5a714d133255a37ed5b8c080fa65d903",
+        "bytes": 30087,
+        "mimeType": "image/jpeg",
+        "pixels": [
+          390,
+          844
+        ]
+      }
+    ],
+    "visualEvidenceBoundary": "Logic changes reuse existing layout; these screenshots verify business state, not complete source visual parity."
+  },
+  "documents": [
+    {
+      "path": "docs/form-designer-acceptance.md",
+      "sha256": "16cb7d84f2ddfd1321862e440078b112c25706279c229a3fe900935064e3f650",
+      "bytes": 13270
+    },
+    {
+      "path": "docs/jiandaoyun-form-designer-plan.md",
+      "sha256": "da27111d79bf3642a4dddb11ecd9ff502003f39ed4eee5f748f66507c415c0d5",
+      "bytes": 282688
+    },
+    {
+      "path": "docs/frontend-closure.md",
+      "sha256": "ccd85141581dd27df9d1ad6437c7def91bc3589a4b207d2250ee2f8186cd509f",
+      "bytes": 16896
+    },
+    {
+      "path": "docs/implementation-plan.md",
+      "sha256": "ff640eba95ea0b2eba6d444ff900432bb12a899b244a09f0400abd521c7ca43f",
+      "bytes": 61537
+    },
+    {
+      "path": "design-qa.md",
+      "sha256": "c1dd86af4484e13f6a23b5d41a460df3de6ce522501b5438570345f03501230a",
+      "bytes": 244951
+    }
+  ],
+  "protectedFiles": [
+    {
+      "path": ".openai/hosting.json",
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+      "bytes": 31,
+      "unchanged": true
+    },
+    {
+      "path": "worker/index.js",
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+      "bytes": 483,
+      "unchanged": true
+    },
+    {
+      "path": "scripts/prepare-sites-build.mjs",
+      "sha256": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+      "bytes": 910,
+      "unchanged": true
+    },
+    {
+      "path": "tests/sites-worker.test.mjs",
+      "sha256": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf",
+      "bytes": 2315,
+      "unchanged": true
+    }
+  ],
+  "sitesArtifacts": [
+    {
+      "path": "dist/client/index.html",
+      "sha256": "8ef76c23ec5833aede488374352398a9b90208544f9e49e8ac554076b0b6b1f7",
+      "bytes": 471
+    },
+    {
+      "path": "dist/server/index.js",
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+      "bytes": 483
+    },
+    {
+      "path": "dist/.openai/hosting.json",
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+      "bytes": 31
+    }
+  ],
+  "next": "Resolve common subform insertion/allowed types and uniqueness configuration gaps from SBF01/SBF02/SBF06, then the registered dependencies and final integrated verification; workflow redesign remains later with the user."
+}

@@ -1,0 +1,479 @@
+{
+  "date": "2026-10-10",
+  "timezone": "Asia/Shanghai",
+  "scope": "Divider line/title colors and shared color-picker fixes; source style evidence only.",
+  "status": {
+    "colorBehavior": "verified for listed local synthetic paths",
+    "completeDesignerParity": "unfinished",
+    "completeVisualQA": "blocked",
+    "goal": "active",
+    "progressEstimate": {
+      "value": 70,
+      "unit": "percent",
+      "scope": "Basic form-designer parity only",
+      "method": "Rough engineering estimate, not a computed acceptance rate"
+    },
+    "planning": "Eight remaining work packages and 30-field inventory established; full property-level acceptance, remaining effort and schedule are not yet fully estimated."
+  },
+  "source": {
+    "documentation": [
+      "https://hc.jiandaoyun.com/doc/12296",
+      "https://hc.jiandaoyun.com/doc/23714",
+      "https://hc.jiandaoyun.com/doc/13849"
+    ],
+    "accountReadOnly": true,
+    "sourceFieldsAddedOrSaved": false,
+    "originalUserSourceTabRestored": "#/data",
+    "screenshotCssSizeAndDpr": "unknown",
+    "images": [
+      {
+        "path": "docs/screenshots/jdy-divider-color-reference.png",
+        "sha256": "6c8929b2fff754f92d367b6c92f57662531bb9236de18225be96e74753cefab9",
+        "bytes": 268179,
+        "pixels": [
+          2031,
+          1190
+        ]
+      },
+      {
+        "path": "docs/screenshots/jdy-divider-2026-update-reference.png",
+        "sha256": "8fa6f5f152740afb27fdf3a69d4b58c38d5f40b4d246b1c9e4cd73d7779a6708",
+        "bytes": 327340,
+        "pixels": [
+          2164,
+          1508
+        ]
+      },
+      {
+        "path": "docs/screenshots/jdy-divider-2021-update-reference.png",
+        "sha256": "52398cc8b8929ed582a0900d861da69104e93ddfaec92d0c5b85db984d5e2d5e",
+        "bytes": 143085,
+        "pixels": [
+          1324,
+          972
+        ]
+      }
+    ],
+    "stylesheet": {
+      "path": "docs/qa-files/jdy-divider-source.css",
+      "sha256": "0daadf0d79f847d43ba6553aeef8e59baec51c75ab1fae85932e8c1a9128f11e",
+      "bytes": 10251,
+      "url": "https://g.jdycdn.com/static/app/pc/form.52b4afbf8d5d71fb.css",
+      "extraction": "Read-only browser pageAssets bundle of a loaded stylesheet; extracted rules whose selector contains .fx-form-separator.",
+      "rules": 80,
+      "styleIdentifiers": [
+        "dashed",
+        "none",
+        "style1",
+        "style2",
+        "style3",
+        "style4",
+        "style5",
+        "style6",
+        "style7",
+        "style8",
+        "style9",
+        "thick",
+        "thin"
+      ],
+      "implemented": false,
+      "menuOrderVerified": false
+    }
+  },
+  "implementation": [
+    {
+      "path": "packages/contracts/src/form.ts",
+      "sha256": "2f74884fbd503fe8b5593008f08dbea949e604d2f526ca5fa3abbc49ace2cdde",
+      "bytes": 6817
+    },
+    {
+      "path": "packages/contracts/src/data-view.ts",
+      "sha256": "f14d068d7447273effacd900eed79f337201f9f17a314775d7deee7386fd1e68",
+      "bytes": 13400
+    },
+    {
+      "path": "packages/contracts/src/form-layout.ts",
+      "sha256": "5077a2f6a73e5963c56a7669e4fb161c93a4704f2f5588626daa75a010a8d300",
+      "bytes": 4499
+    },
+    {
+      "path": "frontend/src/domain/form.ts",
+      "sha256": "25cc6edc7e7b439f84f373c38d67133c65a88194cf4b9f2cae525b4f368bf40a",
+      "bytes": 39942
+    },
+    {
+      "path": "frontend/src/domain/fieldValidation.ts",
+      "sha256": "5d7e40b947818801f4df63821e4f30a28ef6986af982aff350b13d2b5c9bf79a",
+      "bytes": 13083
+    },
+    {
+      "path": "frontend/src/features/forms/components/FieldInspector.vue",
+      "sha256": "68696833737f5854d381d43b5c75558846a70d2a8add2ef5b2cba6adaff4ee59",
+      "bytes": 17638
+    },
+    {
+      "path": "frontend/src/features/forms/components/FieldControl.vue",
+      "sha256": "35199c6ef99993c02f9f4ee78ae4948fde66b843547b75a712a3702a77342716",
+      "bytes": 7928
+    },
+    {
+      "path": "frontend/src/form-designer.css",
+      "sha256": "7c6f5cd68ba930d4ebac035ebe9ce936fcb47dccbce4359e8058469cdabfde59",
+      "bytes": 37195
+    },
+    {
+      "path": "frontend/src/features/forms/components/TabFieldInspector.vue",
+      "sha256": "bb0c464ad0d5930631407b412a559e9342348e2373b8ef60dc6e55dc02fe0c7d",
+      "bytes": 8457
+    },
+    {
+      "path": "frontend/src/features/forms/components/OptionColorPicker.vue",
+      "sha256": "4aa34d0596df5cd912a3370866f0b6e052d6bc085440d2a35b1a0ef032fb2e94",
+      "bytes": 6305
+    },
+    {
+      "path": "frontend/tests/divider-appearance.test.ts",
+      "sha256": "e522cf0ec094480af432f67b52a290b9f25d9cad61768189cd6440a0df350b51",
+      "bytes": 9596
+    }
+  ],
+  "documents": [
+    {
+      "path": "docs/jiandaoyun-form-designer-plan.md",
+      "sha256": "fefc1ad3815e250bf93296c6df7381e94ac3d5b2d9ae4684d3a50abe6d163e9a",
+      "bytes": 269633
+    },
+    {
+      "path": "docs/frontend-closure.md",
+      "sha256": "1b534ba61eb8059f6ee268ace2e1004facbeab7afb79258b8e29d5557f3fb1db",
+      "bytes": 14407
+    },
+    {
+      "path": "docs/implementation-plan.md",
+      "sha256": "bb9cdf4991ca83e35dd9ba35c9683583d38917d83de80f1dc37db007147f38a8",
+      "bytes": 59048
+    },
+    {
+      "path": "design-qa.md",
+      "sha256": "76c1852bc7bbebe36c4015593fa8e370d518d2b47c7c0b04d7c65e95efdd3e68",
+      "bytes": 230174
+    }
+  ],
+  "verification": {
+    "frontend": {
+      "tests": 1045,
+      "files": 108,
+      "result": "passed"
+    },
+    "targeted": {
+      "tests": 40,
+      "files": 6,
+      "result": "passed"
+    },
+    "build": "contracts, Vue type check, Vite, Sites preparation and backend TypeScript passed",
+    "sites": {
+      "tests": 4,
+      "result": "passed"
+    },
+    "format": {
+      "files": 11,
+      "result": "passed"
+    },
+    "initialFailure": "Additional picker assertion used a non-reactive shallow-ref fixture and read the old color; corrected fixture to a reactive form matching the editor, retained assertions and reran targeted/full tests.",
+    "backendDatabaseRerun": false,
+    "pdfOrExcelRerunThisRound": false,
+    "logs": [
+      {
+        "path": "tmp/divider-color-focused-final.log",
+        "sha256": "389bbe18d78677b37aa2149c7ba881ac037180a095844e54de358fba51e765fe",
+        "bytes": 1199
+      },
+      {
+        "path": "tmp/divider-color-all-final.log",
+        "sha256": "ae45bbe3b126f4e65f719ef6986e43a7046fdb3b5b311357f21d19f5070a2054",
+        "bytes": 48006
+      },
+      {
+        "path": "tmp/divider-color-build-final.log",
+        "sha256": "9a79cd3f30b0520b0388e75632fb73385121b437ac3ba08ca6e822dfb8590880",
+        "bytes": 12625
+      },
+      {
+        "path": "tmp/divider-color-sites.log",
+        "sha256": "7ee91ea715a9b5593b2fe8f41cb1f1747258b04988725cb30e0f84d545e1b185",
+        "bytes": 894
+      },
+      {
+        "path": "tmp/divider-color-format.log",
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+        "bytes": 66
+      }
+    ]
+  },
+  "browserEvidence": {
+    "localSyntheticFormId": "form_695dffcb8d19",
+    "viewports": [
+      [
+        1280,
+        720
+      ],
+      [
+        390,
+        844
+      ]
+    ],
+    "dpr": 1,
+    "currentSavedPublishedVersion": 4,
+    "versions": [
+      {
+        "version": 1,
+        "published": "16:08:12",
+        "colors": "historical gray defaults",
+        "titleVisible": false
+      },
+      {
+        "version": 2,
+        "published": "16:10:10",
+        "colors": "historical gray defaults",
+        "titleVisible": true
+      },
+      {
+        "version": 3,
+        "published": "16:38:47",
+        "line": "#00b899",
+        "title": "#141e31"
+      },
+      {
+        "version": 4,
+        "published": "16:39:29",
+        "line": "#2f7deb",
+        "title": "#123456"
+      }
+    ],
+    "finalRecords": [
+      {
+        "id": "entry_db4cd5921911",
+        "version": 1,
+        "applicant": "合成占位申请甲",
+        "department": "合成部门甲·已修改",
+        "retained": "Old hidden title, gray appearance and business values observed without mutation this round."
+      },
+      {
+        "id": "entry_f27c01506c82",
+        "version": 3,
+        "draftSaved": "16:39:08",
+        "submitted": "16:39:41",
+        "modified": "16:40:31",
+        "applicant": "合成配色申请甲",
+        "department": "合成配色部门·已修改",
+        "retained": "Same draft/record ID, V3 teal appearance after V4 publication, mobile reload/submit/edit."
+      }
+    ],
+    "recordCount": 2,
+    "desktopPaletteBounds": [
+      988,
+      153,
+      1272,
+      423
+    ],
+    "mobilePaletteBounds": [
+      98,
+      478,
+      382,
+      748
+    ],
+    "mobilePageWidth": 390,
+    "escape": "Palette closes and focuses color entry; inspector remains open.",
+    "consoleWarningsAndErrors": [],
+    "viewportOverrideReset": true,
+    "screenshots": [
+      {
+        "path": "docs/screenshots/jdy-divider-color-saved-live.png",
+        "sha256": "68aebea2487b080021e88e25cfea1edfbe7acd16061b900f60d76c08b6353a81",
+        "bytes": 64125,
+        "pixels": [
+          65536,
+          4292542531
+        ]
+      },
+      {
+        "path": "docs/screenshots/jdy-divider-color-palette-live.png",
+        "sha256": "b35fe75fcf36a828cb222af8e5bf0b3b31a1719807d63f9aac0c359aee85e813",
+        "bytes": 69421,
+        "pixels": [
+          65536,
+          4292542531
+        ]
+      },
+      {
+        "path": "docs/screenshots/jdy-divider-color-preview-live.png",
+        "sha256": "e2b3e84be65e4faad6bb72e2c9dd3ffbe7cbf3172526ff4ba5d072c1323c5f61",
+        "bytes": 26073,
+        "pixels": [
+          65536,
+          4292542531
+        ]
+      },
+      {
+        "path": "docs/screenshots/jdy-divider-color-v3-mobile-draft-live.png",
+        "sha256": "64cd80ff2a6486a5baa4bfec36d6e288134b76e5b4b22e41404cae5ac6f1442a",
+        "bytes": 25789,
+        "pixels": [
+          65536,
+          4292542531
+        ]
+      },
+      {
+        "path": "docs/screenshots/jdy-divider-color-v3-mobile-submitted-live.png",
+        "sha256": "ab63ffd2ff785a5427187ed4cdc81165657e0a120a040d9e7bed8e80f1f2cc20",
+        "bytes": 25487,
+        "pixels": [
+          65536,
+          4292542531
+        ]
+      },
+      {
+        "path": "docs/screenshots/jdy-divider-color-v1-record-live.png",
+        "sha256": "962f56509f09c686466548941626af6114d9d04ddd0fab2d28f041c80df90b11",
+        "bytes": 52344,
+        "pixels": [
+          65536,
+          4292542531
+        ]
+      },
+      {
+        "path": "docs/screenshots/jdy-divider-color-v3-mobile-edit-live.png",
+        "sha256": "a52cba469bae416e9a3e8d569d1d8ab3e9fac8c176a4838036bbae2bee5f0205",
+        "bytes": 28990,
+        "pixels": [
+          65536,
+          4292542531
+        ]
+      },
+      {
+        "path": "docs/screenshots/jdy-divider-color-records-live.png",
+        "sha256": "1946ccc1df4c4526c2b6385671bcce368a4bc05db4823086fa0e5c4388ca2dc3",
+        "bytes": 30596,
+        "pixels": [
+          65536,
+          4292542531
+        ]
+      },
+      {
+        "path": "docs/screenshots/jdy-divider-color-v4-fill-live.png",
+        "sha256": "c084c33e6e1fe95b20b0de10ad868db61f1f03cf817df31ad2bd2eddf7e1ef90",
+        "bytes": 34917,
+        "pixels": [
+          65536,
+          4292542531
+        ]
+      },
+      {
+        "path": "docs/screenshots/jdy-divider-color-v4-designer-live.png",
+        "sha256": "61e3990e359f30fe0ded0287c29bedb9d9cfbc63f19c0a5eec783b3828823b71",
+        "bytes": 64272,
+        "pixels": [
+          65536,
+          4292542531
+        ]
+      },
+      {
+        "path": "docs/screenshots/jdy-divider-color-mobile-palette-live.png",
+        "sha256": "67abf91fc0e5e0c295c4f116085618a9490e39e6c0c45c50fc707df4e1242b50",
+        "bytes": 33696,
+        "pixels": [
+          65536,
+          4292542531
+        ]
+      },
+      {
+        "path": "docs/screenshots/jdy-divider-color-paired-full.png",
+        "sha256": "f334e7323256136748d3bcca8e45d53f5c4b8b726bb7c27dd1e29ed61f1e5c35",
+        "bytes": 532506,
+        "pixels": [
+          3311,
+          1190
+        ]
+      },
+      {
+        "path": "docs/screenshots/jdy-divider-color-paired-palette-focus.png",
+        "sha256": "2bfe894788620a48de8e1c5969088ce937ecb59531d60a86b8449fb8cd55e37c",
+        "bytes": 86076,
+        "pixels": [
+          623,
+          308
+        ]
+      },
+      {
+        "path": "docs/screenshots/jdy-divider-color-paired-controls-focus.png",
+        "sha256": "e9b14acc2bb54e958c3b7cdd0008f36d0aeebb30e6874a3efed283ed7b871a36",
+        "bytes": 13949,
+        "pixels": [
+          685,
+          111
+        ]
+      }
+    ]
+  },
+  "visualComparison": {
+    "pairedFull": "docs/screenshots/jdy-divider-color-paired-full.png",
+    "pairedPalette": "docs/screenshots/jdy-divider-color-paired-palette-focus.png",
+    "pairedControls": "docs/screenshots/jdy-divider-color-paired-controls-focus.png",
+    "pairedImagesViewed": true,
+    "v4DesignerImageViewed": true,
+    "sourceState": "Official supplier form, full-width striped divider; CSS size/DPR unknown",
+    "localComparisonState": "Synthetic application form, partial-width historical simple divider; selected teal color",
+    "limits": "Different content, divider style and source density; no complete same-state 1:1 visual pass."
+  },
+  "protectedFiles": [
+    {
+      "path": ".openai/hosting.json",
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+      "bytes": 31,
+      "unchanged": true
+    },
+    {
+      "path": "worker/index.js",
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+      "bytes": 483,
+      "unchanged": true
+    },
+    {
+      "path": "scripts/prepare-sites-build.mjs",
+      "sha256": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+      "bytes": 910,
+      "unchanged": true
+    },
+    {
+      "path": "tests/sites-worker.test.mjs",
+      "sha256": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf",
+      "bytes": 2315,
+      "unchanged": true
+    }
+  ],
+  "sitesArtifacts": [
+    {
+      "path": "dist/client/index.html",
+      "sha256": "a9be02d9f5e625ba455b851a8d4492454155de3d529cf23c0c0a85054fca68ae",
+      "bytes": 471
+    },
+    {
+      "path": "dist/server/index.js",
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+      "bytes": 483
+    },
+    {
+      "path": "dist/.openai/hosting.json",
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+      "bytes": 31
+    }
+  ],
+  "unfinished": [
+    "13 divider styles implementation and full source menu/state visual verification",
+    "Secondary source color window",
+    "Final restricted-member permission combinations",
+    "R1–R8 remaining acceptance and F1–F10 closure obligations",
+    "Native backend integration and migration obligations"
+  ],
+  "next": "Complete remaining field/property acceptance inventory and scope/priority estimates; implement source-grounded missing behaviors within existing work packages."
+}

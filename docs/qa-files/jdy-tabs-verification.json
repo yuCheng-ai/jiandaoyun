@@ -1,0 +1,294 @@
+{
+  "date": "2026-10-10",
+  "objective": "简道云表单设计器基础对标",
+  "final_result": "blocked",
+  "verified_scope": "原多标签页的可见性、键盘、提交错误导航与当前本地记录路径",
+  "code": {
+    "frontend/src/features/forms/components/FormTabBar.vue": "80e5dc5abf99e3f5940e7b832ff055bb96cda2dd490b7653e4c41d67d06a8996",
+    "frontend/src/features/forms/components/FormFields.vue": "0f0a01ea7cf62e609f375cb64d8ee0262724915b7c42bdf755cef4e37ba2f846",
+    "frontend/src/features/forms/components/FieldCanvas.vue": "a53635caf5a1fe26eb7b6a3bf7cc5d81e73db30d1ec25406ceb1f09a453d5bae",
+    "frontend/src/features/forms/components/FormRuntime.vue": "c72852ab92d1e61a70b3f1908c835edeea8e6162244c586bd0c4d30ee40b2d4b",
+    "frontend/src/features/forms/FormDesignerView.vue": "dee001d97f93458e29de0c939290281782309e153a74aa7be7c08e3f9941bd82",
+    "frontend/src/features/forms/useFormDesigner.ts": "549b2a64915a2306862f0262f168cbffc44b9da591055d69a49e6852fa9fe394",
+    "frontend/src/form-designer.css": "da27e5cd6c9d5a81d7cd91539b028d76e7ee82a99e7df1d6b37afa9384f7dfd7",
+    "frontend/tests/form-tabs.test.ts": "e51972030302eb24fc33f2036d26a20217b4536fc482bc9bc0f51e04454e7ea2"
+  },
+  "source": {
+    "url": "https://hc.jiandaoyun.com/doc/18980",
+    "inspected": "本轮官方说明与既有官方图像",
+    "screenshots": [
+      "docs/screenshots/jdy-tabs-display-reference.png",
+      "docs/screenshots/jdy-tabs-properties-reference.png"
+    ],
+    "css_size_and_density": "unknown",
+    "same_state_full_fidelity": "not verified"
+  },
+  "browser": {
+    "form_id": "form_dd3025c0a366",
+    "published_versions": [
+      1,
+      2
+    ],
+    "field_counts": {
+      "container": 1,
+      "business_fields": 3,
+      "tabs": 4
+    },
+    "entry_id": "entry_9b8b4293e82d",
+    "entry_version": 1,
+    "final_record_count": 1,
+    "checks": [
+      "设计保留空和隐藏标签；键盘选择后新增进入当前标签",
+      "正式填写只显示2个有可见字段的标签",
+      "提交空值选择申请信息并聚焦申请人",
+      "转到审批意见输入时当前标签和焦点保持",
+      "长标签横向滚动后再次提交：首标签完整、scrollLeft0",
+      "草稿保存刷新意见值保留",
+      "原草稿提交后同ID",
+      "V2缩短标签名，V1记录编辑仍为原长名称",
+      "修改保存刷新仍同ID／V1／1条记录，保留隐藏默认值",
+      "Escape后显式放弃，重开意见仍是已保存值"
+    ],
+    "saved_values": {
+      "申请人": "合成验收甲",
+      "审批意见": "合成审批意见：记录修改后仍保留",
+      "内部备注": "合成隐藏值"
+    },
+    "viewport": {
+      "desktop": [
+        1280,
+        720
+      ],
+      "mobile": [
+        390,
+        844
+      ],
+      "dpr": 1,
+      "mobile_scroll_width": 390,
+      "temporary_override_reset": true
+    },
+    "mobile_error_after": {
+      "tab_strip_client_width": 348,
+      "tab_strip_scroll_width": 372,
+      "tab_strip_scroll_left": 0,
+      "selected_tab_x": 21,
+      "selected_tab_width": 68,
+      "focused_control": "申请人"
+    },
+    "console": {
+      "designer_and_record": [],
+      "filling": []
+    },
+    "physical_mobile_device": "not tested",
+    "final_member_permission_combination": "not verified"
+  },
+  "tests": {
+    "frontend": {
+      "passed": 1008,
+      "files": 104
+    },
+    "added_tests": 12,
+    "initial_baseline": {
+      "tests": 10,
+      "failed": 9,
+      "passed": 1
+    },
+    "focused_before_final_shared_changes": {
+      "passed": 38,
+      "files": 4
+    },
+    "final_build": "passed (contracts / Vue typecheck / frontend / backend)",
+    "sites_passed": 4,
+    "format_files": 8,
+    "backend_database_tests": "not rerun",
+    "warnings": "existing large bundle warning"
+  },
+  "logs": {
+    "red": {
+      "path": "tmp/tabs-red.log",
+      "sha256": "d87e16f8e49189796ef44e03e3571231be31b24b2a555a6dcd0d4f276c6fe1b1"
+    },
+    "focused": {
+      "path": "tmp/tabs-focused.log",
+      "sha256": "0a9981b772785447b495e07c8796da7a939bab418f3b53ed027102ed1217208e"
+    },
+    "all": {
+      "path": "tmp/tabs-all.log",
+      "sha256": "212bfc1e3631014e3c16c00e3d2fbc2841348945b596a06ff385b633ca48f345"
+    },
+    "build": {
+      "path": "tmp/tabs-build.log",
+      "sha256": "93e4a8c650458eaed84de94b97fae80e46f7e8c836e2161a1f878e779ee9acf9"
+    },
+    "sites": {
+      "path": "tmp/tabs-sites.log",
+      "sha256": "a475daad8b6ebece701c9541f89b6c03f4f84c2e078b0dc3e9d7c221a8ccae54"
+    },
+    "format-check": {
+      "path": "tmp/tabs-format-check.log",
+      "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    }
+  },
+  "protected": {
+    ".openai/hosting.json": {
+      "before": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+      "after": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+      "unchanged": true
+    },
+    "worker/index.js": {
+      "before": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+      "after": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+      "unchanged": true
+    },
+    "scripts/prepare-sites-build.mjs": {
+      "before": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+      "after": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+      "unchanged": true
+    },
+    "tests/sites-worker.test.mjs": {
+      "before": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf",
+      "after": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf",
+      "unchanged": true
+    }
+  },
+  "sites_outputs": {
+    "dist/client/index.html": {
+      "exists": true,
+      "sha256": "dcc6c65fd8517fc664fe7583efc98a040f7958277c0422e05f81d77653aa8181"
+    },
+    "dist/server/index.js": {
+      "exists": true,
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389"
+    },
+    "dist/.openai/hosting.json": {
+      "exists": true,
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947"
+    }
+  },
+  "screenshots": {
+    "docs/screenshots/jdy-tabs-design-config.png": {
+      "sha256": "8634584690fa7d9757893f92ba99ec9e8fa33c0c26cfc62a5716b158f619a223",
+      "pixels": [
+        1280,
+        720
+      ]
+    },
+    "docs/screenshots/jdy-tabs-display-reference.png": {
+      "sha256": "8774320251970fca0bf40461f11af3c779f5e8db5cf6e6e65fd6f87286870719",
+      "pixels": [
+        1859,
+        1312
+      ]
+    },
+    "docs/screenshots/jdy-tabs-mobile-error-before.png": {
+      "sha256": "23ebf4931d71744d043b48cef22ab3fb75f7c78e038134cbcac14b377009d608",
+      "pixels": [
+        390,
+        844
+      ]
+    },
+    "docs/screenshots/jdy-tabs-mobile-error-comparison.png": {
+      "sha256": "526e11c7d1460983007a955cdd413f531d0875636490483168617803ff45b422",
+      "pixels": [
+        780,
+        844
+      ]
+    },
+    "docs/screenshots/jdy-tabs-mobile-error.png": {
+      "sha256": "173d55c692b4e6351ac40d47aa5d2dd2e5821047f94a4da0cb9e8030e16e86d6",
+      "pixels": [
+        390,
+        844
+      ]
+    },
+    "docs/screenshots/jdy-tabs-mobile-live.png": {
+      "sha256": "9d6e304872917d85969f92cf6fd11403a4afd53babf77d3be059491691129ada",
+      "pixels": [
+        390,
+        844
+      ]
+    },
+    "docs/screenshots/jdy-tabs-mobile-submitted.png": {
+      "sha256": "40ee3f7454a2fbb7952a75b4833103eb84632dba97cce20bf69ee41a53bf8113",
+      "pixels": [
+        390,
+        844
+      ]
+    },
+    "docs/screenshots/jdy-tabs-preview-live.png": {
+      "sha256": "95d08ff13d9c8225fdfe8669beb38195dc7701c68bf52488afc9a119c6cbaa91",
+      "pixels": [
+        1280,
+        720
+      ]
+    },
+    "docs/screenshots/jdy-tabs-properties-comparison-focus.png": {
+      "sha256": "08f0d1feea319235f12cfc37a7d064b9222c12716c4993b0d022706ea9a6c19f",
+      "pixels": [
+        771,
+        675
+      ]
+    },
+    "docs/screenshots/jdy-tabs-properties-comparison-full.png": {
+      "sha256": "8674a50edb8de5e03c6fc245846f03a0b74c00f901c31916be69f06739b9d45c",
+      "pixels": [
+        3231,
+        1340
+      ]
+    },
+    "docs/screenshots/jdy-tabs-properties-reference.png": {
+      "sha256": "ef6bb0b49f7deb8aceeae36482470f82923b6e735f8fd9a22f0da039ef1d0045",
+      "pixels": [
+        1951,
+        1340
+      ]
+    },
+    "docs/screenshots/jdy-tabs-record-edit-live.png": {
+      "sha256": "61190a5063d7811e3154f72341147217479f10f1858884b86da6b90202b32dbc",
+      "pixels": [
+        1280,
+        720
+      ]
+    },
+    "docs/screenshots/jdy-tabs-records.png": {
+      "sha256": "212b65c62476e6ee5c6e3bd15fde7b263e5e101308bc6437e32c35fb735f6f9d",
+      "pixels": [
+        1280,
+        720
+      ]
+    },
+    "docs/screenshots/jdy-tabs-runtime-comparison-focus.png": {
+      "sha256": "538790f5895e63a7a27fa5ce88dd963b1c9a5f8c68c101f24d01102181b141d2",
+      "pixels": [
+        1500,
+        74
+      ]
+    },
+    "docs/screenshots/jdy-tabs-runtime-comparison-full.png": {
+      "sha256": "6cea807c53d59742f91c108febc3573d29d4a68ffac103375610476a3d70fc70",
+      "pixels": [
+        3139,
+        1312
+      ]
+    },
+    "docs/screenshots/jdy-tabs-styles-reference.png": {
+      "sha256": "c4378824c6d425b5e63ddd52fff36977402f1ebbdc83cc2b3f20ee1e0b335152",
+      "pixels": [
+        2629,
+        1784
+      ]
+    }
+  },
+  "remaining": [
+    "TAB06复制及流水号排除",
+    "TAB07删除确认、字段按序移出且可撤销",
+    "TAB08拖拽排序",
+    "TAB09五样式／颜色／企业与外链继承",
+    "TAB10单主字段限制与历史兼容",
+    "TAB11至少2至多50",
+    "TAB12标签容器不占300计数",
+    "完整同状态视觉、实体设备与最终受限成员组合",
+    "R1–R8及F1–F10既有未完成义务"
+  ],
+  "progress_estimate": "约70%，工程粗估，仅表单设计器基础对标；本轮未上调"
+}

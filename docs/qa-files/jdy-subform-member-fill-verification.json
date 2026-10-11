@@ -1,0 +1,384 @@
+{
+  "updatedAt": "2026-10-11T04:52:58.224405+08:00",
+  "scope": "SBF10 restricted-member quick fill; existing form-designer baseline; workflow unchanged",
+  "sources": [
+    "https://hc.jiandaoyun.com/doc/15941",
+    "https://hc.jiandaoyun.com/doc/10735"
+  ],
+  "fixes": [
+    {
+      "problem": "Readonly source cells remapped into editable destination columns under mixed per-row grants",
+      "change": "Check source permission per original row before conversion and destination mapping",
+      "red": "tmp/subform-member-fill-red.log; 1 failed, 17 passed; quantity 88 instead of 22"
+    },
+    {
+      "problem": "Identical initial values regenerated on permission-schema refresh, resetting normal and staged inputs",
+      "change": "Delete activeValues dependency on activeSchema; existing runtime and baseline behavior retained",
+      "red": "Corrected reactive integration fixture reproduced disappearing quick-fill dialog before deletion; earlier focused log was overwritten by passing run"
+    },
+    {
+      "problem": "Permission revocation silently saved allowed fields while replacing a new readonly quantity 55 with default 7 and reporting success",
+      "change": "Capture existing effective editor schema and compare against current effective schema inside existing member write lock; reject whole update and retain inputs",
+      "red": "tmp/subform-member-fill-permission-red.log; 2 failed, 30 passed; tests initially had fixture mistakes, corrected before retaining production-defect red log"
+    }
+  ],
+  "browser": {
+    "formId": "form_27032bd4f115",
+    "formTitle": "子表成员快速填报 · 对标验收",
+    "fieldCount": 5,
+    "publishedVersion": 1,
+    "publishedAt": "2026/10/11 04:35:34",
+    "entryId": "entry_0c76267c5820",
+    "recordCount": 1,
+    "groups": {
+      "仅插入商品": {
+        "add": false,
+        "insert": true,
+        "editExisting": false,
+        "deleteExisting": false,
+        "columns": {
+          "商品": "edit",
+          "数量": "read",
+          "说明": "edit"
+        }
+      },
+      "数量编辑与新增": {
+        "add": true,
+        "insert": false,
+        "editExisting": true,
+        "deleteExisting": false,
+        "columns": {
+          "商品": "read",
+          "数量": "edit",
+          "说明": "edit"
+        }
+      }
+    },
+    "steps": [
+      "Single insertion group cannot edit existing rows or quick-fill; single quantity group cannot edit existing goods",
+      "Merged groups: inserted goods 31 keeps default quantity 7; existing goods 88 quantity 22",
+      "Native two-row paste drops readonly 999 and HACK in place; mapping goods into quantity retains 7/22 rather than writing readonly source 88",
+      "Append SYN-APPEND quantity 0; save existing record and cold reload",
+      "390x844 native edit paste keeps goods 88, updates quantity to 23 and note; save and reload",
+      "Before final permission fix: staged fourth row 55 was partially committed as quantity 7 at 04:43:15; retained screenshot documents failure",
+      "Restore original permissions, explicitly edit fourth-row quantity 7 to 55 and save at 04:48:51",
+      "After final fix: stage fifth row SYN-RETAINED-AFTER quantity 66; other tab revokes quantity edit; final save false, all staged inputs remain",
+      "Fresh administrator view shows four committed rows 7/23/0/55, no fifth row or failed-write history event",
+      "Explicitly discard only own synthetic fifth-row attempt, restore original quantity grant and save; cold reload still one record with four rows"
+    ],
+    "finalValues": {
+      "mainBusinessName": "SYN-MEMBER-QUICK",
+      "rows": [
+        {
+          "item": "31",
+          "quantity": 7,
+          "note": "SYN-INSERT-QUICK"
+        },
+        {
+          "item": "88",
+          "quantity": 23,
+          "note": "SYN-MOBILE-NOTE"
+        },
+        {
+          "item": "SYN-APPEND",
+          "quantity": 0,
+          "note": "SYN-APPEND-NOTE"
+        },
+        {
+          "item": "SYN-RETAINED",
+          "quantity": 55,
+          "note": "SYN-PENDING-NOTE"
+        }
+      ]
+    },
+    "visibleHistory": [
+      "2026/10/11 04:37:27 保存草稿",
+      "2026/10/11 04:37:28 提交数据",
+      "2026/10/11 04:40:23 成员修改",
+      "2026/10/11 04:41:42 成员修改",
+      "2026/10/11 04:43:15 修复前部分保存",
+      "2026/10/11 04:48:51 恢复权限后明确修改第四行"
+    ],
+    "rowIdentityEvidence": "Stable original row ID asserted by integration tests; browser DOM did not expose row IDs, no browser row-ID assertion claimed",
+    "finalViewport": [
+      1280,
+      720
+    ],
+    "mobileViewport": [
+      390,
+      844
+    ],
+    "viewportOverrideReset": true,
+    "clipboardRestored": true,
+    "retainedTab": "209",
+    "closedTemporaryTab": "214",
+    "warnAndErrorLogs": [],
+    "externalReferenceAccountModified": false,
+    "onlyLocalSyntheticFixtureWritten": true
+  },
+  "verification": {
+    "newRegressionTests": 6,
+    "frontend": {
+      "passed": 1221,
+      "files": 125
+    },
+    "focused": {
+      "passed": 90,
+      "files": 5
+    },
+    "permissionRecovery": {
+      "passed": 11,
+      "files": 1
+    },
+    "build": "contracts + frontend vue-tsc/Vite + Sites packaging + backend TypeScript passed; existing chunk-size warning remains",
+    "sitesPassed": 4,
+    "formattedCodeFiles": 7,
+    "protectedUnchanged": true,
+    "sitesArtifactsPresent": true
+  },
+  "acceptance": {
+    "totalGroups": 53,
+    "verified": 2,
+    "partial": 49,
+    "unfinished": 2,
+    "SBF10": "partial; restricted member paths above verified; complete types/sources, search mapping and full reference visual evidence remain",
+    "overallGoal": "active",
+    "workCompletionPercentage": null,
+    "visualFinalResult": "blocked; complete fixed-scope visual acceptance incomplete"
+  },
+  "next": "Existing subform complete type/source coverage and SBF10 mapping search; then fixed field/source, output/entry integration and final permission/visual/business queue",
+  "notVerified": [
+    "Complete types/sources and search-mapping parity",
+    "Other complex revocation and old-cache combinations",
+    "Complete same-state reference fonts/density",
+    "Real authentication, physical phone or touch interaction",
+    "Native backend runtime, database or complete backend tests",
+    "Current PDF/Excel output files",
+    "Full R1–R8/F1–F10 acceptance"
+  ],
+  "files": [
+    {
+      "path": "frontend/src/domain/subformQuickFill.ts",
+      "bytes": 12484,
+      "sha256": "9e6659e386d25c5904128cf6f6936d440a5ec6d92ecfa475ddd582ffacbedb03"
+    },
+    {
+      "path": "frontend/src/domain/access.ts",
+      "bytes": 27703,
+      "sha256": "7c264ad9c76be00bbb5672f3fa08dac5e0a04a0b0ecb3f989903289a7fe46ef1"
+    },
+    {
+      "path": "frontend/src/stores/accessActions.ts",
+      "bytes": 4552,
+      "sha256": "776cfaa18eaf392e1df2ccceef235f9821a115b6bae5fd5092ced6a0e7825a64"
+    },
+    {
+      "path": "frontend/src/features/forms/MemberPortalView.vue",
+      "bytes": 21498,
+      "sha256": "4b9f5e641223b85e6e606227a154485de5263b696408c778dc5aec2faa25e77e"
+    },
+    {
+      "path": "frontend/tests/subform-quick-fill.test.ts",
+      "bytes": 20502,
+      "sha256": "3a9a68bb7dbec2cb7eb3d22e9c05e773d72eb853ec62699e19b037c00151fde3"
+    },
+    {
+      "path": "frontend/tests/member-recovery.test.ts",
+      "bytes": 18614,
+      "sha256": "8928e6eabaf9f65a2dd9c4da89aa2efa61353c5394a9e1cd3cef6dd35c524e64"
+    },
+    {
+      "path": "frontend/tests/workspace-transactions.test.ts",
+      "bytes": 20870,
+      "sha256": "7e7abbc0c944b7d22eeee6cb832d5d1009eed7e5abb6ac016a355d59d074166f"
+    },
+    {
+      "path": "docs/jiandaoyun-form-designer-plan.md",
+      "bytes": 364278,
+      "sha256": "58a2934b22807aae4d72ddfef609294c8e507293b8cf35efbfb8375a6a303ba1"
+    },
+    {
+      "path": "docs/form-designer-acceptance.md",
+      "bytes": 20793,
+      "sha256": "e56816b6082738192bdcfc5e0a973315ac08e9bb94ec978f27da78503bcdc8a3"
+    },
+    {
+      "path": "design-qa.md",
+      "bytes": 313928,
+      "sha256": "68339a2a18b93dd550a2ea26eae942dc631b82cebdd261acac8a099a31255d13"
+    }
+  ],
+  "logs": [
+    {
+      "path": "tmp/subform-member-fill-red.log",
+      "bytes": 3723,
+      "sha256": "c560f638b2de641f6f64b06909d2aa7e51b7a938d907b636565fbbeb4aa666a1"
+    },
+    {
+      "path": "tmp/subform-member-fill-permission-red.log",
+      "bytes": 7161,
+      "sha256": "8b711389aae3a1124f389528b12b9470ee974ed2ea5d782ce36bcb8830920f8f"
+    },
+    {
+      "path": "tmp/subform-member-fill-focused-final.log",
+      "bytes": 1129,
+      "sha256": "4756a946a3eb45b9c7a356da7bd79cef599623e1d2b72c4347b322bb9ea604bf"
+    },
+    {
+      "path": "tmp/subform-member-fill-recovery-final.log",
+      "bytes": 554,
+      "sha256": "30ab5d6e22b687a0ae3f4ea6987ad6139bd96cb15e7aae39eb092996c8c6282c"
+    },
+    {
+      "path": "tmp/subform-member-fill-frontend-final.log",
+      "bytes": 51882,
+      "sha256": "329f42ae5139a09ab7b8c0cdbc3632cb6a54f177026a9ae962fa0cdf6d113da2"
+    },
+    {
+      "path": "tmp/subform-member-fill-build-final.log",
+      "bytes": 12625,
+      "sha256": "1a3eb9763f75780eda0dbe548562d91fc9401317f81384f8d04df5e3c1e8664e"
+    },
+    {
+      "path": "tmp/subform-member-fill-sites-final.log",
+      "bytes": 895,
+      "sha256": "f0f6a557282a661e6c00d6603c08a9c93b8ffb7969245f3081ec6b44f3f32016"
+    },
+    {
+      "path": "tmp/subform-member-fill-format-final.log",
+      "bytes": 66,
+      "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    }
+  ],
+  "screenshots": [
+    {
+      "path": "docs/screenshots/jdy-subform-member-fill-final-desktop.png",
+      "bytes": 49632,
+      "sha256": "49eb526e5960917ab030d6aa02c3124504b3ce1e248a7aed86b2c7cfbe4fc4f9",
+      "dimensions": [
+        1280,
+        720
+      ],
+      "visuallyOpenedThisBatch": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-member-fill-final-mobile.png",
+      "bytes": 28686,
+      "sha256": "62bafb629217e1820de20cd7ca5614851d2b28264e1f7c630789280dc0596b93",
+      "dimensions": [
+        390,
+        844
+      ],
+      "visuallyOpenedThisBatch": false
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-member-fill-mapping.png",
+      "bytes": 44402,
+      "sha256": "c70f7510c6681115b8ef95e5458a545e8bff09917207dd707f9a6abec4f9dcfb",
+      "dimensions": [
+        1280,
+        720
+      ],
+      "visuallyOpenedThisBatch": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-member-fill-mobile-grid.png",
+      "bytes": 26239,
+      "sha256": "61f708177999a268920c4767158d5ff38b1000e554c1a548614ae10f877e36d3",
+      "dimensions": [
+        390,
+        844
+      ],
+      "visuallyOpenedThisBatch": false
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-member-fill-mobile-saved.png",
+      "bytes": 26615,
+      "sha256": "93cd7c0872909f6ad52b5a9375699f7965dbc6d084f568fecdd30cf1441bf100",
+      "dimensions": [
+        390,
+        844
+      ],
+      "visuallyOpenedThisBatch": false
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-member-fill-revocation-before-fix.png",
+      "bytes": 28595,
+      "sha256": "8fbe4f4dec7ac8c42d4110a56d7f897a5be591975afcc6af33c9379a5942dfe9",
+      "dimensions": [
+        390,
+        844
+      ],
+      "visuallyOpenedThisBatch": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-member-fill-revocation-committed-unchanged.png",
+      "bytes": 58497,
+      "sha256": "cbc64240f4c311acabe9cda0ba0685e7c4f7e49e5c5c43d9e62be5612721a82a",
+      "dimensions": [
+        1280,
+        720
+      ],
+      "visuallyOpenedThisBatch": false
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-member-fill-revocation-retained.png",
+      "bytes": 29879,
+      "sha256": "c1d33e2807e35f8eb870bbf9993c2019bc61c4c36dd65c69db8e683259854803",
+      "dimensions": [
+        390,
+        844
+      ],
+      "visuallyOpenedThisBatch": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-member-fill-saved-desktop.png",
+      "bytes": 51042,
+      "sha256": "d216f977b479c392a9c2f1d8f463c57959fe87bf9ed85f46d4d35502d1d83e50",
+      "dimensions": [
+        1280,
+        720
+      ],
+      "visuallyOpenedThisBatch": false
+    }
+  ],
+  "protectedFiles": [
+    {
+      "path": ".openai/hosting.json",
+      "bytes": 31,
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947"
+    },
+    {
+      "path": "worker/index.js",
+      "bytes": 483,
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389"
+    },
+    {
+      "path": "scripts/prepare-sites-build.mjs",
+      "bytes": 910,
+      "sha256": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6"
+    },
+    {
+      "path": "tests/sites-worker.test.mjs",
+      "bytes": 2315,
+      "sha256": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf"
+    }
+  ],
+  "sitesArtifacts": [
+    {
+      "path": "dist/client/index.html",
+      "bytes": 471,
+      "sha256": "c20a230b9243f0d71614010ce84b662a1334b913387490403fc318582593ab8a"
+    },
+    {
+      "path": "dist/server/index.js",
+      "bytes": 483,
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389"
+    },
+    {
+      "path": "dist/.openai/hosting.json",
+      "bytes": 31,
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-11",
+  "officialUrl": "https://hc.jiandaoyun.com/doc/9017",
+  "section": "4.2",
+  "loadedPublicAssets": [
+    "https://g.jdycdn.com/static/app/pc/assets.25a363def4812d5a.js",
+    "https://g.jdycdn.com/static/app/pc/form-edit.0b01873acc5b8e6c.js"
+  ],
+  "cachedFile": "tmp/jdy-assets-color-source.js",
+  "sha256": "4ab8c4918e3aa012beab8207e0dffdd3ad3314f38eb9b4a2da146285137c554a",
+  "sourceRegexConstants": "T={MOBILE:\"^((\\\\(\\\\d{2,3}\\\\))|(\\\\d{3}\\\\-))?1\\\\d{10}$\",TEL:\"^(0[0-9]{2,3}\\\\-)?([2-9][0-9]{6,7})+(\\\\-[0-9]{1,4})?$\",ZIP:\"^\\\\d{6}$\",ID:\"^(1[1-9]|8[0-2]|[2-7]\\\\d)\\\\d{4}[1-9]\\\\d{3}(0[1-9]|1[0-2])(0[1-9]|[1-2][0-9]|3[0-1])\\\\d{3}(\\\\d|X)$\",INTER_MOBILE:\"^\\\\+?(\\\\d{1,4}-)?\\\\d{7,}$\",EMAIL:\"^([a-zA-Z0-9_\\\\.\\\\-])+\\\\@(([a-zA-Z0-9\\\\-])+\\\\.)+([a-zA-Z0-9]{2,4})+$\",SOCIAL_CREDIT_CODE:\"^[0-9A-HJ-NPQRTUWXY]{2}\\\\d{6}[0-9A-HJ-NPQRTUWXY]{10}$\",URL:\"(?:http(?:s)?:\\\\/\\\\/|www)[\\\\w.]+(?:[-\\\\w.,!|?=%:&/+#~@]*[-\\\\w|?=%:&/+#~@])+\",STRICT_URL:\"^https?:\\\\/\\\\/[-a-zA-Z0-9@:%._+~#=]{2,256}\\\\b([-a-zA-Z0-9@:%_+.~#?&\\\\/=]*)\",USERNAME:\"^[\\\\w\\\\.]{1,50}$\"}",
+  "catalogue": [
+    "none",
+    "mobile",
+    "tel",
+    "zip",
+    "id",
+    "email"
+  ],
+  "notes": [
+    "source text_format feature flag may restrict visible catalogue; not tested in this source account",
+    "source telephone expression permits repeated 7/8-digit groups; equivalent linear checker used",
+    "source identity regex checks component ranges; full calendar/checksum/authenticity not claimed",
+    "existing local email rule retained; public source email regex is narrower",
+    "no source form fields/records saved or added; original source page restored to data management"
+  ]
+}

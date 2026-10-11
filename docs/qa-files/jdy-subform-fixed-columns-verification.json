@@ -1,0 +1,278 @@
+{
+  "verifiedAt": "2026-10-10T19:50:48.948854+00:00",
+  "scope": "SBF12 desktop/mobile fixed columns and desktop textarea auto height; SBF10 fixed-prefix inheritance; partial parity, active goal",
+  "source": [
+    "https://hc.jiandaoyun.com/doc/9020",
+    "https://hc.jiandaoyun.com/doc/15941"
+  ],
+  "syntheticForm": {
+    "id": "form_1e4346221dee",
+    "title": "子表固定列与行高 · 对标验收",
+    "fieldCount": 9,
+    "designOnlyCopy": true,
+    "versions": [
+      {
+        "version": 1,
+        "publishedAtLocal": "2026-10-11 03:39:37",
+        "fixedColumns": {
+          "desktop": 2,
+          "mobile": 1
+        }
+      },
+      {
+        "version": 2,
+        "publishedAtLocal": "2026-10-11 03:40:39",
+        "fixedColumns": {
+          "desktop": 1,
+          "mobile": 0
+        }
+      }
+    ],
+    "recordCount": 1,
+    "record": {
+      "id": "entry_c00f97845b22",
+      "version": 1,
+      "rowCount": 2,
+      "items": [
+        "SYN-A-ONE",
+        "SYN-A-TWO"
+      ],
+      "readonlyQuantities": [
+        11,
+        22
+      ],
+      "textareaLines": 20,
+      "firstRowWarehouse": "SYN-FREEZE-RECORD-MOBILE",
+      "historyLocal": [
+        "2026-10-11 03:39:47 draft",
+        "2026-10-11 03:43:36 draft",
+        "2026-10-11 03:43:41 submitted",
+        "2026-10-11 03:44:12 edit"
+      ],
+      "mobileEditReloadVerified": true,
+      "oldVersionFixedSettingsRetained": true
+    },
+    "currentV2FillOnly": {
+      "desktopFixedFields": [
+        "商品"
+      ],
+      "mobileFixedFields": [],
+      "extraRecordSaved": false
+    },
+    "sourceRecordsWritten": false
+  },
+  "browserEvidence": {
+    "desktopViewport": [
+      1280,
+      720
+    ],
+    "mobileViewport": [
+      390,
+      844
+    ],
+    "desktopPreview": {
+      "scrollLeft": 587,
+      "fixedItemX": 320,
+      "fixedQuantityX": 420,
+      "quantityReadonly": true
+    },
+    "quickFill": {
+      "scrollLeft": 124,
+      "fixedItemX": 198,
+      "readonlyQuantityXBefore": 378,
+      "readonlyQuantityXAfter": 254,
+      "onlyOriginalWritablePrefixFixed": true
+    },
+    "mobileV1": {
+      "scrollLeft": 390,
+      "fixedItemX": 67,
+      "quantityXBefore": 167,
+      "quantityXAfter": -223,
+      "documentScrollWidth": 390
+    },
+    "textareaDesktop": {
+      "emptyMeasuredHeight": 34,
+      "twentyLineHeight": 180,
+      "scrollHeight": 412,
+      "overflowY": "auto"
+    },
+    "finalReadonlyRecord": {
+      "scrollLeft": 393,
+      "textareaLeft": 570,
+      "textareaWidth": 383,
+      "fixedItemX": 355,
+      "fixedQuantityX": 455
+    },
+    "consoleWarningsErrors": [],
+    "viewportReset": true,
+    "temporarySourceTabClosed": true,
+    "resultTabId": "209"
+  },
+  "checks": {
+    "newFrontendTests": 8,
+    "newBackendConfigurationTests": 2,
+    "focusedFrontend": {
+      "tests": 61,
+      "files": 5
+    },
+    "allFrontend": {
+      "tests": 1202,
+      "files": 124
+    },
+    "completeBuild": "passed",
+    "relatedBackendConfigurationTests": 3,
+    "sitesTests": 4,
+    "codeFormattingFiles": 13,
+    "compactPageSchemaStyleRetained": true
+  },
+  "acceptance": {
+    "verifiedGroups": 1,
+    "partialGroups": 50,
+    "unfinishedGroups": 2,
+    "unequalGroupsNotWorkCompletionPercentage": true,
+    "SBF10": "partial",
+    "SBF12": "partial",
+    "visualFinalResult": "blocked",
+    "goalStatus": "active"
+  },
+  "remaining": [
+    "Mobile vertical stack, summary and expansion",
+    "Exact source CSS/density, fixed-column maximum and auto-height maximum",
+    "Full field/source/member combinations and keyboard interaction",
+    "Native runtime and migration; parser/projection tests are not database coverage",
+    "All remaining R1–R8/F1–F10 obligations"
+  ],
+  "notRun": [
+    "Database tests",
+    "Full backend tests",
+    "Real authentication and physical phone",
+    "This batch member UI journey",
+    "This batch PDF/Excel file outputs"
+  ],
+  "codeFiles": [
+    "packages/contracts/src/form.ts",
+    "packages/contracts/src/form-layout.ts",
+    "packages/contracts/src/data-view.ts",
+    "frontend/src/domain/form.ts",
+    "frontend/src/domain/fieldValidation.ts",
+    "frontend/src/features/forms/components/FieldInspector.vue",
+    "frontend/src/features/forms/components/FormFields.vue",
+    "frontend/src/features/forms/components/FieldControl.vue",
+    "frontend/src/features/forms/components/SubformQuickFillDialog.vue",
+    "frontend/src/form-designer.css",
+    "backend/src/schema.ts",
+    "backend/src/page-schema.ts",
+    "frontend/tests/subform-fixed-columns.test.ts",
+    "backend/tests/subform-fixed-columns.test.ts"
+  ],
+  "changedCodeFiles": [
+    "packages/contracts/src/form.ts",
+    "packages/contracts/src/form-layout.ts",
+    "packages/contracts/src/data-view.ts",
+    "frontend/src/domain/form.ts",
+    "frontend/src/domain/fieldValidation.ts",
+    "frontend/src/features/forms/components/FieldInspector.vue",
+    "frontend/src/features/forms/components/FormFields.vue",
+    "frontend/src/features/forms/components/FieldControl.vue",
+    "frontend/src/features/forms/components/SubformQuickFillDialog.vue",
+    "frontend/src/form-designer.css",
+    "backend/src/schema.ts",
+    "backend/src/page-schema.ts",
+    "frontend/tests/subform-fixed-columns.test.ts",
+    "backend/tests/subform-fixed-columns.test.ts"
+  ],
+  "documentationFiles": [
+    "docs/jiandaoyun-form-designer-plan.md",
+    "docs/form-designer-acceptance.md",
+    "design-qa.md"
+  ],
+  "logs": [
+    "tmp/subform-freeze-focused-final.log",
+    "tmp/subform-freeze-all-frontend.log",
+    "tmp/subform-freeze-build-final.log",
+    "tmp/subform-freeze-backend.log",
+    "tmp/subform-freeze-sites.log",
+    "tmp/subform-freeze-format-check.log"
+  ],
+  "screenshots": [
+    "docs/screenshots/jdy-subform-freeze-config-comparison.jpg",
+    "docs/screenshots/jdy-subform-freeze-config-focus-comparison.jpg",
+    "docs/screenshots/jdy-subform-freeze-config.png",
+    "docs/screenshots/jdy-subform-freeze-display-comparison.jpg",
+    "docs/screenshots/jdy-subform-freeze-draft.png",
+    "docs/screenshots/jdy-subform-freeze-mobile-official.png",
+    "docs/screenshots/jdy-subform-freeze-mobile-record.png",
+    "docs/screenshots/jdy-subform-freeze-mobile.png",
+    "docs/screenshots/jdy-subform-freeze-official.gif",
+    "docs/screenshots/jdy-subform-freeze-official.png",
+    "docs/screenshots/jdy-subform-freeze-preview.png",
+    "docs/screenshots/jdy-subform-freeze-quick-fill.png",
+    "docs/screenshots/jdy-subform-freeze-record-final.png",
+    "docs/screenshots/jdy-subform-freeze-record-view.png",
+    "docs/screenshots/jdy-subform-freeze-v2-mobile-off.png"
+  ],
+  "comparison": {
+    "configFull": "docs/screenshots/jdy-subform-freeze-config-comparison.jpg",
+    "displayFull": "docs/screenshots/jdy-subform-freeze-display-comparison.jpg",
+    "configFocus": "docs/screenshots/jdy-subform-freeze-config-focus-comparison.jpg",
+    "allThreeOpened": true,
+    "sourceCSSViewportDPR": "unknown",
+    "sameState": "no; expanded source selector/one column and local closed selector/two columns; source fill and local readonly detail",
+    "normalization": "equal-width resized structure comparison, not a typography/density pass",
+    "localLimitsNotClaimedAsSourceLimits": {
+      "textareaMaxPx": 180,
+      "fixedColumnCountMax": 300
+    }
+  },
+  "protectedHashes": {
+    ".openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+    "worker/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "scripts/prepare-sites-build.mjs": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+    "tests/sites-worker.test.mjs": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf"
+  },
+  "artifactHashes": {
+    "dist/client/index.html": "4c53039ef17165eb04a395357bc636dbafd74b7edfa5f5a99b30293b2ae246d9",
+    "dist/server/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "dist/.openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947"
+  },
+  "fileHashes": {
+    "packages/contracts/src/form.ts": "edfc914a395e8ca868a5c8302576f87b360128076438612f6f4794f90609468a",
+    "packages/contracts/src/form-layout.ts": "33060a7f84d60644e37df17c63e878e65215ec72e2c31fff9bf004196475aad0",
+    "packages/contracts/src/data-view.ts": "a23dfeb5c25cce6496c21fb6516f944cb41a81053607b267e1f31dd9d091b3e7",
+    "frontend/src/domain/form.ts": "c993706c5f648ea02fae2accb34e50621146a8db47184da9940819b30b14fa32",
+    "frontend/src/domain/fieldValidation.ts": "9a6091e6a4c07dc6f836668c1a4c98ec0bf81eeeea6306c3dae201e4176a7fea",
+    "frontend/src/features/forms/components/FieldInspector.vue": "2971e36f606e196147d905bf1bbc697a1749232f0eafac0c7c277e429c2cebee",
+    "frontend/src/features/forms/components/FormFields.vue": "590727596ec05b2182943875fae1dedd5b312f9b1788c937fceb32cb4b3b6cec",
+    "frontend/src/features/forms/components/FieldControl.vue": "8fd02006f1009aca8e5941aec5ac8648f26f4f162a91cec1533e3f2f7b7119d1",
+    "frontend/src/features/forms/components/SubformQuickFillDialog.vue": "97cc5f7c6d92e5a0279e005eaf5faeef7933a4d24d98d578388968f5cc09c356",
+    "frontend/src/form-designer.css": "9ed53a20a28195749d7d0c88b99064f36e3dd3e1a04a87f8f43191962443cbf5",
+    "backend/src/schema.ts": "a19e63d1366c35b29ac7bede4e53726d5e76854d58ecb284c40db25b70b4f762",
+    "backend/src/page-schema.ts": "5691380bbb80a293125bae85006d7dd4520792f7296a2562be03c15c1b87d3ae",
+    "frontend/tests/subform-fixed-columns.test.ts": "06af295c45c43ddf9b6e154a51a6f3257640d785ea4394fa0f2df683470d73d5",
+    "backend/tests/subform-fixed-columns.test.ts": "6d601bf3a08482342f7ae5cfafb55c86871bf458af0b08864c592bf597be748f",
+    "docs/jiandaoyun-form-designer-plan.md": "df2a7b82edb87a10bce2059b9c2af22b6fd8431dce999d183efcb11159d9dcb3",
+    "docs/form-designer-acceptance.md": "4eca885970b35162bdfddc66bb2b15c0f8a19a48fcc55cdfe808f24ce6c00ade",
+    "design-qa.md": "74edc8b0b377b520ec51ece732ca58a944e2139f1485e44ab571f1bcb9cc88a1",
+    "tmp/subform-freeze-focused-final.log": "d412fa59a0988368a2107d4f9de61b8c8bc05649c61a5498e511ae51f9aeff79",
+    "tmp/subform-freeze-all-frontend.log": "5ab65a48d7ce99fd94fc852e2e3dee6f084b612fd8d8096866268faf3ab0f099",
+    "tmp/subform-freeze-build-final.log": "180e3f7cc53b31817772c3d426e005b470a52aa3708de7d02ba0707ac7b63970",
+    "tmp/subform-freeze-backend.log": "b456bfba39d16d241bef5c55224898026bd05af2f7b88e163e33449666080d50",
+    "tmp/subform-freeze-sites.log": "85e2fd798b428714fba1af5d9b89f88eddee637bfc3c760ad819f38cfeda292b",
+    "tmp/subform-freeze-format-check.log": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+    "docs/screenshots/jdy-subform-freeze-config-comparison.jpg": "8ce2f849dba7c6c3816c71bb4960051d4ca077eabe15e80e55600f6b403d6303",
+    "docs/screenshots/jdy-subform-freeze-config-focus-comparison.jpg": "586b8aab05d7f6cc6ee719b62e64ef3f894c0a2d751c211471aea4d05793ad40",
+    "docs/screenshots/jdy-subform-freeze-config.png": "3c8eb31e871bd16394a9ee67cf81e89d8585230359dfa25dba0180e5998ed7a5",
+    "docs/screenshots/jdy-subform-freeze-display-comparison.jpg": "21e9cf613e1060d95388d836ed74594b34301e4732428e0b50ec7b022254698a",
+    "docs/screenshots/jdy-subform-freeze-draft.png": "00730c2bfd742a858443559cce15c6aa84a0ebeb373384e01ea897d28378ea05",
+    "docs/screenshots/jdy-subform-freeze-mobile-official.png": "745a5372e4e8129fcae305db6d7d1d28ec983044ff0c4e423bd794e70623206c",
+    "docs/screenshots/jdy-subform-freeze-mobile-record.png": "3fca13e8078a25ca12f0e8c2ef0cc154b87edc971043d31160b492235da94e86",
+    "docs/screenshots/jdy-subform-freeze-mobile.png": "cb0d16dabeec19590701e5d236be31712cc4f49f667c595fedfe2da06712f01c",
+    "docs/screenshots/jdy-subform-freeze-official.gif": "bb51db99620b0bc69085124a4c2e95970b1807e60476d3a5d9a118525bcaa0cd",
+    "docs/screenshots/jdy-subform-freeze-official.png": "f0f43a3125fd26c9dd3cbc6c48b3f70b89e258d8ba092266d8b2475c12d6a0e7",
+    "docs/screenshots/jdy-subform-freeze-preview.png": "4b919a54e0e972837ac041ef8bd3a01c02257b49372d66d473fb9f13ed0c05bc",
+    "docs/screenshots/jdy-subform-freeze-quick-fill.png": "443e641d1b2b1c72c35e9713a8d4230221d7bf01401cd178aa79d1716c8979de",
+    "docs/screenshots/jdy-subform-freeze-record-final.png": "5d5fe213bfca298c01c9598c5d4daa354afd32b302c80ff161d5b03d8ce0d9bb",
+    "docs/screenshots/jdy-subform-freeze-record-view.png": "392a68bc3336beb996fb935d75baec0198d61ec1c07de2be67cf3d58f3f717c9",
+    "docs/screenshots/jdy-subform-freeze-v2-mobile-off.png": "09f4bcf13689624ba2fb49370a79fd7b1564383c57dd7d4d5aac8bbbb1df73d5"
+  }
+}

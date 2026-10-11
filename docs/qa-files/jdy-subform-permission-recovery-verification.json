@@ -1,0 +1,215 @@
+{
+  "date": "2026-10-11",
+  "timezone": "Asia/Shanghai",
+  "scope": "SBF09 linked generated rows and permission-scoped runtime draft recovery",
+  "goalStatus": "active",
+  "fullVisualQA": "blocked",
+  "acceptanceGroups": {
+    "verified": 1,
+    "partial": 50,
+    "unfinished": 2,
+    "total": 53,
+    "workPercentage": null
+  },
+  "implementation": [
+    {
+      "path": "frontend/src/domain/editorDraftAdapters.ts",
+      "sha256": "1fe9eb7cbf0ecd2c46fc7bb36c7531d82eed24da8fb23ea3fee1770e2f576819"
+    },
+    {
+      "path": "frontend/src/features/forms/components/FormRuntime.vue",
+      "sha256": "a3229bac7176d6a6a75e71b4162e976f6210bcde1bb0ad7d2334c674d0e3eb00"
+    },
+    {
+      "path": "frontend/tests/subform-permission-recovery.test.ts",
+      "sha256": "117d50e75fa00b38eb734e9dd7396fef99b5351c42783c3fb1c69702523ab826"
+    }
+  ],
+  "documents": [
+    {
+      "path": "docs/jiandaoyun-form-designer-plan.md",
+      "sha256": "b6a7cb5cedcd037271c4d15b955a7d10fcedd9e067cb3b25e7917ac79e335e8c"
+    },
+    {
+      "path": "docs/form-designer-acceptance.md",
+      "sha256": "09c1d994cac4c6d4591f75a49b99844cb9ee3c41c169047be3ccab593907f22d"
+    },
+    {
+      "path": "docs/implementation-plan.md",
+      "sha256": "029ada7bcc81b339f0c51a0a81140c00e5170015c7e07bdb3439709b60252bfa"
+    },
+    {
+      "path": "docs/frontend-closure.md",
+      "sha256": "87172fbcb6678f7a70d6877687810cd51db8eb22e2020804225cfad29330e50f"
+    },
+    {
+      "path": "docs/development-plan.md",
+      "sha256": "32acf6af696028eda3672c90badef3f9f67782ca599f8d0e2be2d32fcea88c20"
+    },
+    {
+      "path": "design-qa.md",
+      "sha256": "70a274189649216314dd0fe79dc91e4b25a64b04f472529b66d27b2179327cea"
+    }
+  ],
+  "regression": {
+    "originalCases": 4,
+    "originalFailures": 3,
+    "newTotal": 8,
+    "beforeLog": "tmp/subform-permission-recovery-red.log",
+    "afterLog": "tmp/subform-permission-recovery-focused.log"
+  },
+  "actualLocalJourney": {
+    "source": {
+      "formId": "form_cd687dbc7def",
+      "fields": 4,
+      "version": 1,
+      "records": 2,
+      "AEntryId": "entry_8b6d412e89e7",
+      "BEntryId": "entry_7642a807dd1d",
+      "BModifiedAt": "2026-10-11 01:48:34",
+      "BQuantityChange": [
+        33,
+        44
+      ]
+    },
+    "target": {
+      "formId": "form_187be11426aa",
+      "fields": 4,
+      "version": 2,
+      "records": 2,
+      "cacheDraftEnabledInVersion": 2,
+      "fillingPermissions": {
+        "add": true,
+        "insert": true,
+        "editExisting": false,
+        "deleteExisting": false
+      },
+      "quantityEditable": false,
+      "newRowQuantityDefault": 7
+    },
+    "desktop": {
+      "recordId": "entry_7f9d3b39aa67",
+      "draftAt": "2026-10-11 01:48:58",
+      "resavedAt": "2026-10-11 01:50:22",
+      "submittedAt": "2026-10-11 01:50:27",
+      "sameId": true,
+      "sourceQuantityAfterRestore": 44,
+      "manualQuantity": 7,
+      "manualRowRemainsEditable": true,
+      "laterMobileEditedProduct": "SYN-MANUAL-MOBILE"
+    },
+    "mobile": {
+      "cssViewport": [
+        390,
+        844
+      ],
+      "pageScrollWidth": 390,
+      "coldStartRecovery": true,
+      "recordId": "entry_e8f29672dcc6",
+      "draftAndSubmittedAt": "2026-10-11 01:55:18",
+      "sameId": true,
+      "sourceProduct": "SYN-B-ONE",
+      "manualProduct": "SYN-MOBILE-FILL",
+      "quantities": [
+        44,
+        7
+      ],
+      "physicalDevice": false,
+      "unappliedInitialViewportExcluded": true
+    },
+    "adminRecordEditingCache": "Existing explicit cacheDraft=false retained; attempted refresh remained on protected editor, not counted as cache recovery",
+    "finalRecordCount": 2,
+    "finalDesktopViewport": [
+      1280,
+      720
+    ],
+    "temporarySourceTabClosed": true,
+    "freshWarningsAndErrors": []
+  },
+  "verified": {
+    "focusedTests": 142,
+    "focusedFiles": 9,
+    "allFrontendTests": 1164,
+    "allFrontendFiles": 121,
+    "fullBuild": true,
+    "sitesTests": 4,
+    "formattedCodeFiles": 3,
+    "backendRuntimeRetested": false
+  },
+  "screenshots": [
+    {
+      "path": "docs/screenshots/jdy-subform-permission-recovery-restored.jpg",
+      "size": [
+        1280,
+        720
+      ],
+      "sha256": "891611438b26c08198a72bbd52e8b42f6e866da1720d7e749f5d5d606ff53da0",
+      "visuallyInspected": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-permission-recovery-source-final.jpg",
+      "size": [
+        390,
+        844
+      ],
+      "sha256": "650cbde7c926b35161bde974f6e93c98adfbed5b8e16cc90b37332b6ef91697e",
+      "visuallyInspected": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-permission-recovery-mobile-edit.jpg",
+      "size": [
+        390,
+        844
+      ],
+      "sha256": "108aaed1ad1ba35360dafdd74f9d4138b151d075bb8f389012dc10965c4a29a0",
+      "visuallyInspected": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-permission-recovery-mobile-restored.jpg",
+      "size": [
+        390,
+        844
+      ],
+      "sha256": "103d9db6050fddadde3214c6b80df5b117000c25c9d294f478301401bc190e2f",
+      "visuallyInspected": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-permission-recovery-mobile-record.jpg",
+      "size": [
+        390,
+        844
+      ],
+      "sha256": "317c9be96cb1a7294c0fa14fcacd93c52e50bdd63878b92a450cc273af441916",
+      "visuallyInspected": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-permission-recovery-record-final.jpg",
+      "size": [
+        1280,
+        720
+      ],
+      "sha256": "2337f63c7a8700310d9235e4ee6da34bde8cf4d72dc82f2238aead97028938c4",
+      "visuallyInspected": true
+    }
+  ],
+  "sourceAccountModified": false,
+  "sourceVisualComparisonNew": false,
+  "protected": {
+    ".openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+    "worker/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "scripts/prepare-sites-build.mjs": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+    "tests/sites-worker.test.mjs": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf"
+  },
+  "packagedArtifacts": {
+    "dist/client/index.html": "b77c004e0415d039a722827769435bb97f65ab8668f928779ef310e18b7d3f76",
+    "dist/server/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "dist/.openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947"
+  },
+  "unfinished": [
+    "Formula-generated and merged member-group recovery combinations",
+    "Source restriction between whole-subform linking and child defaults",
+    "SBF10 batch-delete, expanded view and quick filling",
+    "R7 native restricted execution and original entry consolidation",
+    "Complete source visual and fixed R1–R8/F1–F10 acceptance"
+  ]
+}

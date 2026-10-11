@@ -1,0 +1,121 @@
+{
+  "verifiedAt": "2026-10-10T23:18:12.255597+00:00",
+  "scope": "FD25 O6 common OCR value restrictions",
+  "goalStatus": "active",
+  "acceptanceGroups": {
+    "verified": 2,
+    "partial": 51,
+    "unfinished": 0,
+    "completionPercentage": null
+  },
+  "source": "https://hc.jiandaoyun.com/doc/12154",
+  "sourceFreeze": {
+    "frozenAt": "2026-10-10T23:14:45.458920+00:00",
+    "changedSourceCount": 16,
+    "files": {
+      "frontend/src/domain/buttons.ts": "f6167459602ead6b0edaa7a909390c0d6f52b3002ede6c0015d3ba55a6c94f4d",
+      "frontend/src/domain/extensions.ts": "da2604d2f26ba01b95f52981b2e0d5c6bb35c7c4b5073c53427bf9ea26f89632",
+      "frontend/src/domain/fieldConfig.ts": "5c5b4fd8f849cec21e3ab1cf4916aa532a48c6a07c42a7d38893315fef0e1289",
+      "frontend/src/domain/fieldValidation.ts": "37efff8cb616c86cf200a1e5ce68dd7a8a245653dc2679543a9f598f784a7449",
+      "frontend/src/domain/form.ts": "141fe58c562af715afb5d487b07f1b9f71f7b29b4f27810f4035515f552d74ea",
+      "frontend/src/domain/frontendEventValues.ts": "8bde0d4a50c7bbc986872099748418a8b77d07c208af6084f8dec57a3e62c453",
+      "frontend/src/domain/frontendSelections.ts": "7829640bf263c62aeb9d6b72dd00f52434ae08bca08917857185c79531073c5f",
+      "frontend/src/domain/presentation.ts": "1396bfd1bed8f041edcf57238a63c84839c7ad02dd882381ef86e6edbac1032d",
+      "frontend/src/domain/relations.ts": "86751d1d7213b4d1587ae7aca7ea20296ee3b6529ff061dd69f06d321480a200",
+      "frontend/src/domain/reminders.ts": "5748bca07e216644f40bf46b310210480d53c94b0098682c48272e9739e5a1b2",
+      "frontend/src/features/forms/MemberPortalView.vue": "e21780ccb61521a6e00b418755644f2ab42a29227bc91b2db7e47abe6257fc05",
+      "frontend/src/features/forms/components/DataFilterEditor.vue": "4af9e03ba0edeb79ba5c31054c3e625288b9baa9a90ded4928e292243e675781",
+      "frontend/src/features/forms/components/RelationControl.vue": "e2842fc0a88cd4b5fedcda0ce9605e07a93ab2a247da3b6095034824fcf9b6e4",
+      "frontend/src/features/forms/components/RelationFieldInspector.vue": "6f254d042a69a8fcd127317952c9ba9041fd2f6237cf5b06eda7a5fe1af0dc71",
+      "packages/contracts/src/field-runtime.ts": "53a3d1c4b966ac203bfd084aff3027711e5e6889edb94932b097d720cdc07a8d",
+      "frontend/tests/ocr-field-usage.test.ts": "95eb35a7470543b49c02042ed14c2a35fd93f59a2fcd0ed98d5225d5f7692892",
+      ".openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+      "worker/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+      "scripts/prepare-sites-build.mjs": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+      "tests/sites-worker.test.mjs": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf"
+    }
+  },
+  "sourceStillMatchesFreeze": true,
+  "verification": {
+    "newTests": 12,
+    "focused": {
+      "tests": 151,
+      "files": 11,
+      "passed": true
+    },
+    "frontend": {
+      "tests": 1286,
+      "files": 131,
+      "passed": true
+    },
+    "build": "contracts, Vue types, frontend, Sites assembly, backend types passed",
+    "sites": {
+      "tests": 4,
+      "passed": true
+    },
+    "formattedFrontendFiles": 15,
+    "backendDatabaseTestsRun": false
+  },
+  "browser": {
+    "tabId": "209",
+    "url": "http://127.0.0.1:5198/#/apps/oa/forms/form_e9320bccbb48/data",
+    "viewport": {
+      "width": 1280,
+      "height": 720,
+      "dpr": 1,
+      "pageWidth": 1280
+    },
+    "formId": "form_e9320bccbb48",
+    "formVersion": 1,
+    "fieldCount": 5,
+    "entryId": "entry_b9b5db0504ec",
+    "entryTime": "2026-10-11 07:14:35 Asia/Shanghai",
+    "entriesAdded": 1,
+    "valuesOrigin": "manual synthetic input, no OCR request",
+    "visibleStoredFields": [
+      "发票原件",
+      "发票号码",
+      "发票日期",
+      "合计金额"
+    ],
+    "manualInputs": {
+      "发票号码": "SYN-OCR-USAGE-001",
+      "发票日期": "2026-10-11",
+      "合计金额": 0
+    },
+    "coldReloadVerified": true,
+    "printPreviewVerified": true,
+    "pdfDownloaded": false,
+    "imagesSent": false,
+    "consoleWarnError": [],
+    "newMobileEvidence": false
+  },
+  "remaining": [
+    "real OCR service",
+    "actual invoice detail rows and main multi-number semantics",
+    "complete field permissions and output combinations",
+    "precise visual parity and complete mobile keyboard gate",
+    "existing entry integration and final R8 journey"
+  ],
+  "artifacts": {
+    "tmp/ocr-usage-red.log": "d6ecb36d273e4f602fa97bc7808e466c401754c9fccb116751b35359e22c545e",
+    "tmp/ocr-usage-focused.log": "bdd2b64560d0d51d167c8e45d71ab76dbff6ee4a50e581b80c7f8d3f748128c6",
+    "tmp/ocr-usage-frontend.log": "4b2a322bc64892f99f28801a0ac115b3650ad2f1f16a566b1262092af7a0c718",
+    "tmp/ocr-usage-focused-final.log": "11854fdc7c7c2b2282c1948766656dcc1b032d62bfe35290bd24af3423c9f115",
+    "tmp/ocr-usage-frontend-final.log": "0d8b0f926ef864e67e63c33cf4cf3c4a778a4ed6276aad96bca38209486a991a",
+    "tmp/ocr-usage-build-final.log": "0939c3168496b5b86c214b219a1280b2832547bac06a58a7ff3969aa2d730f11",
+    "tmp/ocr-usage-sites.log": "200f33ea529a165953eb8326f2551ffc8ea0ab8da8c4c967c62a946fc0a22dab",
+    "tmp/ocr-usage-format-check.log": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+    "docs/qa-files/jdy-ocr-usage-filters-dom.txt": "b05735ca1d78d0c7c55f9848894e841bee88dc88059b343f5cefb323663c996e",
+    "docs/qa-files/jdy-ocr-usage-final-dom.txt": "ec55a1f5c4f1781b2b2cd20e3c2ef1ede45019d52c61680c376db13fd1d8f825",
+    "docs/screenshots/jdy-ocr-usage-records.png": "e7c24782b9148f0dc0358c063abfb59e6535bccd2584b4ef9509cabff79081d4",
+    "docs/screenshots/jdy-ocr-usage-filters.png": "93c807307ef939593e850a53d0125d2b9d5b8fe02fc3d18f7c42c3503dd02cb8",
+    "docs/screenshots/jdy-ocr-usage-fill.png": "cba9f989f068b245a63e618e54db42e56e2f191689d0d591d007a3df9d3d7b97",
+    "docs/screenshots/jdy-ocr-usage-records-final.png": "d4899b931b6f097a52f38a22ecfa39e1f7192a2dab4412ecafc6678fb553d529",
+    "docs/screenshots/jdy-ocr-usage-detail.png": "34da4c31386b31dc97f10be510db30d8b1fa9e64359bcedc0d8fa12289364820",
+    "docs/screenshots/jdy-ocr-usage-print.png": "e5a2fd22b40063afbc28a9569887ed40625a2d52833b97894200a306df624a12",
+    "dist/client/index.html": "186a266a1bc7e0f578ad318e81519f80acb4c74cf36b712b5b7f6decef153fd6",
+    "dist/server/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "dist/.openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947"
+  }
+}

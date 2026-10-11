@@ -1,0 +1,343 @@
+{
+  "date": "2026-10-10",
+  "scope": "多标签页编辑行为TAB06–TAB08、TAB10–TAB12",
+  "overall_goal": "active",
+  "overall_1_to_1": "not_accepted",
+  "progress": {
+    "form_designer_basic_parity_estimate": "约70%，工程粗估，非条目验收率",
+    "whole_platform_percentage": null,
+    "planning": "范围／八工作包已定；全部逐属性验收、工时与剩余工期未核定"
+  },
+  "tests": {
+    "added": 17,
+    "frontend": {
+      "passed": 1025,
+      "files": 105,
+      "log": "tmp/tab-edit-all.log"
+    },
+    "focused": {
+      "passed": 47,
+      "files": 4,
+      "log": "tmp/tab-edit-focused.log"
+    },
+    "sites": {
+      "passed": 4,
+      "log": "tmp/tab-edit-sites.log"
+    },
+    "format": {
+      "checked_files": 12,
+      "log": "tmp/tab-edit-format-check.log"
+    },
+    "build": {
+      "contracts": true,
+      "frontend_types": true,
+      "frontend": true,
+      "backend_types": true,
+      "log": "tmp/tab-edit-build.log"
+    },
+    "backend_database_tests": "not_rerun"
+  },
+  "code_hashes": {
+    "frontend/src/domain/form.ts": "e865b6ac854874375e87cdcb5ded8ccd779c28974c8393417440432f15d9765b",
+    "frontend/src/domain/formTabs.ts": "961f45bf42976b389513e6f5b0de3b89e3f627c7f200f169f1e768aa98598f8c",
+    "frontend/src/domain/lookup.ts": "9db7a2c9af497a5a68b8a081e0fb6df5239e6aba8d29c9eeb165079af7675a09",
+    "frontend/src/features/forms/useFormDesigner.ts": "d3537b0d6cd3e16ddd5997f9effebf543560c8de836a8e02a9c3e0a3d51442b1",
+    "frontend/src/features/forms/components/TabFieldInspector.vue": "7e4a71f85ed91f76cd6ba938a986ff2e0e0ba22a170b6f80fd30a2ae261ceb84",
+    "frontend/src/features/forms/components/FieldInspector.vue": "123a284a06af7b36fd188c3830d080c860ceecbfa5387e8a3ba1ff72c0feebf7",
+    "frontend/src/features/forms/components/FieldCanvas.vue": "9f1706ff5a29bb40fa504cfb6c22b39894012527df0a219aef3fae81ba711b3d",
+    "frontend/src/features/forms/FormDesignerView.vue": "1d84f3c6e52b5d486ea8f3601d4d4f1d5aac2959c5be5b2467b005853669a019",
+    "frontend/src/features/forms/FormSectionView.vue": "505771aba10ea3f97de51fc02bd95e41b1df54d20798a0de5d08d128f67247cc",
+    "frontend/src/features/workspace/FormListView.vue": "2e79ffe102a8dafa1c7e20ccd11879f9ff183bbcaff5cfb438ab2a0b56ea1cc0",
+    "frontend/src/form-designer.css": "3288026899f62ca4ea54545c415466efe86673e8eac2195e48dc0dc5297b6ea0",
+    "frontend/tests/form-tab-editing.test.ts": "5ce8aa0856e9c50b7ee26b7306758bb95c7e610f970d77f806708c8bc464aae2"
+  },
+  "protected": {
+    ".openai/hosting.json": {
+      "before": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+      "after": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+      "unchanged": true
+    },
+    "worker/index.js": {
+      "before": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+      "after": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+      "unchanged": true
+    },
+    "scripts/prepare-sites-build.mjs": {
+      "before": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+      "after": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+      "unchanged": true
+    },
+    "tests/sites-worker.test.mjs": {
+      "before": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf",
+      "after": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf",
+      "unchanged": true
+    }
+  },
+  "sites_outputs": {
+    "dist/client/index.html": true,
+    "dist/server/index.js": true,
+    "dist/.openai/hosting.json": true
+  },
+  "added_test_names": [
+    "copies a complete tab with fresh field identities, internal formulas and visibility rules while retaining external references",
+    "remaps organization, date, source filters and mapping targets across copied siblings",
+    "copies subform columns together, omits serial fields and leaves existing records and published snapshots unchanged",
+    "removes only the tab and returns its fields in their original order without changing identities, rules or values",
+    "reorders persisted tabs without rewriting field order, identity or data",
+    "enforces 2–50 on remove, add and copy without partial changes, including stale confirmations",
+    "adds an empty tab at the end and can copy an empty tab at the field limit",
+    "counts tab children but not tab containers, and rejects a copy beyond 300 atomically",
+    "loads old single-tab and nested layouts without silently changing them; copying cannot create another nested tabs field",
+    "keeps one main tabs field across add, duplicate, drop and restore; ordinary fields may still be added inside it",
+    "allows 300 real fields plus one tabs container consistently on add and trash restore",
+    "moves a field into a tab with more than 150 children instead of silently ignoring the drop",
+    "cancels deletion using Escape, outside click and Cancel without changing the schema",
+    "confirms deletion in one undoable change and restores the exact fields, tabs and rules on undo/redo",
+    "selects the copied tab on the canvas and puts the next dragged/click-added field in that tab",
+    "supports keyboard reorder with the same saved and runtime order, without treating rename keystrokes as drag commands",
+    "disables both add/copy at 50 and deletion at 2, while allowing copy of a populated tab"
+  ],
+  "ui_fixture": {
+    "form_id": "form_dd3025c0a366",
+    "final_version": "V4",
+    "final_tabs": 2,
+    "real_fields": 9,
+    "records": {
+      "entry_9b8b4293e82d": {
+        "version": "V1",
+        "original_long_tab_and_values": "preserved"
+      },
+      "entry_110f18747394": {
+        "version": "V3",
+        "same_draft_id_after_V4_publish": true,
+        "final_copy_amount": 12,
+        "final_copy_total": 24,
+        "original_amount": 3,
+        "original_total": 6
+      },
+      "entry_6b4228da3023": {
+        "version": "V4",
+        "copy_amount": 14,
+        "copy_total": 28,
+        "body_amount": 9,
+        "body_total": 18
+      }
+    },
+    "final_record_count": 3,
+    "temporary_visual_copy": "undone, no V5",
+    "native_browser_verified": [
+      "copy and formulas",
+      "remove and undo",
+      "drag order",
+      "keyboard order and focus",
+      "rename/save/reload",
+      "Escape/cancel",
+      "minimum two",
+      "version-pinned draft/record edit"
+    ],
+    "automated_boundary_only": [
+      "50 tabs",
+      "300 real fields plus container",
+      "more than 150 children"
+    ],
+    "mobile_viewport": [
+      390,
+      844
+    ],
+    "mobile_scroll_width": 390,
+    "viewport_override": "restored",
+    "console_errors_and_warnings": [],
+    "source_account": "read_only"
+  },
+  "visual": {
+    "source_DPR": "unknown",
+    "same_state_full_pixel_acceptance": false,
+    "viewed_comparisons": [
+      "copy-comparison-full",
+      "delete-comparison-full",
+      "copy-comparison-focus",
+      "delete-comparison-focus"
+    ],
+    "raw_comparison_files_no_scaling": true,
+    "viewer_full_image_preview_resized": true,
+    "final_result": "blocked"
+  },
+  "remaining": [
+    "TAB09 five styles and colors",
+    "complete field/attribute source checks",
+    "final restricted-member combinations",
+    "same-state visual and physical mobile checks",
+    "R1–R8 remaining obligations",
+    "existing backend integration gaps"
+  ],
+  "screenshots": {
+    "docs/screenshots/jdy-tab-edit-copy-comparison-focus.png": {
+      "sha256": "5fbab07f7bb5438588bb3d4aec4e156b0cabdebbd02007b5a64488af55323fa0",
+      "size": [
+        730,
+        425
+      ],
+      "format": "PNG"
+    },
+    "docs/screenshots/jdy-tab-edit-copy-comparison-full.png": {
+      "sha256": "3bbb64d54450002c6b7bf94345d89a7c682c6fd321807aa3670084dfe2eace30",
+      "size": [
+        3248,
+        1346
+      ],
+      "format": "PNG"
+    },
+    "docs/screenshots/jdy-tab-edit-copy-final-live.png": {
+      "sha256": "81e754d04e69df7c7b873cf813e4f534960ee2485e27508114d8024a53043817",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG"
+    },
+    "docs/screenshots/jdy-tab-edit-copy-formula-live.png": {
+      "sha256": "98508d32df06884b60a65b7cfc2f384d8759a5d9d1695e7369966d327ee064b7",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG"
+    },
+    "docs/screenshots/jdy-tab-edit-copy-live.png": {
+      "sha256": "bbd68b81f8b628f4d3c59abc83a2e6b30a0c8a5214449f5001de997f1d07de48",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG"
+    },
+    "docs/screenshots/jdy-tab-edit-copy-reference.png": {
+      "sha256": "35ae4dafa065bb9f389c065df20606f11db545851321a43c7114f882635410b1",
+      "size": [
+        1968,
+        1346
+      ],
+      "format": "PNG"
+    },
+    "docs/screenshots/jdy-tab-edit-delete-comparison-focus.png": {
+      "sha256": "83dc91bb40430548dccea0f605cccc3441715677a8a014c4ee6568b14a5a227e",
+      "size": [
+        835,
+        460
+      ],
+      "format": "PNG"
+    },
+    "docs/screenshots/jdy-tab-edit-delete-comparison-full.png": {
+      "sha256": "9a876d03f52d73b9620c76d250e8a03452b7d5298b7befe80d5c9e7350cb7f72",
+      "size": [
+        3247,
+        1341
+      ],
+      "format": "PNG"
+    },
+    "docs/screenshots/jdy-tab-edit-delete-confirm-final-live.png": {
+      "sha256": "8fdaa1dd2e3cf74b7c6cc908e5f2582b8e06a7983c111247318a30e4e36aba76",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG"
+    },
+    "docs/screenshots/jdy-tab-edit-delete-confirm-live.png": {
+      "sha256": "11ec0d28f9293e08a35d6b51568a3b37bf86622f4d348a0d1a79054f558b77b6",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG"
+    },
+    "docs/screenshots/jdy-tab-edit-delete-reference.png": {
+      "sha256": "a8d5813888c83a2c2a6a309aec19e6fd57449e90f707fb2183fdc3c21d105ca2",
+      "size": [
+        1967,
+        1341
+      ],
+      "format": "PNG"
+    },
+    "docs/screenshots/jdy-tab-edit-fields-returned-live.png": {
+      "sha256": "3598123d5b888e0efaafa3bb3cf1d1f0613b66a5994c6f10e319a99ec5f067a7",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG"
+    },
+    "docs/screenshots/jdy-tab-edit-mobile-draft-live.png": {
+      "sha256": "39643181e67a03c06d3667adcac9de8133766ee3a1311e25d316ccf1966a9e9f",
+      "size": [
+        390,
+        844
+      ],
+      "format": "JPEG"
+    },
+    "docs/screenshots/jdy-tab-edit-mobile-submitted-live.png": {
+      "sha256": "11e41f1a7a6a421e2e98b13ed0d14f0e3a997c9182cf675aeae318ca1e5146e7",
+      "size": [
+        390,
+        844
+      ],
+      "format": "JPEG"
+    },
+    "docs/screenshots/jdy-tab-edit-records-live.png": {
+      "sha256": "88f8cc0c9c4aeea69d0a8be8f3c428cece54e823ccb7fe1beefa416a3a213cb4",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG"
+    },
+    "docs/screenshots/jdy-tab-edit-saved-live.png": {
+      "sha256": "e6109ac9e4533fe198a9b6c8bd0d8534f32efda66a1c194bf067b760f7eb73a7",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG"
+    },
+    "docs/screenshots/jdy-tab-edit-sort-reference.gif": {
+      "sha256": "f59784d79ede3313868dac7d055b3d534654eeeb7756979bb4a4bb9f5f3f46a6",
+      "size": [
+        1956,
+        1331
+      ],
+      "format": "GIF"
+    },
+    "docs/screenshots/jdy-tab-edit-two-tabs-live.png": {
+      "sha256": "44d7eb952f7ba368fd6b490b3343236d5094a5b316dc5aa47ad13b5d95380b75",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG"
+    },
+    "docs/screenshots/jdy-tab-edit-v1-history-live.png": {
+      "sha256": "7ba79dc2eee15611658a4b81a4e9406b532b338ec34a8d644d67e8f6059f8ba8",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG"
+    },
+    "docs/screenshots/jdy-tab-edit-v3-record-live.png": {
+      "sha256": "f67ef8c93cfebd1f399c6940d499b87240ab87c14ab7ee82d9ead2c2db776761",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG"
+    },
+    "docs/screenshots/jdy-tab-edit-v4-main-fields-live.png": {
+      "sha256": "84847b417f6fa50a3fbab03a76f2f87001b333207e2cc0ef7080cc80ddd4c87d",
+      "size": [
+        1280,
+        720
+      ],
+      "format": "JPEG"
+    }
+  }
+}

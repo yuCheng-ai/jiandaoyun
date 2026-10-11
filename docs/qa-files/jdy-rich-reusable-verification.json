@@ -1,0 +1,109 @@
+{
+  "date": "2026-10-11",
+  "scope": "FD28 reusable rich-text component and bounded formatting/image improvements; retain existing editor and HTML. No workflow changes or backend runtime migration.",
+  "source": {
+    "url": "https://hc.jiandaoyun.com/doc/23030",
+    "verified": "Official text: rich-field toolbar, 5 MB single image, 10 images, text-only summaries/exports.",
+    "visualLimit": "Official embedded images failed to load (403/timeout). Product visual parity not established."
+  },
+  "architecture": {
+    "core": "frontend/src/components/rich-text/RichTextEditor.vue",
+    "formAdapter": "frontend/src/features/forms/components/RichTextEditor.vue",
+    "contract": "frontend/src/components/rich-text/types.ts",
+    "documentation": "frontend/src/components/rich-text/README.md",
+    "verified": [
+      "One editing implementation; form wrapper only selects policy and local file storage.",
+      "Core has no feature, repository, Pinia, route or FormField imports.",
+      "Independent tests mount two editors without Pinia/router/indexedDB; input and dialog IDs stay independent.",
+      "Upload and optional blob resolution supplied through an adapter; failed uploads can retry with selected files.",
+      "Focused local input echoes retain DOM; explicit external replacements reset the editor.",
+      "Pending upload cannot write after content replacement, readonly or unmount; late blob reads allocate no URLs after unmount.",
+      "Body images store existing file-repository references; blob URLs are omitted from saved HTML and released.",
+      "Description still uses compact tools and inline images with original 1 MB boundary.",
+      "Colors and their CSS moved to common components; old feature implementations removed."
+    ]
+  },
+  "behavior": [
+    "Headings, lists, strike, background colors, indent/outdent, clear formatting, undo/redo.",
+    "Image presets retained; alignment, selected-image deletion and enlarged viewing added.",
+    "Rich images in readonly content can be viewed without editing tools.",
+    "Existing inline images and local file IDs remain readable; removing an image does not purge shared stored files."
+  ],
+  "browser": {
+    "form": "form_59481c583f54",
+    "version": 1,
+    "entry": "entry_07ba083a0ee5",
+    "imageFile": "file_8af33ee8-ed3f-4519-9df4-f14dbf82ed35",
+    "syntheticImage": "docs/qa-files/SYN-RICH-LARGE.png",
+    "imageBytes": 1556458,
+    "verified": [
+      "Saved 1.48 MiB image to a native draft, reloaded and submitted the same entry ID.",
+      "Heading, two ordered items, strikethrough, highlight and indent persisted.",
+      "Centered image, removed it, then native Undo restored image and alignment while surrounding text remained.",
+      "Edited same record; cold refresh retains stable image ID, 25% width, centering and 720px natural image width.",
+      "Readonly detail loads image and opens image viewer; Escape closes viewer and retains detail.",
+      "390x844 full toolbar wraps; image menu rect left62/right382/bottom700 is inside viewport.",
+      "Escape closes image menu alone and keeps edit dialog open."
+    ],
+    "console": "Transient Vite reload errors occurred during file moves at 14:26. Subsequent successful cold reload and UI operation after 14:33 had no newer warning/error in captured logs.",
+    "screenshots": {
+      "desktop": {
+        "path": "docs/screenshots/jdy-rich-reusable-desktop.png",
+        "width": 1280,
+        "height": 720
+      },
+      "mobile": {
+        "path": "docs/screenshots/jdy-rich-reusable-mobile.png",
+        "width": 390,
+        "height": 844
+      }
+    }
+  },
+  "checks": {
+    "targeted": {
+      "tests": 58,
+      "files": 4,
+      "log": "tmp/rich-reusable-targeted.log"
+    },
+    "frontend": {
+      "tests": 1461,
+      "files": 147,
+      "log": "tmp/rich-reusable-frontend.log",
+      "result": "passed"
+    },
+    "build": {
+      "log": "tmp/rich-reusable-build.log",
+      "existingWarning": "Vite large chunks",
+      "result": "passed",
+      "artifacts": "dist/client/index.html, dist/server/index.js, dist/.openai/hosting.json present"
+    },
+    "sites": {
+      "tests": 4,
+      "log": "tmp/rich-reusable-sites.log",
+      "result": "passed"
+    },
+    "protectedFiles": "Unchanged against application-home baseline",
+    "backend": "No runtime changes. Build includes TypeScript compilation; runtime tests not rerun."
+  },
+  "limits": [
+    "FD28 remains partial: custom/data-link defaults, 30k HTML and per-form rich-field-count constraints, drag resizing, full permission combinations and exact visual reference.",
+    "Full rich PDF image output and complete server-backed rich-text storage are not verified by this batch.",
+    "Storage adapters are an interface, not evidence of a real external upload integration.",
+    "Cross-browser native editing behavior outside the current embedded Chromium browser is not established."
+  ],
+  "files": {
+    "frontend/src/components/rich-text/RichTextEditor.vue": "22f36f2352747848de54be1304a1169b9fe469d559fb3b853b2ba5d032656f84",
+    "frontend/src/components/rich-text/RichTextImageDialog.vue": "327519c15a6044e491392432a8286c9cd96383490c353583b577e918b5c7fb95",
+    "frontend/src/components/rich-text/useRichTextImages.ts": "1c2c4921880d8d0e52900c13308e609feb8678a116024b4e2a8761ae1a19e845",
+    "frontend/src/components/rich-text/types.ts": "34bc2ab5d7429263556dfe9bd59a549718eefcd283bce5a852ac5ebdae1bc54b",
+    "frontend/src/components/OptionColorPicker.vue": "8938424b4baf46cf6c76edf3b8288818b47d209911b387d0a138bd73f636e063",
+    "frontend/src/components/CustomColorPanel.vue": "e1da1bc1e03d697adb0e2c7f2d4b42b511c34766ef58500c8e1d673a695184f1",
+    "frontend/src/features/forms/components/RichTextEditor.vue": "9368bc251d8c05c40df90d7e2810594aec40042560d9f58998edf5da73e984ca",
+    "frontend/src/domain/richText.ts": "22bc567de1716809d543393343c5f6161a38553ba4985e731fbec20b755ebc5d",
+    "frontend/src/features/forms/components/FieldControl.vue": "5649b552df3b9f1431574db6a632522ce0e8b4393dd2b721cc4c858029231ae8",
+    "frontend/src/features/forms/components/RecordBody.vue": "1ae8cd59b8226ba3c8fd5f672ddaad56a8e50dae58d8ce3cf36b30d47f04d807",
+    "frontend/src/form-designer.css": "d8d476aa97b693c12d3508b404e2eb083ca71c849d170e1e73d98765b790d835",
+    "frontend/tests/rich-text-component.test.ts": "6045753402206763c250edbd1d0e677ea4e5a326e197aa47cd5a79e75d2a02bb",
+    "frontend/tests/rich-text.test.ts": "c9b9b03301b688835b328880bcc0ab7fdeb5bcfc20f8d9962c56ac81c57a3046"
+  }
+}

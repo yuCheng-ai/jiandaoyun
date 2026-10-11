@@ -1,0 +1,421 @@
+{
+  "verified_at": "2026-10-11T00:22:01.882273+08:00",
+  "goal_status": "active",
+  "previous_goal_turn_classification": "progress_implemented_and_ui_verified",
+  "current_goal_turn_classification": "progress_implemented_and_ui_verified",
+  "completion_percentage": null,
+  "scope": "共用子表行身份、保护列合并、暂存恢复及只读组件增删行为；四项操作配置尚未实现，流程行为保持",
+  "acceptance": {
+    "groups": 53,
+    "verified": 1,
+    "partial": 49,
+    "unfinished": 3,
+    "group_status_changed_this_turn": false,
+    "newly_verified": "SBF09/SBF10行身份依赖及桌面／390受限成员删除、新增、修改组合",
+    "not_equal_work_units": true,
+    "estimated_remaining_hours": null
+  },
+  "source_edits_this_turn": [
+    {
+      "path": "packages/contracts/src/subform.ts",
+      "bytes": 3525,
+      "sha256": "68c9f2f85748cadda7ed7b9bf8ee6082834604a7c1223c124f06309dbacb9f90",
+      "previous_sha256": "ace3ff2b2f280cccd20e4829b31a0f1ae8790acb3fd0a56cf2d819e8dc8fd66d"
+    },
+    {
+      "path": "frontend/src/domain/form.ts",
+      "bytes": 45825,
+      "sha256": "4e5944df2619ba182261d1dc28dc8cfc692bfbcce6ac0a9eb12bca11c3363f9e",
+      "previous_sha256": "c8fd4c67b30016e6239cf2ee69445346e9c2066b13a5f28be4bb15247f817f1d"
+    },
+    {
+      "path": "frontend/src/domain/access.ts",
+      "bytes": 22824,
+      "sha256": "b81ca293151a8db74d472aa353f2e025748ef467f644ee17e2ec9cc0f5950439",
+      "previous_sha256": "422bda3e722b966957e183d45151a409f5c37f09932a4d68998ff41f2141bc1b"
+    },
+    {
+      "path": "frontend/src/domain/editorDraftAdapters.ts",
+      "bytes": 4767,
+      "sha256": "528e971c6fb18165cb04a6809395c2b70a1d6bb9eafee91436bf53eb0153ed47",
+      "previous_sha256": "6fdf0c7acb0170db170a6b4af31cff208470109bb9b0e35e10551accf2aa5350"
+    },
+    {
+      "path": "frontend/src/features/forms/components/FormFields.vue",
+      "bytes": 17817,
+      "sha256": "3dbcd171acef22c0982f462fb48bbfef8a513dbf2dbed3ae2339c67a8dd38799",
+      "previous_sha256": "29693b1774f4fcc7a5d79d96f33224b9bd2c264889529f2c7cf9778157562085"
+    },
+    {
+      "path": "frontend/src/features/forms/components/FormRuntime.vue",
+      "bytes": 24064,
+      "sha256": "fd31cce99c088d7fe14b18263ee7c76fad74dc726d06f73b3ff0baaed8ef82c3",
+      "previous_sha256": "26e68e09198b1406d894354a60888b0667df39e7a26b3b932de7765cd1d80925"
+    },
+    {
+      "path": "frontend/tests/access.test.ts",
+      "bytes": 20652,
+      "sha256": "fdd4f3e8695ad963da398b6e47c349a54369a8775190cbd56aa43f083108fa10",
+      "previous_sha256": "f13929e1a81f7a24d5d8e8f3e0dc7dad1c21bd85434489c7ad2fd71369247f45"
+    },
+    {
+      "path": "frontend/tests/subform-row-identity.test.ts",
+      "bytes": 9938,
+      "sha256": "021c7ad2c609c76ae5df0be69373c91d5af063838e4b04c248dff43b79415faa",
+      "new": true
+    },
+    {
+      "path": "frontend/src/stores/workspace.ts",
+      "bytes": 26726,
+      "sha256": "229acf8b384ea6dede0481976fc34d4ad056c0faf5b8224edeff068656ec0451",
+      "previous_sha256": "55b3d60a464032ba14d7bfb8da4bc1ee4df6a232b1a1e6bb95b4267e1aaa1a69"
+    },
+    {
+      "path": "frontend/tests/lookup.test.ts",
+      "bytes": 77001,
+      "sha256": "3253cbb2fe007995ac37866d48bb4396edce8cbcff247643dc325d0435fe0df8",
+      "previous_sha256": "f1a7d016c588222608bcc63b5465707bd30cd22cb3a27645652bcd360fc5c23a"
+    },
+    {
+      "path": "frontend/tests/signature-fields.test.ts",
+      "bytes": 15038,
+      "sha256": "9f0cae2da02d7cc2083da569adb84986feee1df370685386e4cbd96cb7cdf1da",
+      "previous_sha256": "c434838f21693af3893dc62b6be7791974001859093c8d8115d51fcdf1919f1e"
+    }
+  ],
+  "documents": [
+    {
+      "path": "docs/jiandaoyun-form-designer-plan.md",
+      "bytes": 331639,
+      "sha256": "ca1c866f0764817e8da13008798f1508a649e4c98acf89ad8010e5054921f0f6"
+    },
+    {
+      "path": "docs/form-designer-acceptance.md",
+      "bytes": 18430,
+      "sha256": "1226023ed0a2b6dcaabf4db20ad9517c9dbed2826ea12234d67a47ff656fba99"
+    },
+    {
+      "path": "docs/frontend-closure.md",
+      "bytes": 21464,
+      "sha256": "dee9ab17c7f51aa586fc66f9a8cd7feb44b718f8cadabb7cb9ab30271b610652"
+    },
+    {
+      "path": "docs/implementation-plan.md",
+      "bytes": 66105,
+      "sha256": "581dae1a1507b769829e62df021361348ed98ad808540dd711d205580cbf91c7"
+    },
+    {
+      "path": "docs/development-plan.md",
+      "bytes": 18991,
+      "sha256": "45a9bc8423c0c4dce2abe67db3543a889d6dc34c4f74dada8599a4bcf8461a47"
+    },
+    {
+      "path": "design-qa.md",
+      "bytes": 285659,
+      "sha256": "50df85aa16f80cec6e1ec98e0cc3209d57ba22da65abbdab3c0c3f2265b2506b"
+    }
+  ],
+  "logs": [
+    {
+      "path": "tmp/subform-row-identity-all-frontend-final.log",
+      "bytes": 49559,
+      "sha256": "296541e0cff3ba6d0e6aa93a0743c6d3f5e82c195f08a3e6538315d671feeb27"
+    },
+    {
+      "path": "tmp/subform-row-identity-build-final.log",
+      "bytes": 12625,
+      "sha256": "cc0a1a6345d9f7ae7ce6b333a2b659c8f8f60a36c0cd38b0038ae67486ca2a49"
+    },
+    {
+      "path": "tmp/subform-row-identity-focused-final.log",
+      "bytes": 700,
+      "sha256": "6bebb5a68dbfdfa8aac6d84b85d523720accf101c9d9c856bbcd7df72738f044"
+    },
+    {
+      "path": "tmp/subform-row-identity-backend.log",
+      "bytes": 696,
+      "sha256": "0c63f7714709d72432ba3d467c3dff625fe5af9a79cdc7977964fbf12a56ae7b"
+    },
+    {
+      "path": "tmp/subform-row-identity-sites-final.log",
+      "bytes": 894,
+      "sha256": "48857c472a449dee11226a46d0f66396e026f562d947ebe7be5384be9c42cf36"
+    },
+    {
+      "path": "tmp/subform-row-identity-format-final.log",
+      "bytes": 66,
+      "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    },
+    {
+      "path": "tmp/subform-row-identity-red.log",
+      "bytes": 7590,
+      "sha256": "3f5310f5af32cbbcb43da6493bd67db4b675adac88b1347a7643fd6e884f2c7b"
+    },
+    {
+      "path": "tmp/subform-row-identity-legacy-red.log",
+      "bytes": 2636,
+      "sha256": "583fc17e5c3cafcaecca52fa4e84f0fb6d4f99bee5fc16d8cbf803af45ec5945"
+    },
+    {
+      "path": "tmp/subform-row-identity-readonly-red.log",
+      "bytes": 2352,
+      "sha256": "3b1fe968d580f78b1e57c143edfd1c94bf5de43e059e25126f29af8b3eedfdfb"
+    },
+    {
+      "path": "tmp/subform-row-identity-all-frontend.log",
+      "bytes": 59765,
+      "sha256": "7fd88fb59f00d4a9d983138a85c046d2e75b86a397344d357ee59a17250b8e77"
+    },
+    {
+      "path": "tmp/subform-row-identity-extra.log",
+      "bytes": 453,
+      "sha256": "29351af4e701eebe2b863a0f467153912b0087784f22bfa56f6f11e0c16524f1"
+    }
+  ],
+  "screenshots": [
+    {
+      "path": "docs/screenshots/jdy-subform-row-identity-member-edit.jpg",
+      "bytes": 43669,
+      "sha256": "ce59b8619419949a8ea1f656509c500b08bb42d63929ebb7b1b52b30812d7020",
+      "dimensions": [
+        1280,
+        720
+      ],
+      "saved_and_visually_opened": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-row-identity-admin-record.jpg",
+      "bytes": 51441,
+      "sha256": "f3ad89a04b2a9fc590568bb1000d29dbe52f2566fb591d5f992fc685170185c6",
+      "dimensions": [
+        1280,
+        720
+      ],
+      "saved_and_visually_opened": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-row-identity-mobile-edit.jpg",
+      "bytes": 24244,
+      "sha256": "3a19b5ee36b65194afb5a3297006ac0c0fbc3b661a9b1093c5775de4aa8e3d4f",
+      "dimensions": [
+        390,
+        844
+      ],
+      "saved_and_visually_opened": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-row-identity-record-final.jpg",
+      "bytes": 51279,
+      "sha256": "e4c54bdf1abf769c45827be9369a2a23e17562e1b2cf9a57c4431bb30e9f8618",
+      "dimensions": [
+        1280,
+        720
+      ],
+      "saved_and_visually_opened": true
+    }
+  ],
+  "protected": [
+    {
+      "path": ".openai/hosting.json",
+      "bytes": 31,
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947"
+    },
+    {
+      "path": "worker/index.js",
+      "bytes": 483,
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389"
+    },
+    {
+      "path": "scripts/prepare-sites-build.mjs",
+      "bytes": 910,
+      "sha256": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6"
+    },
+    {
+      "path": "tests/sites-worker.test.mjs",
+      "bytes": 2315,
+      "sha256": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf"
+    }
+  ],
+  "build_artifacts": [
+    {
+      "path": "dist/client/index.html",
+      "bytes": 471,
+      "sha256": "6385b1704c0c31e2e10472fc166b4306684ae9bdb176ea1664924ad62ceb126a"
+    },
+    {
+      "path": "dist/server/index.js",
+      "bytes": 483,
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389"
+    },
+    {
+      "path": "dist/.openai/hosting.json",
+      "bytes": 31,
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947"
+    }
+  ],
+  "checks": {
+    "frontend": {
+      "passed": 1138,
+      "files_passed": 119,
+      "new_identity_tests": 12,
+      "focused_passed": 74,
+      "focused_files": 5
+    },
+    "backend": {
+      "this_turn_capacity_database_api_passed": 2,
+      "this_turn_failed": 0,
+      "this_turn_full_suite_rerun": false,
+      "prior_full_passed": 260,
+      "prior_evidence": "docs/qa-files/jdy-subform-row-limit-verification.json",
+      "unchanged_backend_code_and_tests": [
+        {
+          "path": "backend/src/schema.ts",
+          "bytes": 12176,
+          "sha256": "8ae73f04f42256ed5143b708b14ca5a5f39ca4b6714cfdcfae4063d48df47087"
+        },
+        {
+          "path": "backend/src/migration-resource-plan.ts",
+          "bytes": 19282,
+          "sha256": "b57c82909a59b589a7e23d29746b4ec06add137963652192b45fac97f39c1fd5"
+        },
+        {
+          "path": "backend/src/platform.ts",
+          "bytes": 49172,
+          "sha256": "15c99d6c3cf4a5038ee870ba94e9c092c33b72558f39777c5bc5f83dcb62593d"
+        },
+        {
+          "path": "backend/src/record-state.ts",
+          "bytes": 1375,
+          "sha256": "92a1ea715d86880a54823b550c917453d16a516097435adc4e57200729a61cdc"
+        },
+        {
+          "path": "backend/tests/subform-row-limit.test.ts",
+          "bytes": 4193,
+          "sha256": "fbc6a356ceef20974b842dfd7906bd005efbf98aa9a86031afe1ca9ad73032ec"
+        }
+      ]
+    },
+    "build": "passed; existing large-chunk warning retained",
+    "sites": {
+      "passed": 4,
+      "failed": 0
+    },
+    "format": {
+      "passed_files": 11
+    },
+    "reviewed_application_files": 7,
+    "reviewed_test_files": 4,
+    "red_test_note": "初始7失败中4为产品断言、3为权限夹具挂错位置；夹具修正不计产品修复。旧暂存与直接只读各先1失败再通过。首次全量1136有2项旧期待值未包含ID，具体ID和新行独立性断言更新，业务值断言保留。"
+  },
+  "browser": {
+    "browser_id": "3",
+    "deliverable_tab_ids": [
+      "202",
+      "201",
+      "199",
+      "197",
+      "190"
+    ],
+    "target": {
+      "form_id": "form_dc10c948bb38",
+      "title": "子表行身份 · 对标验收",
+      "field_count": 5,
+      "version": 1,
+      "published_at_local": "2026-10-11 00:06:37",
+      "record_count": 1,
+      "record_id": "entry_827cdecc54ba",
+      "created_at_local": "2026-10-11 00:07:29",
+      "updated_at_local": [
+        "2026-10-11 00:08:21",
+        "2026-10-11 00:09:42"
+      ],
+      "final_rows": [
+        {
+          "product": "SYN-C-MOBILE",
+          "quantity": 0,
+          "hidden_note": "默认内部"
+        }
+      ]
+    },
+    "member": "张三 (local demo)",
+    "group": "明细编辑验收",
+    "permissions": {
+      "product": "edit",
+      "quantity": "read",
+      "internal_note": "hidden",
+      "subform_parent": "edit",
+      "four_row_operation_config": false
+    },
+    "cases": [
+      {
+        "case": "桌面成员删除首行、编辑保留行、新增行并同ID保存",
+        "retained": "SYN-B-EDIT / 22 / 第二行内部",
+        "new": "SYN-C / 0 / 默认内部",
+        "cold_reload_and_admin_checked": true
+      },
+      {
+        "case": "390成员删除原保留行、修改新行并同ID保存",
+        "final": "SYN-C-MOBILE / 0 / 默认内部",
+        "remaining_rows": 1,
+        "cold_reload_and_admin_checked": true
+      }
+    ],
+    "mobile": {
+      "viewport": [
+        390,
+        844
+      ],
+      "page_width": 390,
+      "dialog": {
+        "x": 16,
+        "y": 206,
+        "width": 358,
+        "height": 432,
+        "right": 374,
+        "bottom": 638
+      },
+      "quantity_zero_visible": true,
+      "table_horizontal_scroll_only": true
+    },
+    "final": {
+      "viewport": [
+        1280,
+        720
+      ],
+      "page_width": 1280,
+      "warn_error": [],
+      "url": "http://127.0.0.1:5198/#/apps/oa/forms/form_dc10c948bb38/data",
+      "record_id_visible_in_dom": true
+    },
+    "source_form": "form_663e0473dbe4",
+    "source_form_written": false,
+    "synthetic_data_only": true,
+    "reference_account_modified": false
+  },
+  "public_sources": [
+    {
+      "title": "子表单操作权限",
+      "url": "https://hc.jiandaoyun.com/doc/10735",
+      "used_for": "新增、插入、编辑已有、删除已有分别控制；整行删除包含隐藏列；本轮只完成共同身份依赖"
+    }
+  ],
+  "next_queue": [
+    "SBF09四项行权限的配置、兼容和实际执行",
+    "SBF10复制／插入／批删／快捷填报，并复验SBF11共同200边界",
+    "完整来源／类型、历史实际恢复及受限成员组合",
+    "R4/R7输出／入口整合及R5/R6/R8、F1–F10统一交付"
+  ],
+  "not_verified": [
+    "四项行操作配置与新旧行区别",
+    "复制／插入／批删／快捷填报",
+    "旧记录及旧暂存实际界面恢复（本轮只有回归）",
+    "全部来源／类型／成员组合",
+    "原生身份及容量实际界面",
+    "本轮实际PDF／导出文件",
+    "本轮后端完整260项重跑",
+    "真实账号认证与实体手机",
+    "来源CSS／DPR／完整字体密度和整体1:1视觉",
+    "完整迁移及统一交付验收"
+  ],
+  "visual_final_result": "blocked (full visual comparison only; engineering goal remains active)"
+}

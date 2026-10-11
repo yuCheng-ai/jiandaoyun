@@ -1,0 +1,67 @@
+{
+  "date": "2026-10-11",
+  "scope": "SBF10 basic multiple-value quick-fill batch; full group and goal remain incomplete",
+  "source": "https://hc.jiandaoyun.com/doc/15941",
+  "batchAcceptance": {
+    "partialMatchingAndDeduplication": "passed",
+    "temporaryManualOptions": "passed",
+    "rowSpecificCatalogOptions": "passed",
+    "ambiguousMemberNamesAndEmployeeNumbers": "passed",
+    "laterDepartmentAndQuantityDependencies": "passed",
+    "desktopAnd390SaveAndColdRefresh": "passed"
+  },
+  "browserEvidence": "jdy-subform-fill-multi-browser.json",
+  "finalFormId": "form_99310b3419f5",
+  "finalEntryId": "entry_f30ea230254f",
+  "finalRows": 3,
+  "records": 1,
+  "testRun": {
+    "command": "npm run test --workspace=@platform/frontend -- tests/subform-quick-fill.test.ts tests/record-import-organization.test.ts tests/organization.test.ts",
+    "tests": 52,
+    "files": 3,
+    "exitCode": 0,
+    "log": "tmp/subform-fill-multi-focused.log"
+  },
+  "applicationCodeChanged": false,
+  "newTests": 0,
+  "fullBuildRerun": false,
+  "currentGroupStatus": {
+    "已验收": 2,
+    "部分完成": 49,
+    "未完成": 2
+  },
+  "remaining": [
+    "all default-link source cases: R2",
+    "complex permission revocation and stale caches: R5",
+    "exact reference visual and remaining keyboard cases: R6",
+    "native backend execution and entry consolidation: R7",
+    "other registered field implementation gaps and final delivery gate"
+  ],
+  "next": "Remaining field implementations, starting with location and OCR; keep external service and account dependencies explicit",
+  "protectedFiles": {
+    ".openai/hosting.json": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+    "worker/index.js": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+    "scripts/prepare-sites-build.mjs": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+    "tests/sites-worker.test.mjs": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf"
+  },
+  "files": {
+    "docs/jiandaoyun-form-designer-plan.md": "20c92092427c48b79a89bf7d2c0008d35a0e42f4939e45085e56b674e3b31e77",
+    "docs/form-designer-acceptance.md": "f6b4f2de0a862efcec4866aa0ae980d88408e1e4cc2e5c07d74824e60cbc3984",
+    "design-qa.md": "8417773dfef2cc9917116bbeb724483e61bb33dc917940ef0f06d2f50b5944c2",
+    "docs/qa-files/jdy-subform-fill-multi-browser.json": "662d6a376965e3e702cf67544e4c721b1ec17765f27f6f3a3229c093a5590cc8",
+    "docs/qa-files/jdy-subform-fill-multi-final-dom.txt": "ee8206fb18ae90347d6916771d4ca1ee2626153767408a134fcac37501da3e9b",
+    "tmp/subform-fill-multi-focused.log": "a388319c0f30cdc9c032c1be87549faa597a1748d06e1eef0fbfd58fe9fdc9b2",
+    "frontend/src/domain/subformQuickFill.ts": "9e6659e386d25c5904128cf6f6936d440a5ec6d92ecfa475ddd582ffacbedb03",
+    "frontend/src/domain/recordImport.ts": "cd511466993d04f14534fc65003dac190653d988160362579456022dc1f43116",
+    "frontend/src/domain/organization.ts": "2270be9800ed94a90368f79318ef336f9eb2cd9b9a7e5341c8cbd0b874958718",
+    "frontend/src/features/forms/components/SubformQuickFillDialog.vue": "e935384cf0b1c9803b55f4b63bdd8996935a610f1ac6af41bdc611f263341e61",
+    "frontend/tests/subform-quick-fill.test.ts": "653d9d88c39389487532e1f0174ff0b567689d02ab4c1b2ce121ee11ff485d4a",
+    "frontend/tests/record-import-organization.test.ts": "f025fbe795c5e2860526dd6efee34f623fd9bdd2fa5058440de22014a67bfa68",
+    "frontend/tests/organization.test.ts": "6270fa6bb919cc3e0dbbb4f5ba2284e5bf92415db081ed3784cc37b492f39990",
+    "docs/screenshots/jdy-subform-fill-multi-retained.jpg": "0d829226b6c563e0d97a8c9b0ec822c994a36b28795291ca77f8f858ee39b7a9",
+    "docs/screenshots/jdy-subform-fill-multi-final-desktop.jpg": "6955c5c5acb32210804da2fdbef7b6afb25cb35646336ad5da885ac2be9df82c",
+    "docs/screenshots/jdy-subform-fill-multi-errors.jpg": "3f6cb5572e169adc659c88cf69a34235e0d799ce45cee13f98bb484e928cdfe9",
+    "docs/screenshots/jdy-subform-fill-multi-mobile-record.jpg": "7eadab55adc52eea07ede3e176f545b0375f81868a4bcc588713ced1bb117356",
+    "docs/screenshots/jdy-subform-fill-multi-mobile-mapping.jpg": "766605f407913d977a78c12515777e9648803097c96a8d648b40e2aa3f876888"
+  }
+}

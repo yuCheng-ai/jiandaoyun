@@ -1,0 +1,141 @@
+- banner:
+  - button "返回表单列表":
+  - textbox "表单名称": 文本格式 · 对标验收
+  - navigation "表单设计导航":
+    - button "表单设计"
+    - button "流程设定"
+    - button "扩展功能"
+    - button "表单发布"
+    - button "数据管理"
+  - button "帮助":
+  - button "用户菜单：张三": 张
+- main:
+  - heading "记录管理 1" [level=2]
+  - textbox "搜索提交数据":
+    - /placeholder: 搜索记录内容
+  - combobox "筛选数据状态":
+    - option "全部状态" [selected]
+    - option "草稿"
+    - option "已提交 / 待处理"
+    - option "已通过"
+    - option "已退回"
+  - button "筛选":
+    - text: 筛选
+  - button "列设置":
+    - text: 列设置
+  - button "回收站":
+    - text: 回收站
+  - button "导入":
+    - text: 导入
+  - button "导出":
+    - text: 导出
+  - button "新增数据":
+    - text: 新增数据
+  - generic: 选择记录可批量操作
+  - button "批量修改筛选结果"
+  - text: 排序
+  - combobox "数据排序字段":
+    - option "创建时间" [selected]
+    - option "邮政编码"
+    - option "联系手机"
+    - option "证件格式"
+    - option "联系邮箱"
+    - option "自由备注"
+    - option "联系明细"
+  - button "降序"
+  - table:
+    - rowgroup:
+      - row "选择本页全部记录 数据标题 创建时间 状态 邮政编码 联系手机 证件格式 联系邮箱 自由备注 联系明细 操作":
+        - columnheader "选择本页全部记录":
+          - checkbox "选择本页全部记录"
+        - columnheader "数据标题"
+        - columnheader "创建时间"
+        - columnheader "状态"
+        - columnheader "邮政编码"
+        - columnheader "联系手机"
+        - columnheader "证件格式"
+        - columnheader "联系邮箱"
+        - columnheader "自由备注"
+        - columnheader "联系明细"
+        - columnheader "操作"
+    - rowgroup:
+      - row "选择记录 entry_5aa14eb06a62 000002 2026/10/11 09:35:23 已提交 000002 086-12000000001 11000020000229123X sample+tag@example.technology 普通文字 1 行明细":
+        - cell "选择记录 entry_5aa14eb06a62":
+          - checkbox "选择记录 entry_5aa14eb06a62"
+        - cell "000002":
+          - button "000002"
+        - cell "2026/10/11 09:35:23"
+        - cell "已提交":
+          - generic: 已提交
+        - cell "000002"
+        - cell "086-12000000001"
+        - cell "11000020000229123X"
+        - cell "sample+tag@example.technology"
+        - cell "普通文字"
+        - cell "1 行明细"
+        - cell:
+          - button "查看"
+          - button "编辑"
+  - generic: 共 1 条
+  - text: 每页
+  - combobox "每页记录数":
+    - option "10 条"
+    - option "20 条" [selected]
+    - option "50 条"
+  - button "上一页" [disabled]
+  - generic: 1 / 1
+  - button "下一页" [disabled]
+- dialog "数据详情":
+  - banner:
+    - heading "数据详情" [level=2]
+    - button "关闭" [active]:
+  - heading "000002" [level=3]
+  - generic: 邮政编码
+  - textbox "邮政编码" [disabled]:
+    - /placeholder: ""
+    - text: "000002"
+  - generic: 联系手机
+  - textbox "联系手机" [disabled]:
+    - /placeholder: ""
+    - text: 086-12000000001
+  - generic: 证件格式
+  - textbox "证件格式" [disabled]:
+    - /placeholder: ""
+    - text: 11000020000229123X
+  - generic: 联系邮箱
+  - textbox "联系邮箱" [disabled]:
+    - /placeholder: ""
+    - text: sample+tag@example.technology
+  - generic: 自由备注
+  - textbox "自由备注" [disabled]:
+    - /placeholder: ""
+    - text: 普通文字
+  - generic: 联系明细
+  - generic "联系明细明细表格":
+    - table:
+      - rowgroup:
+        - row "序号 办公电话":
+          - columnheader "序号"
+          - columnheader "办公电话"
+      - rowgroup:
+        - row "展开联系明细第1行 2345678":
+          - cell "展开联系明细第1行":
+            - button "展开联系明细第1行":
+              - generic: "1"
+          - cell "2345678":
+            - textbox "联系明细 第1行 办公电话" [disabled]:
+              - /placeholder: ""
+              - text: "2345678"
+  - heading "操作记录" [level=3]
+  - text: 填写表单 · 保存草稿
+  - generic: 2026/10/11 09:35:23
+  - text: 填写表单 · 提交数据
+  - generic: 2026/10/11 09:35:35
+  - text: 数据管理 · 修改记录
+  - generic: 2026/10/11 09:35:49
+  - contentinfo:
+    - button "关闭"
+    - button "打印记录":
+      - text: 打印记录
+    - button "编辑":
+      - text: 编辑

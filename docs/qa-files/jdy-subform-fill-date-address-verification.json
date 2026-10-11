@@ -1,0 +1,563 @@
+{
+  "updatedAt": "2026-10-11T05:46:48.905879+08:00",
+  "scope": "SBF10 existing date/address quick-fill acceptance; bounded designer parity; workflow unchanged",
+  "previousGoalTurn": "Progress: fixed source freshness, recorded actual UI and current acceptance/queue; this turn advanced existing date/address checks",
+  "changes": [
+    "No application source, test, CSS, asset, dependency or backend edits",
+    "Create one local synthetic form and three immutable published versions to exercise existing four date formats and four address granularities",
+    "Record actual desktop/mobile fill, invalid/continue/correction, saved drafts, original entry submission/edit, historical definitions and cold reads",
+    "Advance authoritative current queue to existing multi-value/source combinations without enlarging scope"
+  ],
+  "sources": [
+    {
+      "url": "https://hc.jiandaoyun.com/doc/15941",
+      "status": "Official help read 2026-10-11; date weekday/static/dynamic limits, field-boundary quick-fill exception, changed-cell edit validation and invalid region/detail handling checked",
+      "visualLimit": "Existing visuals reused; no new same-state full visual comparison"
+    }
+  ],
+  "browser": {
+    "formId": "form_b33243cffd4c",
+    "title": "子表日期地址 · 对标验收",
+    "entryCount": 3,
+    "otherFormsMutation": "No writes to other forms or source records in this batch",
+    "versions": [
+      {
+        "version": 1,
+        "fieldCount": 9,
+        "publishedAt": "2026/10/11 05:33:23",
+        "businessDate": "Fixed earliest2026-10-12/latest2026-10-16, Monday/Friday only",
+        "address": "province/city/district/detail",
+        "quickFillColumns": 10
+      },
+      {
+        "version": 2,
+        "fieldCount": 9,
+        "publishedAt": "2026/10/11 05:37:13",
+        "businessDate": "Earliest fixed2026-10-13, same latest/weekday",
+        "address": "province/city",
+        "quickFillColumns": 8
+      },
+      {
+        "version": 3,
+        "fieldCount": 10,
+        "publishedAt": "2026/10/11 05:42:38",
+        "businessDate": "Earliest dynamic current day2026-10-11, same fixedlatest2026-10-16/weekday",
+        "address": "Original field now province; additional district field",
+        "quickFillColumns": 10
+      }
+    ],
+    "sharedSettings": {
+      "dateFormats": [
+        "month",
+        "date",
+        "datetime-local",
+        "datetime-second"
+      ],
+      "secondsInterval": [
+        "2026-10-12T08:00:05",
+        "2026-10-12T08:00:10"
+      ],
+      "monthInterval": [
+        "2026-10",
+        "2026-11"
+      ],
+      "fieldBoundary": "Related date earliest references same-row business date; early2026-10-11 and valid leap2024-02-29 accepted during quick fill",
+      "completeAddress": true
+    },
+    "errors": [
+      {
+        "stage": "V1 add",
+        "count": 9,
+        "inputs": [
+          "2026-10-13 weekday excluded",
+          "2026-02-30 invalid civil date",
+          "2026-10-12 25:00 invalid hour",
+          "08:00:11 above seconds maximum",
+          "2026-12 above month maximum",
+          "广东省/上海市/天河区 wrong hierarchy"
+        ],
+        "result": "Grid retained; continuation clears invalid dates/regions, retains detailed street and note; original final submit refuses one incomplete address and does not create entry"
+      },
+      {
+        "stage": "V1 edit",
+        "count": 6,
+        "inputs": [
+          "2026-10-09 below date minimum",
+          "08:00:04 below seconds minimum",
+          "2026-09 below month minimum",
+          "不存在区"
+        ],
+        "result": "Only changed date/seconds/month and three changed address columns error; unchanged detail and valid leap date not marked; native correction succeeds"
+      },
+      {
+        "stage": "V1 continuation earlier intermediate",
+        "result": "2026-10-19 above latest cleared; valid2024-02-29 and09:05 retained, original other two rows unchanged",
+        "limit": "Entered after existing error state; continuation applies invalid handling instead of opening another error popup; no separate error-count assertion"
+      },
+      {
+        "stage": "V2 add",
+        "count": 1,
+        "inputs": [
+          "2026-10-12 below changed fixedminimum13"
+        ],
+        "result": "Only business date invalid; corrected16, original linked early date allowed, two-part city address saved"
+      },
+      {
+        "stage": "V3 add",
+        "count": 5,
+        "inputs": [
+          "2026-10-09 below dynamic current-day minimum",
+          "不存在省",
+          "广东省/上海市/天河区"
+        ],
+        "result": "Valid12 survives; corrected second row16 and Beijing province/district selections save"
+      }
+    ],
+    "entries": [
+      {
+        "id": "entry_27d7cfe61d1a",
+        "definitionVersion": 1,
+        "rows": 3,
+        "history": [
+          {
+            "at": "2026/10/11 05:36:14",
+            "operation": "save draft"
+          },
+          {
+            "at": "2026/10/11 05:38:25",
+            "operation": "save same draft on actual390 viewport"
+          },
+          {
+            "at": "2026/10/11 05:38:44",
+            "operation": "submit same draft ID"
+          },
+          {
+            "at": "2026/10/11 05:40:59",
+            "operation": "edit same formal record under V1 after V2 publication"
+          }
+        ],
+        "displayedFinalRows": [
+          {
+            "businessDate": "2026-10-12",
+            "relatedDate": "2026-10-11",
+            "minute": "2026-10-12T09:05",
+            "second": "2026-10-12T08:00:05",
+            "month": "2026-10",
+            "region": "广东省/广州市/天河区",
+            "detail": "SYN-道路A",
+            "note": "SYN-BOUNDARY-MIN"
+          },
+          {
+            "businessDate": "2026-10-16",
+            "relatedDate": "2026-10-15",
+            "minute": "2026-10-12T23:59",
+            "second": "2026-10-12T08:00:10",
+            "month": "2026-11",
+            "region": "北京市/北京市/海淀区",
+            "detail": "SYN-道路B",
+            "note": "SYN-BOUNDARY-MAX"
+          },
+          {
+            "businessDate": "2026-10-12",
+            "relatedDate": "2024-02-29",
+            "minute": "2026-10-12T09:06",
+            "second": "2026-10-12T08:00:05",
+            "month": "2026-11",
+            "region": "广东省/广州市/天河区",
+            "detail": "SYN-修改详细地址",
+            "note": "SYN-EDIT-DATE-ADDRESS"
+          }
+        ],
+        "mobileCheckpointThirdRow": {
+          "businessDate": "2026-10-16",
+          "minute": "2026-10-12T09:05",
+          "second": "2026-10-12T08:00:10",
+          "detail": "SYN-手机详细地址",
+          "note": "SYN-MOBILE-DATE-ADDRESS"
+        }
+      },
+      {
+        "id": "entry_c7b9432476b6",
+        "definitionVersion": 2,
+        "createdAt": "2026/10/11 05:40:06",
+        "rows": 1,
+        "historyCount": 1,
+        "displayedFinalRows": [
+          {
+            "businessDate": "2026-10-16",
+            "relatedDate": "2026-10-11",
+            "minute": "2026-10-12T09:05",
+            "second": "2026-10-12T08:00:05",
+            "month": "2026-10",
+            "region": "广东省/广州市",
+            "note": "SYN-V2-CITY",
+            "detailControl": "Not present for V2 city format"
+          }
+        ]
+      },
+      {
+        "id": "entry_b4c8f8d92c98",
+        "definitionVersion": 3,
+        "createdAt": "2026/10/11 05:43:02",
+        "rows": 2,
+        "historyCount": 1,
+        "displayedFinalRows": [
+          {
+            "businessDate": "2026-10-12",
+            "relatedDate": "2026-10-11",
+            "minute": "2026-10-12T09:05",
+            "second": "2026-10-12T08:00:05",
+            "month": "2026-10",
+            "province": "广东省",
+            "districtRegion": "广东省/广州市/天河区",
+            "note": "SYN-V3-DYNAMIC"
+          },
+          {
+            "businessDate": "2026-10-16",
+            "relatedDate": "2024-02-29",
+            "minute": "2026-10-12T09:06",
+            "second": "2026-10-12T08:00:10",
+            "month": "2026-11",
+            "province": "北京市",
+            "districtRegion": "北京市/北京市/海淀区",
+            "note": "SYN-V3-MUNICIPAL"
+          }
+        ]
+      }
+    ],
+    "mobile": {
+      "viewportWidth": 390,
+      "viewportHeight": 844,
+      "pageWidth": 390,
+      "matching": "10/10",
+      "dialogBounds": {
+        "left": 16,
+        "right": 374,
+        "top": 93.796875,
+        "bottom": 750.1875,
+        "width": 358,
+        "height": 656.390625
+      }
+    },
+    "final": {
+      "viewportWidth": 1280,
+      "viewportHeight": 720,
+      "pageWidth": 1280,
+      "clipboardRestored": true,
+      "deliverableTab": "209",
+      "consoleWarnError": [],
+      "view": "Original V1 third-row readonly drawer; behind it three formal records"
+    },
+    "identityLimit": "Stable entry IDs observed in checkbox names and historical structures checked; internal row IDs not exposed by DOM, no browser row-ID claim",
+    "automationLimits": [
+      "Accessible row name contains spaces not present in textContent; no-match selector switched to observed exact button",
+      "Unselected fill batch did not land in intended offscreen cells; staged first-row value restored to12 using click/fill, then target clicked/native clipboard paste and actual cells reread. No intermediate formal record written",
+      "Continuation intentionally closed errors dialog and applied invalid handling; looking for its old alert timed out, not product failure",
+      "New V2 fill starts empty/current version, so edit-existing radio disabled as expected; saved V1 draft continued from existing record management entry",
+      "Data detail has header/footer close buttons; strict ambiguous locator replaced with observed header aria-label",
+      "Early unverified attempts not counted as successful acceptance; only reread values, actual errors and saved cold UI support results"
+    ]
+  },
+  "verification": {
+    "focused": {
+      "tests": 71,
+      "files": 5,
+      "exitCode": 0,
+      "newTests": 0,
+      "log": {
+        "path": "tmp/subform-fill-date-address-focused.log",
+        "sha256": "18d7af6e2503976baf0778dc49e7c184c19af26b45eef9cbbdb85f23da983e52",
+        "bytes": 1033
+      }
+    },
+    "sourceChanges": false,
+    "checkedPreviouslyChangedCodeHashesUnchanged": [
+      {
+        "path": "frontend/src/features/forms/components/SubformQuickFillDialog.vue",
+        "sha256": "e935384cf0b1c9803b55f4b63bdd8996935a610f1ac6af41bdc611f263341e61",
+        "bytes": 24167
+      },
+      {
+        "path": "frontend/tests/subform-quick-fill-sources.test.ts",
+        "sha256": "04e608486fda67e22c02db773c825df68e932b2505a4963079829a69d0bc9b8f",
+        "bytes": 7503
+      },
+      {
+        "path": "frontend/tests/subform-quick-fill.test.ts",
+        "sha256": "653d9d88c39389487532e1f0174ff0b567689d02ab4c1b2ce121ee11ff485d4a",
+        "bytes": 30410
+      },
+      {
+        "path": "frontend/tests/member-recovery.test.ts",
+        "sha256": "6a4e8c3ec70c35904a22e49734e3ce8e5c3ecda20690bc2db14e6e78e33f419d",
+        "bytes": 18648
+      }
+    ],
+    "fullSuiteAndBuild": "Not repeated because no application changes; previous1241/126 and build are historical prior checkpoint only",
+    "notRun": [
+      "Full frontend/build/Sites this batch",
+      "Database/full backend",
+      "Real account authentication",
+      "Physical mobile touch",
+      "This-batch actual Excel/PDF outputs",
+      "All dynamic presets and full permission/source cross combinations"
+    ],
+    "protectedFilesUnchanged": true,
+    "sitesArtifactsExist": true
+  },
+  "acceptance": {
+    "totalGroups": 53,
+    "counts": {
+      "部分完成": 49,
+      "已验收": 2,
+      "未完成": 2
+    },
+    "SBF10": "部分完成",
+    "goal": "active",
+    "percentage": "No supported work-completion percentage",
+    "newEvidence": "Basic date/address paths and all four formats/granularities checked; full type/source/permission/visual conditions incomplete",
+    "next": "Existing multi-choice/member/department values and sources, then full source/dynamic-preset combinations and R1–R8/F1–F10 final acceptance"
+  },
+  "currentCode": [
+    {
+      "path": "frontend/src/domain/subformQuickFill.ts",
+      "sha256": "9e6659e386d25c5904128cf6f6936d440a5ec6d92ecfa475ddd582ffacbedb03",
+      "bytes": 12484
+    },
+    {
+      "path": "frontend/src/domain/recordImport.ts",
+      "sha256": "cd511466993d04f14534fc65003dac190653d988160362579456022dc1f43116",
+      "bytes": 38321
+    },
+    {
+      "path": "frontend/src/domain/address.ts",
+      "sha256": "c1ecbbc3a46e371605c7e6b2fa13256c30deb1bd97929b6ca6ae05164718f7e2",
+      "bytes": 2692
+    },
+    {
+      "path": "packages/contracts/src/dates.ts",
+      "sha256": "9ae566e24755fd2a88f331133d1ccf49a281fbfd4fcfcb9f0a2356bfb3485aaf",
+      "bytes": 4603
+    },
+    {
+      "path": "packages/contracts/src/date-range.ts",
+      "sha256": "09017eb85c31aa09b1ed634854f6367f1132cea65a99d711e049f8edec97dfd7",
+      "bytes": 9206
+    },
+    {
+      "path": "packages/contracts/src/address.ts",
+      "sha256": "bcbfed932dbb3459a7a34db34f7c2e0ba6c78f4d420cdd4aad26cdb177e0dc5a",
+      "bytes": 1704
+    },
+    {
+      "path": "frontend/tests/subform-quick-fill.test.ts",
+      "sha256": "653d9d88c39389487532e1f0174ff0b567689d02ab4c1b2ce121ee11ff485d4a",
+      "bytes": 30410
+    },
+    {
+      "path": "frontend/tests/date-fields.test.ts",
+      "sha256": "66e313978ca86bc52c681d8044e3413702db1c139d4fdb2170c0ecbf8973c0c2",
+      "bytes": 9533
+    },
+    {
+      "path": "frontend/tests/date-range.test.ts",
+      "sha256": "97a42d1f74f7ef66b2e41537c46bdffe5c6faa2dad2d51ffa7b086fe23dd9f96",
+      "bytes": 14360
+    },
+    {
+      "path": "frontend/tests/address-fields.test.ts",
+      "sha256": "68112d2e474f849988bea5ccf0a9aad60fc948f21b5b808c804d25526812d22c",
+      "bytes": 15726
+    },
+    {
+      "path": "frontend/tests/record-import-address.test.ts",
+      "sha256": "65bf81893c99fa44a4ffffb57ba87491ead3cba9de742547896e0f013f8bab69",
+      "bytes": 22609
+    }
+  ],
+  "documents": [
+    {
+      "path": "docs/jiandaoyun-form-designer-plan.md",
+      "sha256": "fbb237c0c011f17e549ea4d1ac62878044dd3a889bc708de7514740c16c94076",
+      "bytes": 373863
+    },
+    {
+      "path": "docs/form-designer-acceptance.md",
+      "sha256": "1413b2afce880b1da5587ed508ce7dda19e0a9b6ed9bd22af75423f1796182ef",
+      "bytes": 22320
+    },
+    {
+      "path": "design-qa.md",
+      "sha256": "b1f236cca118fbde1cb1246d3057ff24a759040ba2a46ef427770216cb03db8f",
+      "bytes": 326920
+    }
+  ],
+  "screenshots": [
+    {
+      "path": "docs/screenshots/jdy-subform-fill-date-address-config.jpg",
+      "sha256": "af670cc4a9272936af0eda7641bbeadfe104bbd9a6c0ee63dedf9bdbc50cac33",
+      "bytes": 67024,
+      "format": "JPEG",
+      "width": 1280,
+      "height": 720,
+      "visuallyReviewed": false
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-fill-date-address-errors.jpg",
+      "sha256": "5b17852da5f1ad6696d323cb0a0cc23ca58e1415acbe1c09dff4e318e9cf1a87",
+      "bytes": 72399,
+      "format": "JPEG",
+      "width": 1280,
+      "height": 720,
+      "visuallyReviewed": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-fill-date-address-retained.jpg",
+      "sha256": "e0f6316950b0f923be12bce91d50c46ade63ef05668b9d0c4bf41a4e418690df",
+      "bytes": 51109,
+      "format": "JPEG",
+      "width": 1280,
+      "height": 720,
+      "visuallyReviewed": false
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-fill-date-address-edit-errors.jpg",
+      "sha256": "5e7c162a5fd2905a8bbc063b5c78e93b2da492c8abd78ea934323d7d9818bb93",
+      "bytes": 71066,
+      "format": "JPEG",
+      "width": 1280,
+      "height": 720,
+      "visuallyReviewed": false
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-fill-date-address-old-v1.jpg",
+      "sha256": "68a6e12e3d8434d4ac893f4b5d9e4cdb156415b37d9962f482116177e1e434e4",
+      "bytes": 65393,
+      "format": "JPEG",
+      "width": 1280,
+      "height": 720,
+      "visuallyReviewed": false
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-fill-date-address-mobile-mapping.jpg",
+      "sha256": "8b2070e19c224a438e8a71c155127b6defe3b618ff840a7729d44fd6df49c340",
+      "bytes": 32083,
+      "format": "JPEG",
+      "width": 390,
+      "height": 844,
+      "visuallyReviewed": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-fill-date-address-mobile-submitted.jpg",
+      "sha256": "6d106004e4e11a073111e4c60e5792ce4a7f391fe4646d18c06a4e05983d2fc5",
+      "bytes": 28478,
+      "format": "JPEG",
+      "width": 390,
+      "height": 844,
+      "visuallyReviewed": false
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-fill-date-address-record-mobile.jpg",
+      "sha256": "872c4ca08766a67832241c97e91cad2d91f6b30ebe1bfb06be415dc2854e3677",
+      "bytes": 28936,
+      "format": "JPEG",
+      "width": 390,
+      "height": 844,
+      "visuallyReviewed": false
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-fill-date-address-row-mobile.jpg",
+      "sha256": "795e5dc1af19d677530aea52076503efbe9e64cae509e86d5df23955be78eb5e",
+      "bytes": 28772,
+      "format": "JPEG",
+      "width": 390,
+      "height": 844,
+      "visuallyReviewed": true
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-fill-date-address-v2-errors.jpg",
+      "sha256": "a79a9d3acfc96415354887d728b3c25685235f91620d5d6a5859f412cf14221b",
+      "bytes": 55913,
+      "format": "JPEG",
+      "width": 1280,
+      "height": 720,
+      "visuallyReviewed": false
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-fill-date-address-v2-desktop.jpg",
+      "sha256": "34f450c90c359ff65028b9cb5657fad000bc00d70a71b2892d9a0b810be03f6f",
+      "bytes": 63539,
+      "format": "JPEG",
+      "width": 1280,
+      "height": 720,
+      "visuallyReviewed": false
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-fill-date-address-v3-errors.jpg",
+      "sha256": "8177d7fbb6579b693c6b94d1d37ed82786281390dcf3b3fb8275e4496b14f066",
+      "bytes": 64765,
+      "format": "JPEG",
+      "width": 1280,
+      "height": 720,
+      "visuallyReviewed": false
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-fill-date-address-v3-desktop.jpg",
+      "sha256": "7f2cbb503f31175f53b736a8ce23971e6bab8a766f96eae432fdddbfdedf8b2c",
+      "bytes": 67060,
+      "format": "JPEG",
+      "width": 1280,
+      "height": 720,
+      "visuallyReviewed": false
+    },
+    {
+      "path": "docs/screenshots/jdy-subform-fill-date-address-final-desktop.jpg",
+      "sha256": "68d8e7479b8bf107ef5fe902597b2647db34be0c7ccecde719a4d7f7ba4a7c2b",
+      "bytes": 62863,
+      "format": "JPEG",
+      "width": 1280,
+      "height": 720,
+      "visuallyReviewed": true
+    }
+  ],
+  "protectedFiles": [
+    {
+      "path": ".openai/hosting.json",
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+      "bytes": 31
+    },
+    {
+      "path": "worker/index.js",
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+      "bytes": 483
+    },
+    {
+      "path": "scripts/prepare-sites-build.mjs",
+      "sha256": "b6a6adaa4fab3234676116dd1c9cb6611275ab9d92dd26f5bf402393e3744bf6",
+      "bytes": 910
+    },
+    {
+      "path": "tests/sites-worker.test.mjs",
+      "sha256": "65ebce7548e5c42fd25b08e6e6ae1bf0d1c8011225bc2d0ec7379c46f933b9bf",
+      "bytes": 2315
+    }
+  ],
+  "sitesArtifacts": [
+    {
+      "path": "dist/client/index.html",
+      "sha256": "87e35a930ccbc43747a1556ed4234cc5145c5f9b0917832f721f414bac69f9b2",
+      "bytes": 471
+    },
+    {
+      "path": "dist/server/index.js",
+      "sha256": "2dd0615a445143933d88d4271f54f5d63ee951421fcd08c5a7617bb09c564389",
+      "bytes": 483
+    },
+    {
+      "path": "dist/.openai/hosting.json",
+      "sha256": "d532abb65cf9ae20634b464d954cb4a08a0de9f3cd3cdf7f9c3ec8948826d947",
+      "bytes": 31
+    }
+  ],
+  "previousEvidence": "Prior source/search/member proofs remain historical checkpoints; no retroactive replacement of their hashes or claims"
+}
