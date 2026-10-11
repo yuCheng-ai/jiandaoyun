@@ -293,3 +293,137 @@ it("allows readonly image viewing without exposing editing tools or emitting cha
   expect(f.editors[0]!.getAttribute("aria-readonly")).toBe("true");
   expect(f.changes).not.toHaveBeenCalled();
 });
+
+function imageLayout(image: HTMLImageElement, width = 100) {
+  Object.defineProperty(image.parentElement, "clientWidth", {
+    configurable: true,
+    value: 320,
+  });
+  vi.spyOn(image, "getBoundingClientRect").mockImplementation(() => {
+    const actual = image.style.width.endsWith("px")
+      ? parseFloat(image.style.width)
+      : width;
+    return {
+      left: 30,
+      top: 40,
+      width: actual,
+      height: actual / 2,
+      right: 30 + actual,
+      bottom: 40 + actual / 2,
+      x: 30,
+      y: 40,
+      toJSON() {},
+    };
+  });
+}
+function pointer(
+  handle: HTMLElement,
+  type: string,
+  x: number,
+  y: number,
+  id = 1,
+) {
+  const event = new MouseEvent(type, {
+    clientX: x,
+    clientY: y,
+    bubbles: true,
+    cancelable: true,
+    button: 0,
+  });
+  Object.defineProperty(event, "pointerId", { value: id });
+  handle.dispatchEvent(event);
+}
+async function resizedFixture() {
+  const f = await mount([
+    '<p>前文</p><img data-file-id="same_image" style="width:25%"><p>后文</p>',
+  ]);
+  const editor = f.editors[0]!,
+    image = editor.querySelector("img")!;
+  imageLayout(image);
+  image.click();
+  await settle();
+  const handle = button("缩放图片（右下）");
+  return { ...f, editor, image, handle };
+}
+it("previews a proportional resize without emitting, then commits one undoable image replacement", async () => {
+  const f = await resizedFixture();
+  pointer(f.handle, "pointerdown", 130, 90);
+  pointer(f.handle, "pointermove", 190, 120);
+  expect(f.image.style.width).toBe("160px");
+  f.editor.dispatchEvent(new Event("blur"));
+  expect(f.changes).not.toHaveBeenCalled();
+  pointer(f.handle, "pointerup", 190, 120);
+  await settle();
+  expect(f.changes).toHaveBeenCalledTimes(1);
+  expect(
+    f.exec.mock.calls.filter((call) => call[0] === "insertHTML"),
+  ).toHaveLength(1);
+  expect(f.items[0]!.value).toContain("width: 160px");
+  expect(f.items[0]!.value).toContain('data-file-id="same_image"');
+  expect(f.editor.textContent).toBe("前文后文");
+});
+it("clamps dragging to the content width and ignores a different pointer", async () => {
+  const f = await resizedFixture();
+  pointer(f.handle, "pointerdown", 130, 90);
+  pointer(f.handle, "pointermove", 190, 120, 2);
+  expect(f.image.style.width).toBe("25%");
+  pointer(f.handle, "pointerup", 2000, 90);
+  await settle();
+  expect(f.items[0]!.value).toContain("width: 320px");
+});
+it.each([
+  "pointercancel",
+  "lostpointercapture",
+  "Escape",
+  "readonly",
+  "replacement",
+  "unmount",
+])(
+  "restores the original width and emits nothing after resize is interrupted by %s",
+  async (reason) => {
+    const f = await resizedFixture();
+    const before = f.items[0]!.value;
+    pointer(f.handle, "pointerdown", 130, 90);
+    pointer(f.handle, "pointermove", 190, 120);
+    if (reason === "Escape")
+      f.handle.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      );
+    else if (reason === "readonly") f.items[0]!.readonly = true;
+    else if (reason === "replacement") f.items[0]!.value = "<p>新记录</p>";
+    else if (reason === "unmount") {
+      app!.unmount();
+      app = undefined;
+    } else pointer(f.handle, reason, 190, 120);
+    await settle();
+    expect(f.image.style.width).toBe("25%");
+    expect(f.items[0]!.value).toBe(
+      reason === "replacement" ? "<p>新记录</p>" : before,
+    );
+    expect(f.changes).not.toHaveBeenCalled();
+  },
+);
+it("adjusts the selected image with the keyboard and retains nearby link content", async () => {
+  const f = await mount([
+    '<a href="https://example.com"><img src="https://example.com/a.png"><b>说明<img src="https://example.com/b.png"></b></a>',
+  ]);
+  const images = f.editors[0]!.querySelectorAll("img");
+  imageLayout(images[0]!);
+  imageLayout(images[1]!, 120);
+  images[0]!.click();
+  await settle();
+  images[1]!.click();
+  await settle();
+  button("缩放图片（右下）").dispatchEvent(
+    new KeyboardEvent("keydown", {
+      key: "ArrowRight",
+      shiftKey: true,
+      bubbles: true,
+    }),
+  );
+  await settle();
+  expect(f.editors[0]!.querySelectorAll("img")[0]!.style.width).toBe("");
+  expect(f.editors[0]!.querySelectorAll("img")[1]!.style.width).toBe("140px");
+  expect(f.editors[0]!.textContent).toBe("说明");
+  expect(f.editors[0]!.querySelector("a")!.href).toBe("https://example.com/");
+});
