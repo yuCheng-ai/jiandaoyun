@@ -3,7 +3,7 @@ export const router = createRouter({
   history: createWebHashHistory(),
   routes: [
     {
-      path: "/applications/:applicationId?",
+      path: "/applications/:applicationId",
       name: "data-workspace",
       component: () =>
         import("../features/workspace/ServerApplicationHome.vue"),
@@ -14,9 +14,13 @@ export const router = createRouter({
       component: () => import("../features/data/PageDesignerView.vue"),
     },
     {
+      path: "/applications",
+      redirect: "/",
+    },
+    {
       path: "/collaboration",
       name: "collaboration",
-      redirect: "/applications",
+      redirect: "/",
     },
     {
       path: "/admin/payments",
