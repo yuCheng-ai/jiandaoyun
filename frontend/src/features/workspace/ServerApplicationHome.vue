@@ -601,7 +601,7 @@ async function permissions() {
                 <div class="record-sort-group">
                   <span class="sort-prefix">
                     <AppIcon name="filter" :size="13" />
-                    排序
+                    <span>排序</span>
                   </span>
                   <select
                     aria-label="数据排序字段"
@@ -933,19 +933,23 @@ async function permissions() {
   background: #ffffff;
   border-bottom: 1px solid #edf0f5;
   flex-shrink: 0;
+  overflow-x: auto;
+  white-space: nowrap;
 }
 .record-toolbar-left {
   display: flex;
   align-items: center;
   gap: 12px;
-  flex-wrap: wrap;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .record-toolbar-right {
   display: flex;
   align-items: center;
   gap: 10px;
   margin-left: auto;
-  flex-wrap: wrap;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .record-add-btn {
@@ -961,6 +965,8 @@ async function permissions() {
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: all 0.15s ease-in-out;
   box-shadow: 0 1px 2px rgba(0, 184, 148, 0.2);
 }
@@ -976,6 +982,8 @@ async function permissions() {
   background: #f1f3f7;
   border-radius: 6px;
   padding: 2px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .record-state-tab {
   height: 28px;
@@ -988,6 +996,8 @@ async function permissions() {
   font-weight: 500;
   border-radius: 4px;
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: all 0.15s ease-in-out;
 }
 .record-state-tab:hover {
@@ -1024,20 +1034,26 @@ async function permissions() {
   border-radius: 4px;
   font-size: 12px;
   color: #64748b;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .record-version-selector .version-label {
   font-size: 12px;
   color: #94a3b8;
+  white-space: nowrap;
 }
 .record-version-selector .version-select {
-  border: none;
-  background: transparent;
+  border: none !important;
+  background: transparent !important;
   font-size: 12px;
   font-weight: 600;
   color: #334155;
   cursor: pointer;
   outline: none;
-  padding: 0 2px;
+  padding: 0 2px !important;
+  width: auto !important;
+  min-height: unset !important;
+  white-space: nowrap;
 }
 
 /* Search Box */
@@ -1051,6 +1067,8 @@ async function permissions() {
   border-radius: 6px;
   padding: 0 8px;
   width: 170px;
+  flex-shrink: 0;
+  white-space: nowrap;
   transition: all 0.2s ease-in-out;
 }
 .record-search-box:focus-within {
@@ -1064,14 +1082,16 @@ async function permissions() {
   flex-shrink: 0;
 }
 .record-search-input {
-  border: none;
-  background: transparent;
+  border: none !important;
+  background: transparent !important;
   outline: none;
   font-size: 13px;
   color: #1e293b;
   width: 100%;
   margin-left: 6px;
-  padding: 0;
+  padding: 0 !important;
+  min-height: unset !important;
+  box-shadow: none !important;
 }
 .record-search-input::placeholder {
   color: #94a3b8;
@@ -1085,6 +1105,7 @@ async function permissions() {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   transition: color 0.15s;
 }
 .search-clear-btn:hover {
@@ -1096,31 +1117,53 @@ async function permissions() {
   display: inline-flex;
   align-items: center;
   height: 32px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  border: 1px solid #d9dfe9;
   border-radius: 6px;
   padding: 0 3px 0 8px;
   font-size: 13px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  gap: 4px;
+  transition: border-color 0.15s;
 }
+.record-sort-group:hover {
+  border-color: #00b894;
+}
+
 .sort-prefix {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   color: #64748b;
   font-size: 12px;
-  margin-right: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
   user-select: none;
 }
+.sort-prefix span {
+  white-space: nowrap;
+}
+
 .sort-select {
-  border: none;
-  background: transparent;
+  width: auto !important;
+  min-width: 86px;
+  max-width: 150px;
+  height: 26px !important;
+  min-height: unset !important;
+  border: none !important;
+  background: transparent !important;
   font-size: 13px;
+  font-weight: 500;
   color: #1e293b;
   outline: none;
   cursor: pointer;
-  height: 26px;
-  padding: 0 4px;
+  padding: 0 16px 0 2px !important;
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-shadow: none !important;
 }
+
 .sort-order-btn {
   display: inline-flex;
   align-items: center;
@@ -1128,16 +1171,22 @@ async function permissions() {
   height: 24px;
   padding: 0 6px;
   border: 1px solid #e2e8f0;
-  background: #ffffff;
+  background: #f8fafc;
   border-radius: 4px;
   font-size: 12px;
   color: #475569;
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: all 0.15s;
+}
+.sort-order-btn span {
+  white-space: nowrap;
 }
 .sort-order-btn:hover {
   color: #00b894;
   border-color: #00b894;
+  background: #ffffff;
 }
 
 /* General Tool Buttons (列设置, 刷新) */
@@ -1147,17 +1196,22 @@ async function permissions() {
   gap: 5px;
   height: 32px;
   padding: 0 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #d9dfe9;
   background: #ffffff;
   border-radius: 6px;
   font-size: 13px;
   color: #475569;
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: all 0.15s;
 }
+.record-tool-btn span {
+  white-space: nowrap;
+}
 .record-tool-btn:hover {
-  border-color: #cbd5e1;
-  color: #0f172a;
+  border-color: #00b894;
+  color: #00b894;
   background: #f8fafc;
 }
 .record-refresh-btn {
