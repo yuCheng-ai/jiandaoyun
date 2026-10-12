@@ -2,7 +2,6 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import type { ApplicationSummary } from "@platform/contracts";
-import { useWorkspaceStore } from "../../stores/workspace";
 import { usePlatformSession } from "../../stores/platformSession";
 import { platformApi, PlatformError } from "../../repositories/platformApi";
 import { signInDestination } from "../../router/sessionGuard";
@@ -13,8 +12,7 @@ import PlatformLogin from "../session/PlatformLogin.vue";
 import ProcessWorkspace from "../processes/ProcessWorkspace.vue";
 import WorkbenchProcessStart from "../processes/WorkbenchProcessStart.vue";
 import "../collaboration/collaboration.css";
-const store = useWorkspaceStore(),
-  session = usePlatformSession();
+const session = usePlatformSession();
 const router = useRouter(),
   route = useRoute();
 const query = ref(""),
@@ -42,26 +40,17 @@ const dialog = ref(false),
   saving = ref(false),
   saveError = ref("");
 const apps = computed(() =>
-  [
-    ...(session.user?.role === "admin"
-      ? store.data.apps.map((app) => ({
-          id: `local:${app.id}`,
-          title: app.name,
-          color: app.color,
-          icon: app.icon,
-          path: `/apps/${app.id}`,
-        }))
-      : []),
-    ...applications.value.map((app) => ({
-      id: `server:${app.id}`,
+  applications.value
+    .map((app) => ({
+      id: app.id,
       title: app.title,
-      color: "#56ae72",
-      icon: "department",
+      color: app.color || "#56ae72",
+      icon: app.icon || "department",
       path: `/applications/${app.id}`,
-    })),
-  ].filter((app) =>
-    app.title.toLowerCase().includes(query.value.trim().toLowerCase()),
-  ),
+    }))
+    .filter((app) =>
+      app.title.toLowerCase().includes(query.value.trim().toLowerCase()),
+    ),
 );
 let disposed = false;
 async function load() {
@@ -127,10 +116,16 @@ async function createApp() {
   saving.value = true;
   saveError.value = "";
   try {
-    const app = await store.createApp(appName.value.trim(), "#56ae72");
-    if (!app) throw new Error(store.storageError || "创建失败，请重试");
+    const app = await platformApi<{ id: string; title: string }>(
+      "/applications",
+      "POST",
+      {
+        title: appName.value.trim(),
+        requestId: crypto.randomUUID(),
+      },
+    );
     dialog.value = false;
-    await router.push(`/apps/${app.id}`);
+    await router.push(`/applications/${app.id}`);
   } catch (cause) {
     saveError.value = (cause as Error).message;
   } finally {
@@ -169,6 +164,9 @@ onBeforeUnmount(() => {
     </header>
     <main class="workbench-scroll">
       <div class="workbench-content">
+        <p v-if="route.query.notice === 'legacy-link'" class="workbench-message" role="status">
+          此旧入口已停用。请{{ session.user ? '' : '登录后' }}从“我的应用”打开表单；找不到原有表单时，请联系管理员。
+        </p>
         <p v-if="error" class="collab-error workbench-message" role="alert">
           {{ error }}
           <button class="button" :disabled="busy" @click="load">重试</button>

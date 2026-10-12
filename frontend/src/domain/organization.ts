@@ -22,6 +22,9 @@ import type {
 export interface Organization extends DirectorySpec {
   currentUserId: string;
 }
+export function emptyOrganization(): Organization {
+  return { version: 1, name: "组织与成员", currentUserId: "", departments: [], employees: [], roles: [], roleGroups: [] };
+}
 import type {
   SelectionScope,
   OrganizationFieldConfig,

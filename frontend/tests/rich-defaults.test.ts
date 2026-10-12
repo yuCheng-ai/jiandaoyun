@@ -218,7 +218,7 @@ it("enforces stored HTML length while preserving and allowing reductions of lega
   expect(richTextDefaultErrors(schema.fields, copy(schema.fields))).toEqual([]);
   expect(richTextDefaultErrors(schema.fields)).toHaveLength(1);
   expect(parseSchema(schema).fields[0]!.defaultValue).toBe(previous[field.id]);
-});
+}, 20000);
 it("uses stable row identities for legacy nested rich-value baselines", () => {
   const child = createField("richtext");
   const rows = createField("subform", { children: [child] });

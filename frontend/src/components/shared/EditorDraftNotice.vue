@@ -4,10 +4,10 @@ import {
   useEditorDraftStore,
   type DraftRestoreTicket,
 } from "../../stores/editorDrafts";
-import { useWorkspaceStore } from "../../stores/workspace";
+import { useNotices } from "../../stores/notices";
 const props = defineProps<{ draftKey: string; disabled?: boolean }>();
 const drafts = useEditorDraftStore(),
-  workspace = useWorkspaceStore();
+  feedback = useNotices();
 const ignored = ref<string[]>([]),
   selectedId = ref(""),
   ticket = ref<DraftRestoreTicket>(),
@@ -65,7 +65,7 @@ function restore() {
   if (busy.value || !ticket.value) return;
   const scope = root.value?.closest("dialog, form");
   if (drafts.restore(ticket.value)) {
-    workspace.notify("已恢复上次编辑内容，请检查后保存或提交");
+    feedback.notify("已恢复上次编辑内容，请检查后保存或提交");
     restoreError.value = "";
     focusEditor(scope);
   } else {

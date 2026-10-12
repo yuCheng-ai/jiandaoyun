@@ -234,7 +234,7 @@ export class PageService {
       if (id) await assertPageActive(tx, actor, id);
       if (old && old.revision !== body.expectedRevision) throw new ConflictException("页面已被修改，当前编辑内容已保留");
       if (old && old.definition_id !== body.definitionId) throw new BadRequestException("页面所属数据对象不能直接变更");
-      const formModel = body.formModel === undefined ? null : parseModel(body.formModel, true);
+      const formModel = body.formModel == null ? null : parseModel(body.formModel, true);
       if (formModel && (!old || !(await this.canEditFields(tx, actor, old)))) throw new ConflictException("共用字段不能由当前表单单独修改，当前输入已保留");
       if (formModel && body.definitionVersion !== old.definition_version) throw new ConflictException("表单版本已变化，请重新读取后核对修改");
       if (old?.form_model && !formModel) throw new ConflictException("当前草稿包含字段修改，请重新读取后继续编辑");

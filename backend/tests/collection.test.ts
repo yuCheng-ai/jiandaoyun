@@ -28,7 +28,7 @@ async function setup() {
     ),
   );
   for (const userId of [editor, reviewer])
-    await h.request(`/definitions/${def.id}/grants`, "PUT", {
+    await h.grant(def.id, {
       userId,
       read: true,
       create: true,
@@ -565,7 +565,7 @@ test("concurrent configuration changes require a new revision; immutable audit a
 
 test("status does not bypass creation permission or workspace boundaries, and configured rules survive restart without touching records", async () => {
   const { def } = await setup();
-  await h.request(`/definitions/${def.id}/grants`, "PUT", {
+  await h.grant(def.id, {
     userId: reviewer,
     read: true,
     create: false,

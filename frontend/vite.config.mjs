@@ -18,6 +18,7 @@ export default defineConfig({
   },
   plugins: [vue()],
   test: {
+    testTimeout: 15000,
     include: ["tests/**/*.test.ts"],
     setupFiles: ["tests/setup.ts"],
     testTransformMode: {

@@ -4,17 +4,17 @@ import type { FormSchema, ServerOrganization } from "@platform/contracts";
 import FormPreview from "../forms/components/FormPreview.vue";
 import BaseDialog from "../../components/BaseDialog.vue";
 import { runtimeDataKey } from "../../composables/useRuntimeData";
-import { useWorkspaceStore } from "../../stores/workspace";
+import { emptyWorkspace } from "../../domain/workspace";
 import { usePlatformSession } from "../../stores/platformSession";
 import { platformApi } from "../../repositories/platformApi";
 defineProps<{ schema: FormSchema; formId: string; title: string }>();
 const emit = defineEmits<{ close: [] }>();
-const workspace = useWorkspaceStore(), session = usePlatformSession(), directory = ref<ServerOrganization>(), error = ref('');
+const session = usePlatformSession(), directory = ref<ServerOrganization>(), error = ref('');
 async function load() { error.value = ''; try { directory.value = await platformApi<ServerOrganization>('/organization'); } catch (cause) { error.value = (cause as Error).message; } }
 onMounted(load);
 provide(runtimeDataKey, computed(() => {
   const source = directory.value;
-  return { ...workspace.data, organization: {
+  return { ...emptyWorkspace(), organization: {
     version: 1 as const, name: '组织与成员', currentUserId: session.user?.id || '',
     departments: (source?.spec.departments || []).map(item => ({ ...item, managerIds: item.managerIds || [] })),
     roleGroups: source?.spec.roleGroups || [], roles: (source?.spec.roles || []).map(item => ({ ...item, grants: [] })),

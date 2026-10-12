@@ -87,6 +87,16 @@ export interface WorkspaceData {
   entries: FormEntry[];
   recentFormIds: string[];
 }
+/** Empty rendering context for server-backed forms; never reads browser business data. */
+export function emptyWorkspace(): WorkspaceData {
+  return {
+    version: 1, apps: [], forms: [], entries: [], recentFormIds: [],
+    organization: {
+      version: 1, name: "组织与成员", currentUserId: "",
+      departments: [], employees: [], roles: [], roleGroups: [],
+    },
+  };
+}
 /** Archived forms still exist; only removing their active calculations releases capacity. */
 export function formFieldLimitError(
   form: Pick<FormRecord, "id" | "appId" | "schema">,

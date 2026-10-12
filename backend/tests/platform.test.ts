@@ -147,7 +147,7 @@ test("server rejects unsupported rules and malformed definitions", async () => {
     { ...schema, fields: [basic("a", "text", { unique: true })] },
     { ...schema, fields: [basic("a", "text", { defaultLink: { enabled: true, formId: "source", fieldId: "field", match: "all", filters: [] } })] },
     { ...schema, fields: [basic("a", "text", { defaultFormula: true })] },
-    { ...schema, fields: [basic("a", "number", { defaultFormula: true, expression: "SUM(1, 2)" })] },
+    { ...schema, fields: [basic("a", "number", { defaultFormula: true, expression: "UNKNOWN_FUNCTION(1, 2)" })] },
     { ...schema, settings: { rules: [{}] } },
   ])
     await request(
@@ -467,7 +467,7 @@ test("cross-workspace IDs and self-only scopes are enforced", async () => {
   await request(
     `/definitions/${def}/grants`,
     "PUT",
-    grant(user.id, all, { scope: "self" }),
+    grant(user.id, all, { scope: "self", expectedRevision: (await request(`/definitions/${def}/grants`)).find((item: any) => item.userId === user.id).revision }),
   );
   assert.equal(
     (await request(`/definitions/${def}/records`, "GET", undefined, editor))
@@ -475,7 +475,7 @@ test("cross-workspace IDs and self-only scopes are enforced", async () => {
     0,
   );
   await request(`/records/${record.id}`, "GET", undefined, editor, 403);
-  await request(`/definitions/${def}/grants`, "PUT", grant(user.id, all));
+  await request(`/definitions/${def}/grants`, "PUT", grant(user.id, all, { expectedRevision: (await request(`/definitions/${def}/grants`)).find((item: any) => item.userId === user.id).revision }));
 });
 test("two generic process configurations reuse record bindings, parallel tasks, joins and cross-record waits", async () => {
   const editorId = users.find((u) => u.username === "editor").id,

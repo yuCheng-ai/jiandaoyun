@@ -6,7 +6,6 @@ import AdminLayout from "./AdminLayout.vue";
 import AccountListDialog from "./AccountListDialog.vue";
 import MemberAccountDialog from "./MemberAccountDialog.vue";
 import { platformApi } from "../../repositories/platformApi";
-import { memberAccountNamespace } from "../../repositories/memberAccounts";
 import AppIcon from "../../components/AppIcon.vue";
 import BaseDialog from "../../components/BaseDialog.vue";
 import DepartmentTree from "../../components/organization/DepartmentTree.vue";
@@ -22,14 +21,14 @@ import {
   type Employee,
   type EmployeeStatus,
 } from "../../domain/organization";
-import { useWorkspaceStore } from "../../stores/workspace";
+import { useOrganizationStore } from "../../stores/organization";
 import { useOrganizationDraft } from "../../composables/useOrganizationDraft";
 import {
   restoreBulkOrganizationDraft,
   restoreDepartmentDraft,
   restoreEmployeeDraft,
-} from "../../domain/organizationDraftAdapters";
-const store = useWorkspaceStore(),
+} from "../../domain/organizationDrafts";
+const store = useOrganizationStore(),
   router = useRouter();
 const showAccounts = ref(false);
 const accountMember = ref<Employee>(),
@@ -37,19 +36,30 @@ const accountMember = ref<Employee>(),
   accounts = ref<MemberAccounts>();
 const accountsError = ref(""),
   accountsBusy = ref(false);
+let accountsRequest = 0;
 async function loadAccounts() {
-  if (accountsBusy.value) return;
+  const requested = ++accountsRequest;
+  if (!store.ready || !store.namespace) {
+    accounts.value = undefined;
+    accountNamespace.value = accountsError.value = "";
+    accountsBusy.value = false;
+    return;
+  }
+  const namespace = store.namespace;
   accountsBusy.value = true;
   accountsError.value = "";
   try {
-    accountNamespace.value = await memberAccountNamespace();
-    accounts.value = await platformApi<MemberAccounts>(
-      `/organization/member-accounts?namespace=${accountNamespace.value}`,
+    const result = await platformApi<MemberAccounts>(
+      `/organization/member-accounts?namespace=${namespace}`,
     );
+    if (requested !== accountsRequest) return;
+    accountNamespace.value = namespace;
+    accounts.value = result;
   } catch (cause) {
-    accountsError.value = (cause as Error).message;
+    if (requested === accountsRequest)
+      accountsError.value = (cause as Error).message;
   } finally {
-    accountsBusy.value = false;
+    if (requested === accountsRequest) accountsBusy.value = false;
   }
 }
 const memberLinks = computed(
@@ -59,17 +69,13 @@ const memberLinks = computed(
     ),
 );
 watch(
-  [
-    () => store.data.organization,
-    () => store.directoryReady,
-    () => store.directoryLoading,
-  ],
+  [() => store.organization, () => store.ready, () => store.loading],
   ([, ready, loading]) => {
-    if (ready && !loading) void loadAccounts();
+    if (!ready || !loading) void loadAccounts();
   },
   { immediate: true, flush: "post" },
 );
-const org = computed(() => store.data.organization);
+const org = computed(() => store.organization);
 const departmentId = ref(""),
   treeQuery = ref(""),
   query = ref(""),
@@ -218,8 +224,12 @@ function openEmployee(item?: Employee) {
     )
       n++;
     employee.value.number = `E${String(n).padStart(4, "0")}`;
-    employee.value.departmentIds = [departmentId.value || "company"];
-    employee.value.primaryDepartmentId = employee.value.departmentIds[0]!;
+    employee.value.departmentIds = org.value.departments.some(
+      (item) => item.id === departmentId.value && !item.archived,
+    )
+      ? [departmentId.value]
+      : [];
+    employee.value.primaryDepartmentId = employee.value.departmentIds[0] || "";
   }
   employeeRoleIds.value = org.value.roles
     .filter((r) => r.memberIds.includes(employee.value.id))
@@ -251,7 +261,7 @@ function openDepartment(item?: Department) {
     : {
         id: uid("department"),
         name: "",
-        parentId: departmentId.value || "company",
+        parentId: departmentId.value || null,
         managerIds: [],
         archived: false,
       };

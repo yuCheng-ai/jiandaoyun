@@ -45,5 +45,5 @@ it('role grants send the role identity and revision, and safely recover a stale 
   expect((request[2] as any).userId).toBeUndefined(); expect(writes).toBe(1);
   await click('重新读取授权'); expect((document.querySelector('[aria-label="名称权限"]') as HTMLSelectElement).value).toBe('edit');
   await click('放弃修改并读取'); expect((document.querySelector('[aria-label="名称权限"]') as HTMLSelectElement).value).toBe('read');
-  expect(kind.disabled).toBe(false);
+  expect(document.querySelector<HTMLSelectElement>(".permission-subjects select")!.disabled).toBe(false);
 });

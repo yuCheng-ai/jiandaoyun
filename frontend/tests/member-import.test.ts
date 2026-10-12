@@ -265,12 +265,12 @@ it("rechecks revoked import/field permissions and inactive members under the sha
       before = copy(f.mine.values);
     const other = useWorkspaceStore(createPinia());
     if (revoke === "actor") {
-      expect(await other.setCurrentUser("li")).toBe(true);
-      const actor = copy(
-        other.data.organization.employees.find((e) => e.id === "zhang")!,
-      );
-      actor.status = "inactive";
-      expect(await other.saveEmployee(actor)).toBe(true);
+      // Model a persisted source snapshot whose member was disabled externally.
+      // Directory commands now belong to the server and cannot be used to edit this legacy fixture.
+      const latest = new LocalWorkspaceRepository().load()!;
+      latest.organization.currentUserId = "li";
+      latest.organization.employees.find((e) => e.id === "zhang")!.status = "inactive";
+      memory.set(WORKSPACE_KEY, JSON.stringify(latest));
     } else {
       const access = copy(f.access);
       if (revoke === "import") access.groups[0]!.actions = ["view", "edit"];

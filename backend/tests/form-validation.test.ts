@@ -26,13 +26,14 @@ test("unsupported submission conditions are rejected instead of silently accepte
   assert.doesNotThrow(() => parseSchema(source));
   assert.doesNotThrow(() => parseSchema({ ...source, settings: { rules: [], validations: [] } }));
 });
-test("server pages preserve legacy compatibility and reject conditions both before and after schema separation", () => {
+test("server pages accept supported submission conditions and reject malformed conditions", () => {
   const parsed = parseSchema(schema(field("amount", "number")));
   const split = separateFormSchema(parsed);
   assert.doesNotThrow(() => parsePage(split.page, split.model));
   const withChecks = separateFormSchema({ ...parsed, settings: { ...parsed.settings, validations: [rule] } } as FormSchema);
-  assert.throws(() => parsePage(withChecks.page, withChecks.model), /校验尚未接入服务端/);
-  assert.throws(() => parsePage({ ...split.page, settings: { ...split.page.settings, validations: {} } }, split.model), /校验尚未接入服务端/);
+  assert.deepEqual(parsePage(withChecks.page, withChecks.model).settings.validations, [rule]);
+  assert.throws(() => parsePage({ ...split.page, settings: { ...split.page.settings, validations: {} } }, split.model), /校验/);
+  assert.throws(() => parsePage({ ...split.page, settings: { ...split.page.settings, validations: [{ ...rule, expression: "{{missing}} <= 100" }] } }, split.model), /字段/);
 });
 test("unsupported hidden assignments are retained in contracts and rejected by server definitions and pages", () => {
   const source = schema(field("amount", "number"));

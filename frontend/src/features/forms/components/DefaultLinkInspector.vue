@@ -5,7 +5,7 @@ import AppIcon from "../../../components/AppIcon.vue";
 import BaseDialog from "../../../components/BaseDialog.vue";
 import { useDraftDismiss } from "../../../composables/useDraftDismiss";
 import { useDialogLayer } from "../../../composables/useDialogLayer";
-import { useWorkspaceStore } from "../../../stores/workspace";
+import { useRuntimeData } from "../../../composables/useRuntimeData";
 import { copy, fieldDefinition } from "../../../domain/form";
 import { emptyDefaultLink, linkTypesMatch } from "../../../domain/fieldConfig";
 import { defaultLinkErrors } from "../../../domain/fieldValidation";
@@ -17,14 +17,14 @@ import {
 import DataFilterEditor from "./DataFilterEditor.vue";
 import FormulaEditor from "./FormulaEditor.vue";
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   field: FormField;
   schema: FormSchema;
   formId: string;
   allowLinked?: boolean;
-}>();
+}>(), { allowLinked: true });
 const emit = defineEmits<{ update: [patch: Partial<FormField>] }>();
-const store = useWorkspaceStore();
+const runtime = useRuntimeData();
 const open = ref(false),
   buffer = ref<DefaultLink>(emptyDefaultLink()),
   error = ref("");
@@ -50,14 +50,14 @@ const sourceId = computed(() =>
       : "field-default-source",
 );
 const forms = computed(() =>
-  store.activeForms.filter(
+  runtime.value.forms.filter(
     (f) =>
-      f.id !== props.formId &&
-      f.appId === store.data.forms.find((f) => f.id === props.formId)?.appId,
+      !f.archived && f.id !== props.formId &&
+      f.appId === runtime.value.forms.find((f) => f.id === props.formId)?.appId,
   ),
 );
 const remote = computed(() =>
-  defaultLinkSourceFields(store.data, buffer.value.formId),
+  defaultLinkSourceFields(runtime.value, buffer.value.formId),
 );
 const linkedFields = computed(() =>
   remote.value.filter((f) => linkTypesMatch(props.field, f)),
@@ -195,7 +195,7 @@ function apply() {
     defaultLinkErrors(
       { ...props.field, defaultLink: buffer.value },
       props.schema.fields,
-      store.data,
+      runtime.value,
     )[0] || "";
   if (error.value) return;
   emit("update", { defaultLink: copy(buffer.value) });

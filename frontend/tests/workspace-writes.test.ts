@@ -76,18 +76,16 @@ describe("exclusive workspace write boundary", () => {
   });
 
   it("takes no action before the asynchronous grant, copies caller inputs, and suppresses duplicate clicks", async () => {
-    const store = openTab(),
-      before = copy(store.data.organization);
-    const item = copy(before.employees[0]!);
-    item.name = "Captured name";
-    const first = store.saveEmployee(item);
+    const store = openTab(), before = store.data.recordViews;
+    const item = { fieldIds: ["amount"], sortField: "$createdAt", descending: true, pageSize: 20 as const };
+    const first = store.saveRecordView("expense", item);
     expect(store.writePending).toBe(true);
-    expect(store.data.organization).toEqual(before);
-    item.name = "Changed after click";
+    expect(store.data.recordViews).toEqual(before);
+    item.fieldIds.push("note");
     expect(await store.createApp("Double click")).toBeUndefined();
     expect(await first).toBe(true);
     expect(store.writePending).toBe(false);
-    expect(saved().organization.employees[0]!.name).toBe("Captured name");
+    expect(saved().recordViews?.expense?.fieldIds).toEqual(["amount"]);
     expect(saved().apps.some((a) => a.name === "Double click")).toBe(false);
   });
 

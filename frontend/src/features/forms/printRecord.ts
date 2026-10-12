@@ -1,5 +1,5 @@
 import type { PrintTemplate } from "../../domain/presentation";
-import printStyles from "../../record-presentation.css?inline";
+import printStyles from "./record-presentation.css?inline";
 
 /** Prints a detached copy of the rendered record, without application controls. */
 export async function printRecord(

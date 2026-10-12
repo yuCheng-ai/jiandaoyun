@@ -84,7 +84,7 @@ it("using a create-only page stays on own drafts before and after a successful s
         definition: { id: "object", version: 1 },
         access: { read: false, create: true },
       };
-    if (path === "/definitions/object/records?state=draft") return [];
+    if (path === "/pages/page/record-list?version=1&state=draft&page=1") return { records: [], total: 0, page: 1, pageSize: 20, fields: [], view: { revision: 1, settings: { fieldIds: [], sortField: "$createdAt", descending: true, pageSize: 20 } } };
     throw new Error(`Unexpected request ${path}`);
   });
   document.body.innerHTML = '<div id="mount"></div>';
@@ -111,8 +111,8 @@ it("using a create-only page stays on own drafts before and after a successful s
   await click("数据管理");
   expect(document.body.textContent).toContain("提交后由有查看权限的成员处理");
   expect(document.querySelector('option[value="active"]')).toBeNull();
-  expect(callPaths().filter((path) => path.includes("/records?"))).toEqual([
-    "/definitions/object/records?state=draft",
+  expect(callPaths().filter((path) => path.includes("/record-list?"))).toEqual([
+    "/pages/page/record-list?version=1&state=draft&page=1",
   ]);
   await click("新增记录");
   await click("提交登记验收");
@@ -120,8 +120,8 @@ it("using a create-only page stays on own drafts before and after a successful s
   expect(document.body.textContent).toContain(
     "已保存，当前权限不能查看这条记录",
   );
-  expect(callPaths().filter((path) => path.includes("/records?"))).toEqual([
-    "/definitions/object/records?state=draft",
-    "/definitions/object/records?state=draft",
+  expect(callPaths().filter((path) => path.includes("/record-list?"))).toEqual([
+    "/pages/page/record-list?version=1&state=draft&page=1",
+    "/pages/page/record-list?version=1&state=draft&page=1",
   ]);
 });

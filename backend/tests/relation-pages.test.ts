@@ -25,8 +25,8 @@ before(async () => {
   };
   page = await makePage("edit"); readPage = await makePage("read"); hiddenPage = await makePage("hidden");
   member = (await api("/users")).find((u: any) => u.username === "editor");
-  await api(`/definitions/${source.id}/grants`, "PUT", sourceGrant());
-  await api(`/definitions/${target.id}/grants`, "PUT", { userId: member.id, read: true, edit: false, create: false, scope: "all", fields: { name: "read", region: "read", price: "read", secret: "hidden" } });
+  await h.grant(source.id, sourceGrant());
+  await h.grant(target.id, { userId: member.id, read: true, edit: false, create: false, scope: "all", fields: { name: "read", region: "read", price: "read", secret: "hidden" } });
 });
 after(() => h.close());
 test("a retried relation draft creation returns the same identity", async () => {
@@ -66,11 +66,11 @@ test("page-scoped linking and replay return only page-authorized fields; reverse
   let incoming = await api(`/records/${chosen.record.id}/relations`, "GET", undefined, "editor");
   assert.equal(incoming[0].direction, "incoming"); assert.equal(incoming[0].links[0].sourceRecordId, record.record.id);
   assert.equal(incoming[0].links[0].values.hidden, undefined);
-  await api(`/definitions/${source.id}/grants`, "PUT", sourceGrant({ relations: {} }));
+  await h.grant(source.id, sourceGrant({ relations: {} }));
   assert.deepEqual(await api(`/records/${chosen.record.id}/relations`, "GET", undefined, "editor"), []);
-  await api(`/definitions/${source.id}/grants`, "PUT", sourceGrant({ scope: "self" }));
+  await h.grant(source.id, sourceGrant({ scope: "self" }));
   assert.deepEqual(await api(`/records/${chosen.record.id}/relations`, "GET", undefined, "editor"), []);
-  await api(`/definitions/${source.id}/grants`, "PUT", sourceGrant());
+  await h.grant(source.id, sourceGrant());
   const removed = await api(`${path()}/${relation.id}/links/${result.link.id}/remove`, "POST", { pageVersion: 1, requestId: randomUUID() }, "editor", 201);
   assert.equal(removed.record.record.values.hidden, undefined); assert.equal(removed.record.record.values.price, 42);
   assert.deepEqual(await api(`/records/${chosen.record.id}/relations`, "GET", undefined, "editor"), []);

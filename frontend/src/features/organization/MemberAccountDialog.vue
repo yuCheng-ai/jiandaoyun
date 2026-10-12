@@ -60,7 +60,7 @@ async function load() {
   error.value = "";
   try {
     if (
-      directoryCanonical(await currentAccountMember(member.id)) !==
+      directoryCanonical(await currentAccountMember(member.id, props.namespace)) !==
       directoryCanonical(member)
     )
       throw Error("成员资料已变化，请关闭后重新打开");

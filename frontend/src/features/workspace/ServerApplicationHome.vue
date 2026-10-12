@@ -264,7 +264,9 @@ async function load() {
     view.value =
       route.query.tab === "processes"
         ? "processes"
-        : route.query.tab === "objects" || route.query.view === "records"
+        : route.query.tab === "objects" ||
+            route.query.view === "records" ||
+            route.query.section === "data"
           ? "records"
           : "fill";
     await loadForm();

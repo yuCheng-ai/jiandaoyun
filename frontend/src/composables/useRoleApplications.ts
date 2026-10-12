@@ -1,38 +1,16 @@
-import { computed, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { RoleApplication } from "@platform/contracts";
 import { platformApi } from "../repositories/platformApi";
-import { useWorkspaceStore } from "../stores/workspace";
+import { usePlatformSession } from "../stores/platformSession";
 
 /** Existing role controls share one catalog, including preserved source identifiers. */
 export function useRoleApplications() {
-  const store = useWorkspaceStore(),
-    saved = ref<RoleApplication[]>([]),
+  const session = usePlatformSession();
+  let generation = 0;
+  const saved = ref<RoleApplication[]>([]),
     loading = ref(false),
     error = ref("");
-  const applications = computed(() => [
-    ...saved.value.map((app) => ({ ...app, connected: true })),
-    ...store.data.apps
-      .filter(
-        (app) =>
-          !saved.value.some(
-            (server) => server.id === app.id || server.sourceId === app.id,
-          ),
-      )
-      .map((app) => ({
-        id: app.id,
-        name: app.name,
-        connected: false,
-        sourceId: undefined,
-        forms: store.activeForms
-          .filter((form) => form.appId === app.id)
-          .map((form) => ({
-            id: form.id,
-            title: form.title,
-            grouped: false,
-            sourceId: undefined,
-          })),
-      })),
-  ]);
+  const applications = computed(() => saved.value);
   const find = (id: string) =>
     applications.value.find((app) => app.id === id || app.sourceId === id);
   const forms = (id: string) => {
@@ -45,19 +23,35 @@ export function useRoleApplications() {
     );
   };
   async function load() {
-    if (loading.value) return;
+    if (loading.value || session.user?.role !== "admin") return;
+    const requested = generation;
     loading.value = true;
     error.value = "";
     try {
-      saved.value = await platformApi<RoleApplication[]>(
+      const result = await platformApi<RoleApplication[]>(
         "/organization/role-applications",
       );
+      if (requested === generation) saved.value = result;
     } catch (cause) {
-      error.value = (cause as Error).message;
+      if (requested === generation) error.value = (cause as Error).message;
     } finally {
-      loading.value = false;
+      if (requested === generation) loading.value = false;
     }
   }
+  watch(
+    () => (session.user ? `${session.user.id}:${session.user.role}` : ""),
+    () => {
+      generation++;
+      saved.value = [];
+      loading.value = false;
+      error.value = "";
+      void load();
+    },
+    { flush: "sync" },
+  );
   onMounted(load);
+  onBeforeUnmount(() => {
+    generation++;
+  });
   return { applications, find, forms, loading, error, load };
 }

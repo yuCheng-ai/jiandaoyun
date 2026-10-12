@@ -1,7 +1,5 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { harness, field, schema } from "./helpers";
 
 const h = harness();
@@ -9,9 +7,8 @@ before(() => h.start());
 after(() => h.close());
 
 test("field text properties survive server publication, rejected edits, history and restart", async () => {
-  const image = readFileSync(
-    resolve(__dirname, "../../../docs/qa-files/SYN-OCR.png"),
-  ).toString("base64");
+  // A complete 1×1 PNG keeps this contract test independent of archived QA assets.
+  const image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6ioAAAAASUVORK5CYII=";
   const description = `<p><strong>${"说明".repeat(1200)}</strong></p><img src="data:image/png;base64,${image}">`;
   const label = "题".repeat(1000);
   const definition = await h.definition(

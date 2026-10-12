@@ -4,6 +4,7 @@ import {
   nextTick,
   onBeforeUnmount,
   onMounted,
+  provide,
   ref,
   watch,
 } from "vue";
@@ -36,7 +37,8 @@ import {
   pageFieldConflicts,
   planFieldReuse,
 } from "../../domain/pageDesigner";
-import { newForm } from "../../domain/workspace";
+import { emptyWorkspace, newForm } from "../../domain/workspace";
+import { runtimeDataKey } from "../../composables/useRuntimeData";
 import { useFormDesigner, type FieldDrop } from "../forms/useFormDesigner";
 import { useDesignerPanels } from "../../composables/useDesignerPanels";
 import FieldRecycleList from "../forms/components/FieldRecycleList.vue";
@@ -57,6 +59,8 @@ const store = usePageDesignerStore(),
   router = useRouter(),
   route = useRoute();
 const data = computed(() => store.data!);
+const runtime = emptyWorkspace();
+provide(runtimeDataKey, computed(() => runtime));
 const canEditFields = computed(() => !!data.value.canEditFields);
 const base = newForm(data.value.draft.applicationId || "", store.state.title);
 const facade = computed(() => ({

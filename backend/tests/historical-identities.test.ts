@@ -78,10 +78,10 @@ test("historical catalog is excluded from current candidates, authentication, au
 
 test("record scopes and hidden fields cannot leak archived names or treat the importer as creator", async () => {
   const f = await fixture(), grant = { userId: editor, read: true, create: false, edit: false, scope: "self", fields: { note: "read", owner: "hidden", secret: "hidden", department: "hidden", lines: "hidden", handler: "hidden" } };
-  await h.request(`/definitions/${f.definition.id}/grants`, "PUT", grant);
+  await h.grant(f.definition.id, grant);
   assert.deepEqual(await h.request(`/definitions/${f.definition.id}/records`, "GET", undefined, "editor"), []);
   await h.request(`/records/${f.record.id}`, "GET", undefined, "editor", 403);
-  await h.request(`/definitions/${f.definition.id}/grants`, "PUT", { ...grant, scope: "all", fields: { ...grant.fields, owner: "read" } });
+  await h.grant(f.definition.id, { ...grant, scope: "all", fields: { ...grant.fields, owner: "read" } });
   const visible = await h.request(`/records/${f.record.id}`, "GET", undefined, "editor");
   assert.equal(visible.identities.length, 1); assert.equal(visible.identities[0].historical, true);
   assert.equal(JSON.stringify(visible).includes("不可见原人员"), false); assert.equal(JSON.stringify(visible).includes("原业务部门"), false);

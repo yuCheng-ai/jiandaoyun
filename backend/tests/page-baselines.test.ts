@@ -34,7 +34,7 @@ test("a stale initial draft saves safely and explicitly adopts the published mod
   let page = await h.request(`/pages/${original.draft.id}`, "PUT", { ...original.draft, expectedRevision: original.draft.revision, title: "修改保留", initial_model: object.model, initial_model_revision: 3, baseDefinitionRevision: 3 });
   assert.equal((await h.request(`/pages/${page.id}/editor`)).model.fields.length, 0);
   const conflict = await h.request(`/pages/${page.id}/publish-preview`, "POST", { expectedRevision: page.revision }, "admin", 409);
-  assert.match(conflict.message, /数据字段/);
+  assert.match(conflict.message, /表单字段.*已保留/);
   await h.request(`/pages/${page.id}/publish`, "POST", { expectedRevision: page.revision }, "admin", 409);
   const latest = await h.request(`/data-objects/${object.id}/published-model`);
   page = await h.request(`/pages/${page.id}`, "PUT", { ...page, expectedRevision: page.revision, definitionVersion: latest.object.latestVersion, baseDefinitionRevision: latest.object.revision });

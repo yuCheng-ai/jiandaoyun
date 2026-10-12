@@ -1,9 +1,5 @@
 import type { FormRecord, WorkspaceData } from "./workspace";
 import { sameWorkspaceValue } from "./workspaceSync";
-import {
-  organizationScopeValue,
-  type OrganizationEditScope,
-} from "./organizationDraftAdapters";
 
 /** A command protects the objects the user edited. Other data is reread before validation. */
 export type WorkspaceScope = {
@@ -53,21 +49,6 @@ const orderScope: ScopeFactory = ([id]) => ({
     return { order, ...record(data, order?.entryId || "") };
   },
 });
-const organization = (
-  kind: OrganizationEditScope["kind"],
-  ids: string[],
-): WorkspaceScope => ({
-  select: (data) => organizationScopeValue(data, { kind, ids }),
-  label: () =>
-    ({
-      employee: "当前成员",
-      department: "当前部门",
-      role: "当前角色",
-      group: "当前角色分组",
-      bulk: "选中的成员",
-    })[kind],
-});
-
 /** Explicit, exhaustive at the store boundary. New commands must declare their edit scope. */
 export const workspaceScopes = {
   createApp: fresh,
@@ -182,14 +163,6 @@ export const workspaceScopes = {
     label: () => "当前商户",
     select: (data) => data.paymentMerchants?.find((m) => m.id === merchant.id),
   }),
-  saveDepartment: ([item]) => organization("department", [item.id]),
-  archiveDepartment: ([id]) => organization("department", [id]),
-  saveEmployee: ([item]) => organization("employee", [item.id]),
-  bulkEmployees: ([ids]) => organization("bulk", ids),
-  saveRole: ([item]) => organization("role", [item.id]),
-  archiveRole: ([id]) => organization("role", [id]),
-  saveRoleGroup: ([, id]) => organization("group", [id]),
-  removeRoleGroup: ([id]) => organization("group", [id]),
   setCurrentUser: fresh,
   persist: () => ({ select: businessSnapshot }),
 } satisfies Record<string, ScopeFactory>;

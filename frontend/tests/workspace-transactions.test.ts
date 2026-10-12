@@ -7,7 +7,6 @@ import {
   memberSchema,
 } from "../src/domain/access";
 import { newWebhook } from "../src/domain/extensions";
-import { organizationEditContext } from "../src/domain/organizationDraftAdapters";
 import { seedWorkspace } from "../src/domain/workspace";
 import { useWorkspaceStore } from "../src/stores/workspace";
 import {
@@ -472,31 +471,6 @@ describe("task-scoped transaction boundary", () => {
     expect(
       saved().forms.find((f) => f.id === form.id)!.schema.fields,
     ).toHaveLength(2);
-  });
-  it("does not invalidate a member editor when a different member or application changes", async () => {
-    const old = tab(),
-      other = tab();
-    const employee = copy(
-      old.data.organization.employees.find((e) => e.id === "wang")!,
-    );
-    const context = organizationEditContext(old.data, {
-      kind: "employee",
-      ids: ["wang"],
-    });
-    const unrelated = copy(
-      other.data.organization.employees.find((e) => e.id === "li")!,
-    );
-    unrelated.position = "其他岗位";
-    await other.saveEmployee(unrelated);
-    await other.createForm("oa", "新应用表单", "form");
-    employee.position = "我的岗位";
-    expect(await old.saveEmployee(employee, undefined, context)).toBe(true);
-    expect(
-      saved().organization.employees.find((e) => e.id === "li")!.position,
-    ).toBe("其他岗位");
-    expect(
-      saved().organization.employees.find((e) => e.id === "wang")!.position,
-    ).toBe("我的岗位");
   });
   it("preserves a failed write for retry after a quota error", async () => {
     const old = tab();

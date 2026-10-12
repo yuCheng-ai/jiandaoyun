@@ -17,8 +17,20 @@ import {
 } from "../src/domain/organization";
 import { parseWorkspace } from "../src/repositories/workspaceRepository";
 import { seedWorkspace } from "../src/domain/workspace";
-import { useWorkspaceStore } from "../src/stores/workspace";
+import { computed, ref, type Ref } from "vue";
+import { organizationActions } from "../src/stores/organizationActions";
 import { copy } from "../src/domain/form";
+
+// Exercise the pure organization reducer; server persistence is covered by directory API tests.
+function organizationFixture() {
+  const data = ref(seedWorkspace()) as Ref<ReturnType<typeof seedWorkspace>>;
+  const persist = () => {
+    localStorage.setItem("organization-fixture", JSON.stringify(data.value));
+    return true;
+  };
+  return { get data() { return data.value; }, ...organizationActions(computed({ get: () => data.value.organization, set: (value) => { data.value.organization = value; } }), persist, vi.fn()) };
+}
+
 let saved = new Map<string, string>();
 let setItem = vi.fn();
 beforeEach(() => {
@@ -136,7 +148,7 @@ describe("organization and identity", () => {
     );
   });
   it("persists employee edits and prevents duplicate employee numbers", async () => {
-    const store = useWorkspaceStore();
+    const store = organizationFixture();
     const employee = newEmployee();
     Object.assign(employee, {
       name: "测试成员",
@@ -159,7 +171,7 @@ describe("organization and identity", () => {
     ).toBe("测试成员");
   });
   it("rejects archiving occupied departments and can restore empty departments", async () => {
-    const store = useWorkspaceStore();
+    const store = organizationFixture();
     expect(await store.archiveDepartment("engineering")).toBe(false);
     expect(
       await store.saveDepartment({
@@ -174,7 +186,7 @@ describe("organization and identity", () => {
     expect(await store.archiveDepartment("empty", false)).toBe(true);
   });
   it("rolls back failed writes and protects the current user during bulk changes", async () => {
-    const store = useWorkspaceStore(),
+    const store = organizationFixture(),
       before = copy(store.data.organization);
     expect(await store.bulkEmployees(["zhang"], { status: "left" })).toBe(
       false,

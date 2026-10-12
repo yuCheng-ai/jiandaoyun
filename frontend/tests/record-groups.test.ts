@@ -193,7 +193,7 @@ it("opening a form does not fetch its record content until a permission group is
         },
       ];
     if (path.endsWith("/options")) return options();
-    if (path.includes("/records?")) return [];
+    if (path.includes("/record-list?")) return { records: [], total: 0, page: 1, pageSize: 20, fields: [], view: { revision: 1, settings: { fieldIds: [], sortField: "$createdAt", descending: true, pageSize: 20 } } };
     if (path === "/pages/page/form?version=1")
       return {
         page: { id: "page", version: 1 },
@@ -208,7 +208,7 @@ it("opening a form does not fetch its record content until a permission group is
     vi
       .mocked(platformApi)
       .mock.calls.some(
-        (c) => c[0].includes("/form?") || c[0].includes("/records?"),
+        (c) => c[0].includes("/form?") || c[0].includes("/record-list?"),
       ),
   ).toBe(false);
   expect(vi.mocked(platformApi).mock.calls.at(-1)?.[0]).toBe(
@@ -219,7 +219,7 @@ it("opening a form does not fetch its record content until a permission group is
     vi
       .mocked(platformApi)
       .mock.calls.some(
-        (c) => c[0] === "/definitions/object/records?state=active",
+        (c) => c[0] === "/pages/page/record-list?version=1&state=active&page=1",
       ),
   ).toBe(true);
   expect(accessGroupSelections.value.object).toBe("a");
@@ -325,7 +325,7 @@ it("a create-only form opens its own drafts without requesting submitted records
           },
         },
       };
-    if (path.includes("/records?")) return [];
+    if (path.includes("/record-list?")) return { records: [], total: 0, page: 1, pageSize: 20, fields: [], view: { revision: 1, settings: { fieldIds: [], sortField: "$createdAt", descending: true, pageSize: 20 } } };
     throw new Error(path);
   });
   await mount(ServerApplicationHome);
@@ -337,9 +337,9 @@ it("a create-only form opens its own drafts without requesting submitted records
   expect(
     vi
       .mocked(platformApi)
-      .mock.calls.filter((c) => c[0].includes("/records?"))
+      .mock.calls.filter((c) => c[0].includes("/record-list?"))
       .map((c) => c[0]),
-  ).toEqual(["/definitions/object/records?state=draft"]);
+  ).toEqual(["/pages/page/record-list?version=1&state=draft&page=1"]);
   expect(
     [...document.querySelectorAll("option")].some(
       (el) => el.value === "active",
@@ -347,7 +347,7 @@ it("a create-only form opens its own drafts without requesting submitted records
   ).toBe(false);
   await input(".record-group-choice select", "review");
   expect(vi.mocked(platformApi).mock.calls.at(-1)![0]).toBe(
-    "/definitions/object/records?state=active",
+    "/pages/page/record-list?version=1&state=active&page=1",
   );
 });
 

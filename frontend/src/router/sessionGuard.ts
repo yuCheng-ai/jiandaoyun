@@ -1,15 +1,10 @@
 import type { Router } from "vue-router";
 import { usePlatformSession } from "../stores/platformSession";
 
-// Legacy forms retain their data and preview identities until migration. They
-// are administrator tools, not authorized member entry points.
+// All live business routes use authenticated server accounts.
 export function installSessionGuard(router: Router) {
   router.beforeEach(async (to) => {
-    if (
-      to.name === "home" ||
-      (to.name === "form-section" && to.params.section === "fill")
-    )
-      return;
+    if (to.name === "home") return;
     const session = usePlatformSession();
     try {
       await session.restore();
@@ -18,8 +13,7 @@ export function installSessionGuard(router: Router) {
     }
     if (!session.user) return { name: "home", query: { next: to.fullPath } };
     if (
-      (to.path.startsWith("/apps/") ||
-        to.path.startsWith("/admin/") ||
+      (to.path.startsWith("/admin/") ||
         to.name === "page-designer") &&
       session.user.role !== "admin"
     )

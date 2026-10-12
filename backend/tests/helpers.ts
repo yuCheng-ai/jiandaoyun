@@ -46,6 +46,10 @@ export function harness() {
       await request(`/definitions/${def.id}/publish`, "POST", { expectedRevision: 1 }, "admin", 201);
       return { ...def, revision: 2, latestVersion: 1 };
     },
+    async grant(definitionId: string, policy: { userId: string; [key: string]: unknown }) {
+      const current = (await request(`/definitions/${definitionId}/grants`)).find((grant: any) => grant.userId === policy.userId);
+      return request(`/definitions/${definitionId}/grants`, "PUT", { ...policy, expectedRevision: current?.revision ?? 0 });
+    },
     async record(definitionId: string, values: unknown, user = "admin", version = 1) {
       return request(`/definitions/${definitionId}/records`, "POST", { requestId: randomUUID(), version, values }, user, 201);
     },

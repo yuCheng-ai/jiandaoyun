@@ -49,7 +49,7 @@ it("discarding a saved page draft replaces state and resets editing history with
   expect(vi.mocked(platformApi).mock.calls.at(-1)).toEqual(["/pages/page/discard-draft", "POST", { expectedRevision: 1 }]);
   expect(vi.mocked(platformApi).mock.calls.some(call => call[1] === "PUT")).toBe(false);
   expect(store.state.title).toBe("填写页"); expect(store.state.schema.fields).toHaveLength(1);
-  expect(store.dirty).toBe(false); expect(store.editorEpoch).toBe(1); expect(store.feedback).toContain("已恢复页面 V1");
+  expect(store.dirty).toBe(false); expect(store.editorEpoch).toBe(1); expect(store.feedback).toContain("已恢复表单 V1");
 });
 it("discard conflicts preserve current input and do not reset editing history", async () => {
   const store = usePageDesignerStore(); await store.load("page"); store.state.title = "保留输入";

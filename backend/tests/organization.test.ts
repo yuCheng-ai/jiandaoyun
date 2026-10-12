@@ -81,7 +81,7 @@ test("create-only permissions cannot borrow editable fields from a separate edit
   await h.request(`/definitions/${definition.id}/records`, "POST", { requestId: randomUUID(), version: 1, values: { name: "合法", secret: "不应通过" } }, "editor", 403);
   const created = await h.record(definition.id, { name: "可创建" }, "editor"); assert.equal(created.record.values.secret, "");
   const page = (await h.request(`/pages?definitionId=${definition.id}`))[0];
-  const form = await h.request(`/pages/${page.id}/form`, "GET", undefined, "editor"); assert.equal(form.access.fields.secret, "read"); assert.equal(form.access.fields.name, "edit");
+  const form = await h.request(`/pages/${page.id}/form`, "GET", undefined, "editor"); assert.equal(form.access.fields.secret, undefined); assert.equal(form.access.fields.name, "edit");
   assert.equal((await h.request(`/definitions/${definition.id}/records`)).length, 1);
 });
 test("department scope follows membership changes without a new login and includes descendant creators", async () => {

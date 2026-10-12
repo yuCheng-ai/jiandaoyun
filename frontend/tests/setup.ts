@@ -7,9 +7,11 @@ export class TestLocks {
   request = vi.fn(
     async <T>(
       name: string,
-      options: LockOptions,
-      callback: (lock: Lock | null) => T,
+      optionsOrCallback: LockOptions | ((lock: Lock | null) => T),
+      suppliedCallback?: (lock: Lock | null) => T,
     ) => {
+      const options = typeof optionsOrCallback === "function" ? {} : optionsOrCallback;
+      const callback = typeof optionsOrCallback === "function" ? optionsOrCallback : suppliedCallback!;
       await Promise.resolve();
       while (this.held.has(name)) {
         if (options.ifAvailable) return callback(null);

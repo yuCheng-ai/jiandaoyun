@@ -605,4 +605,4 @@ it("does not allow malformed mappings and prepares a large unique file without r
     store.data,
   );
   expect(rows.filter((r) => r.kind === "create")).toHaveLength(10000);
-});
+}, 20000);

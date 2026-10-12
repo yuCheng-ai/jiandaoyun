@@ -8,8 +8,8 @@ const layout = () => schema(field("title", "text", { required: true }), field("q
 async function setup() {
   const definition = await h.definition("草稿业务", layout()), page = (await h.request(`/pages?definitionId=${definition.id}`))[0];
   const policy = { read: true, create: true, edit: false, scope: "all", fields: { title: "edit", quantity: "edit", lines: "edit", item: "edit" } };
-  await h.request(`/definitions/${definition.id}/grants`, "PUT", { userId: editor, ...policy });
-  await h.request(`/definitions/${definition.id}/grants`, "PUT", { userId: reviewer, ...policy, edit: true });
+  await h.grant(definition.id, { userId: editor, ...policy });
+  await h.grant(definition.id, { userId: reviewer, ...policy, edit: true });
   return { definition, page, policy };
 }
 const draft = (f: any, values = {}, user = "editor") => h.request(`/pages/${f.page.id}/records`, "POST", { requestId: randomUUID(), pageVersion: 1, state: "draft", values }, user, 201);
@@ -58,7 +58,7 @@ test("read-all policies do not reveal other members' drafts and revoked creation
   await h.request(`/records/${d.record.id}`, "GET", undefined, "reviewer", 403);
   await h.request(`/records/${d.record.id}`, "PATCH", { requestId: randomUUID(), changes: [{ fieldId: "title", expectedRevision: 1, value: "他人草稿" }] }, "reviewer", 403);
   await submit(f, d, {}, 403, "reviewer");
-  await h.request(`/definitions/${f.definition.id}/grants`, "PUT", { userId: editor, ...f.policy, create: false, edit: true });
+  await h.grant(f.definition.id, { userId: editor, ...f.policy, create: false, edit: true });
   assert.equal((await h.request(`/records/${d.record.id}`, "GET", undefined, "editor")).access.edit, false);
   await h.request(`/records/${d.record.id}`, "PATCH", { requestId: randomUUID(), changes: [{ fieldId: "title", expectedRevision: 1, value: "撤权后" }] }, "editor", 403);
   await submit(f, d, {}, 403);

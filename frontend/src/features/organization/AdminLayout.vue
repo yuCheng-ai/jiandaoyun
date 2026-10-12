@@ -1,17 +1,26 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, provide, ref } from "vue";
 import { useRouter } from "vue-router";
 import AppIcon from "../../components/AppIcon.vue";
 import UserMenu from "../../components/shared/UserMenu.vue";
 import { usePlatformSession } from "../../stores/platformSession";
-import { useWorkspaceStore } from "../../stores/workspace";
+import { useOrganizationStore } from "../../stores/organization";
+import { runtimeDataKey } from "../../composables/useRuntimeData";
+import { emptyWorkspace } from "../../domain/workspace";
 const props = defineProps<{ active: string }>();
-const workspace = useWorkspaceStore();
+const directory = useOrganizationStore();
+provide(
+  runtimeDataKey,
+  computed(() => ({
+    ...emptyWorkspace(),
+    organization: directory.organization,
+  })),
+);
 const directoryPage = computed(() =>
   ["organization", "roles", "permissions"].includes(props.active),
 );
 onMounted(() => {
-  if (directoryPage.value) void workspace.loadDirectory();
+  if (directoryPage.value) void directory.load();
 });
 const router = useRouter();
 const session = usePlatformSession();
@@ -68,13 +77,6 @@ async function logout() {
         >
           <AppIcon name="success" />权限查询
         </button>
-        <small>业务服务</small
-        ><button
-          :class="{ active: active === 'payments' }"
-          @click="router.push('/admin/payments')"
-        >
-          <AppIcon name="database" />支付管理
-        </button>
         <div class="admin-navigation-footer">
           <button @click="router.push('/')">
             <AppIcon name="home" />返回工作台
@@ -82,19 +84,28 @@ async function logout() {
         </div>
       </nav>
       <main class="admin-content">
-        <div
-          v-if="directoryPage && !workspace.directoryReady"
-          class="workspace-empty"
-        >
-          <p v-if="workspace.directoryLoading" role="status">正在读取通讯录…</p>
+        <div v-if="directoryPage && !directory.ready" class="workspace-empty">
+          <p v-if="directory.loading" role="status">正在读取通讯录…</p>
           <template v-else
-            ><p role="alert">{{ workspace.directoryError }}</p>
-            <button class="button" @click="workspace.loadDirectory()">
+            ><p role="alert">{{ directory.error }}</p>
+            <button class="button" @click="directory.load()">
               重新读取通讯录
             </button></template
           >
         </div>
-        <slot v-else />
+        <template v-else>
+          <p
+            v-if="directoryPage && directory.error"
+            class="field-error"
+            role="alert"
+          >
+            {{ directory.error }}
+            <button class="text-button" @click="directory.load()">
+              重新读取
+            </button>
+          </p>
+          <slot />
+        </template>
       </main>
     </div>
   </div>

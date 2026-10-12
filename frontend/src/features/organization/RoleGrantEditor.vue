@@ -150,14 +150,6 @@ function form(index: number, id: string, checked: boolean) {
       </details>
       <p
         v-if="
-          grant.appId !== '*' && catalog.find(grant.appId)?.connected === false
-        "
-        class="field-hint"
-      >
-        此应用尚未接入账号访问，原授权保留。
-      </p>
-      <p
-        v-if="
           grant.formIds.some(
             (id) => !catalog.forms(grant.appId).some((form) => form.id === id),
           )

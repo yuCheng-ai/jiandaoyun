@@ -1,0 +1,508 @@
+.node-tool {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 4px;
+  border-radius: 4px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+.node-tool:hover {
+  background: #f1f5fa;
+}
+.canvas-area {
+  position: relative;
+  background: var(--canvas);
+  flex: 1;
+  min-width: 0;
+  isolation: isolate;
+}
+.vue-flow__node-workflow {
+  padding: 0;
+  border: 0;
+  background: none;
+  outline: none;
+}
+.workflow-node {
+  display: flex;
+  align-items: center;
+  width: 160px;
+  height: 40px;
+  padding: 0 9px;
+  gap: 5px;
+  background: #fff;
+  border: 1px solid #e0e5ee;
+  border-radius: 5px;
+  box-shadow: 0 2px 4px #354b7110;
+  position: relative;
+  cursor: grab;
+  color: #263042;
+  transition:
+    box-shadow 0.15s,
+    border-color 0.15s;
+  font-size: 14px;
+}
+.workflow-node > .app-icon {
+  color: #00a9eb;
+}
+.workflow-node.copy > .app-icon {
+  color: #00b29d;
+}
+.workflow-node.condition > .app-icon,
+.workflow-node.subflow > .app-icon {
+  color: #ff9135;
+}
+.workflow-node.plugin > .app-icon {
+  color: #8964ec;
+}
+.workflow-node.start > .app-icon {
+  color: #43b85a;
+}
+.workflow-node.end > .app-icon {
+  color: #9aa5b5;
+}
+.workflow-node:active {
+  cursor: grabbing;
+}
+.workflow-node.is-selected {
+  border: 2px solid #3478ff;
+  padding: 0 8px;
+  box-shadow: 0 2px 5px #3478ff22;
+}
+.workflow-node.is-terminal {
+  border-radius: 24px;
+  border-color: #f0f1f5;
+  box-shadow: 0 1px 2px #29395706;
+}
+.workflow-node.is-terminal.is-selected {
+  border-color: var(--blue);
+}
+.workflow-node:hover {
+  box-shadow: 0 3px 8px #354b7120;
+}
+.node-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.node-time {
+  margin-left: auto;
+  color: #a0aaba;
+  display: flex;
+}
+.node-handle.vue-flow__handle {
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  min-height: 14px;
+  border: 1.5px solid white;
+  background: #b8d2ff;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  z-index: 5;
+  cursor: crosshair;
+}
+.node-handle .app-icon {
+  pointer-events: none;
+}
+.workflow-node.is-selected .node-handle,
+.workflow-node:hover .node-handle,
+.vue-flow__node.connecting .node-handle {
+  opacity: 1;
+}
+.node-handle.top {
+  top: -16px;
+}
+.node-handle.bottom {
+  bottom: -16px;
+}
+.node-handle.left {
+  left: -16px;
+}
+.node-handle.right {
+  right: -16px;
+}
+.node-handle:hover {
+  background: var(--blue) !important;
+}
+.vue-flow__edge.selected .vue-flow__edge-path {
+  stroke: #06b2a8 !important;
+  stroke-width: 2.5 !important;
+}
+.vue-flow__edge-text {
+  font-size: 12px;
+  fill: #6c7688;
+}
+.vue-flow__edge-textbg {
+  fill: var(--canvas);
+}
+.canvas-view-toggle {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  width: 88px;
+  height: 32px !important;
+  padding: 2px !important;
+  z-index: 5;
+}
+.canvas-controls {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  z-index: 5;
+}
+.zoom-controls {
+  display: flex;
+  height: 33px;
+  align-items: center;
+  border-radius: 7px;
+  background: white;
+  box-shadow: 0 2px 7px #27395408;
+  border: 1px solid #edf0f5;
+  padding: 0 2px;
+}
+.zoom-controls .icon-button {
+  width: 31px;
+  position: relative;
+}
+.zoom-symbol {
+  position: absolute;
+  top: 11px;
+  left: 11px;
+  background: white;
+}
+.vue-flow__minimap {
+  bottom: 45px !important;
+  width: 170px;
+  height: 115px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.preview-canvas {
+  height: 480px;
+  max-height: 55dvh;
+  border: 1px solid #e8ecf3;
+  border-radius: 7px;
+  overflow: hidden;
+}
+.preview-canvas .node-handle {
+  opacity: 0 !important;
+}
+.simulation-list {
+  padding: 5px 0 15px;
+}
+.simulation-step {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 10px 11px;
+  margin-bottom: 5px;
+  border-radius: 6px;
+  color: #9aa6b8;
+  background: #f9fafc;
+}
+.step-icon {
+  width: 31px;
+  height: 31px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ecf0f5;
+  border-radius: 50%;
+}
+.simulation-step strong {
+  font-weight: 500;
+  font-size: 13px;
+}
+.simulation-step small {
+  font-size: 11px;
+  display: block;
+  margin-top: 3px;
+}
+.simulation-step.complete {
+  color: #679387;
+}
+.simulation-step.complete .step-icon {
+  background: #e3f4ec;
+  color: #3fa579;
+}
+.simulation-step.current {
+  background: #eaf8f7;
+  color: #219c92;
+}
+.simulation-step.current .step-icon {
+  background: var(--teal);
+  color: white;
+}
+.step-assignees {
+  margin-left: auto;
+  font-size: 12px;
+}
+.activation-preview {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  padding: 4px 0 25px;
+  gap: 12px;
+}
+.activation-icon {
+  width: 55px;
+  height: 55px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e9f8f3;
+  color: var(--teal);
+  border-radius: 50%;
+  margin-bottom: 3px;
+}
+.activation-preview h3 {
+  font-size: 17px;
+  font-weight: 600;
+}
+.activation-preview p {
+  color: #99a2af;
+  font-size: 12px;
+}
+@media (max-width: 1260px) {
+  .node-tool {
+    gap: 4px;
+    padding: 5px 2px;
+    font-size: 13px;
+  }
+  .keyboard-tool {
+    display: none;
+  }
+}
+@media (max-width: 850px) {
+  .node-tool {
+    font-size: 12px;
+  }
+  .canvas-view-toggle {
+    left: 10px;
+  }
+  .canvas-controls {
+    right: 8px;
+    bottom: 8px;
+  }
+}
+@media (max-width: 650px) {
+  .canvas-area {
+    width: 100%;
+  }
+  .canvas-area:only-child .inspector-toggle {
+    right: 12px;
+  }
+  .canvas-controls {
+    left: 10px;
+    right: auto;
+  }
+  .canvas-view-toggle {
+    width: 76px;
+  }
+  .node-tool {
+    gap: 4px;
+  }
+  .preview-canvas {
+    height: 350px;
+  }
+}
+.node-handle.top {
+  top: 0;
+}
+.node-handle.bottom {
+  bottom: 0;
+}
+.node-handle.left {
+  left: 0;
+}
+.node-handle.right {
+  right: 0;
+}
+.node-handle.vue-flow__handle {
+  width: 7px;
+  height: 7px;
+  min-width: 7px;
+  min-height: 7px;
+  border: 0;
+  background: transparent;
+}
+.node-handle .app-icon {
+  width: 14px !important;
+  height: 14px !important;
+  min-width: 14px;
+  background: #b8d2ff;
+  border: 1px solid white;
+  border-radius: 50%;
+  pointer-events: auto;
+  cursor: crosshair;
+}
+.node-handle.top .app-icon {
+  transform: translateY(-14px);
+}
+.node-handle.bottom .app-icon {
+  transform: translateY(14px);
+}
+.node-handle.left .app-icon {
+  transform: translateX(-14px);
+}
+.node-handle.right .app-icon {
+  transform: translateX(14px);
+}
+.node-handle .app-icon:hover {
+  background: var(--blue);
+}
+@media (max-width: 650px) {
+  .node-tool span {
+    display: none;
+  }
+  .node-tool {
+    width: 30px;
+    justify-content: center;
+  }
+}
+.shortcut-popover {
+  position: fixed;
+  width: 524px;
+  max-width: calc(100vw - 32px);
+  z-index: 35;
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 16px;
+  padding: 20px;
+  background: #fff;
+  border: 1px solid #edf0f5;
+  border-radius: 4px;
+  box-shadow: 0 3px 16px #29395016;
+  font-size: 13px;
+  color: #303a4a;
+}
+.shortcut-column + .shortcut-column {
+  border-left: 1px solid #e5e8f0;
+  padding-left: 16px;
+}
+.shortcut-section + .shortcut-section {
+  margin-top: 12px;
+}
+.shortcut-section h3 {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  color: #727c8c;
+  margin: 0 0 4px;
+}
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 30px;
+  white-space: nowrap;
+}
+.shortcut-keys {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.shortcut-keys kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 26px;
+  border: 1px solid #e7ebf2;
+  border-radius: 3px;
+  padding: 0 5px;
+  background: white;
+  color: #7c8595;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1;
+}
+.key-alternative {
+  font-size: 12px;
+  color: #8b95a4;
+}
+.keyboard-tool.is-open {
+  background: #edf3f8;
+  color: #465667;
+}
+.canvas-area.is-panning .vue-flow__pane {
+  cursor: grab !important;
+}
+.canvas-area.is-panning .vue-flow__pane:active {
+  cursor: grabbing !important;
+}
+.canvas-area.is-panning .vue-flow__node {
+  pointer-events: none !important;
+}
+@media (max-width: 650px) {
+  .shortcut-popover {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .shortcut-column + .shortcut-column {
+    border-left: 0;
+    border-top: 1px solid #e5e8f0;
+    padding: 16px 0 0;
+  }
+}
+.connection-warning {
+  padding: 12px;
+  margin-bottom: 16px;
+  background: #fff9e5;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 13px;
+}
+.node-action-list {
+  border: 1px solid #e3e5e9;
+  border-radius: 9px;
+  padding: 4px 16px;
+}
+.node-action-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 39px;
+  border-bottom: 1px solid #eceef0;
+  font-size: 13px;
+}
+.node-action-row:last-child {
+  border-bottom: 0;
+}
+.flow-reminders {
+  margin: 1px 0 29px;
+}
+.flow-rules .standalone-label {
+  margin-bottom: 3px;
+}
+.flow-rules .form-group {
+  margin: 10px 0 15px;
+}
+.flow-rules .form-group > label {
+  font-weight: 400;
+  color: #606874;
+  margin-bottom: 7px;
+}
+.flow-extra {
+  border-top: 1px solid #eceff2;
+  padding-top: 16px;
+  margin-top: 28px;
+}
+.flow-extra summary {
+  color: #778393;
+  cursor: pointer;
+  font-size: 12px;
+  margin-bottom: 20px;
+}

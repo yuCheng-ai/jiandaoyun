@@ -6,21 +6,21 @@ import RoleGrantEditor from "./RoleGrantEditor.vue";
 import AppIcon from "../../components/AppIcon.vue";
 import BaseDialog from "../../components/BaseDialog.vue";
 import IdentityInput from "../../components/organization/IdentityInput.vue";
-import { useWorkspaceStore } from "../../stores/workspace";
+import { useOrganizationStore } from "../../stores/organization";
 import { copy, uid } from "../../domain/form";
 import { useOrganizationDraft } from "../../composables/useOrganizationDraft";
 import {
   restoreRoleDraft,
   restoreRoleGroupDraft,
-} from "../../domain/organizationDraftAdapters";
+} from "../../domain/organizationDrafts";
 import {
   identityLabel,
   roleMembers,
   type OrganizationRole,
 } from "../../domain/organization";
-const store = useWorkspaceStore(),
+const store = useOrganizationStore(),
   router = useRouter();
-const org = computed(() => store.data.organization);
+const org = computed(() => store.organization);
 const query = ref(""),
   memberQuery = ref(""),
   selectedId = ref(org.value.roles.find((r) => !r.archived)?.id || ""),

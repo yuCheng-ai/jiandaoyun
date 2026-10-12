@@ -391,3 +391,58 @@ test("an administrator resetting their password keeps this authenticated session
     await save(admin, { password: original });
   }
 });
+
+test("server directory initialization, concurrent edits and audit failures preserve one authoritative snapshot", async () => {
+  const path = "/organization/directory";
+  assert.deepEqual(await h.request(path), { directory: null });
+  assert.deepEqual(await h.request(path), { directory: null });
+  assert.equal((await h.db.query("SELECT 1 FROM organization_directories")).rowCount, 0);
+  const spec = { version: 1, name: "组织与成员", departments: [], employees: [], roles: [], roleGroups: [] };
+  const command = { requestId: randomUUID(), namespace: randomUUID(), spec };
+  await h.request(path, "GET", undefined, "editor", 403);
+  await h.request(path, "POST", command, "editor", 403);
+  const initial = await h.request(path, "POST", command, "admin", 201);
+  assert.deepEqual(await h.request(path, "POST", command, "admin", 201), initial);
+  await h.request(path, "POST", { ...command, namespace: randomUUID(), requestId: randomUUID() }, "admin", 409);
+  const department = (id: string) => ({ id, name: id, parentId: null, managerIds: [], archived: false });
+  const write = (before: any, after: any, expected = 200) => h.request(path, "PUT", { namespace: initial.namespace, requestId: randomUUID(), before, spec: after }, "admin", expected);
+  await write(spec, { ...spec, departments: [department("department-a")] });
+  let saved = await write(spec, { ...spec, departments: [department("department-b")] });
+  assert.deepEqual(saved.spec.departments.map((item: any) => item.id).sort(), ["department-a", "department-b"]);
+  const before = structuredClone(saved.spec), changed = structuredClone(before);
+  changed.departments[0].name = "其他管理员保存的部门";
+  saved = await write(before, changed);
+  await write(before, { ...before, departments: before.departments.map((item: any, index: number) => index ? item : { ...item, name: "陈旧部门修改" }) }, 409);
+  assert.deepEqual((await h.request(path)).directory, saved);
+  const organization = await h.request("/organization");
+  await h.db.query("CREATE FUNCTION reject_directory_event() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'directory audit failure'; END $$");
+  await h.db.query("CREATE TRIGGER reject_directory_event BEFORE INSERT ON directory_events FOR EACH ROW EXECUTE FUNCTION reject_directory_event()");
+  try {
+    await write(saved.spec, { ...saved.spec, departments: [...saved.spec.departments, department("rolled-back")] }, 500);
+    assert.deepEqual((await h.request(path)).directory, saved);
+    assert.deepEqual(await h.request("/organization"), organization);
+  } finally {
+    await h.db.query("DROP TRIGGER reject_directory_event ON directory_events");
+    await h.db.query("DROP FUNCTION reject_directory_event()");
+  }
+});
+
+test("directory members require explicit account links and stale member details cannot create associations", async () => {
+  const path = "/organization/directory", original = (await h.request(path)).directory;
+  const account = (await h.request("/organization")).users.find((user: any) => user.username === "editor");
+  const departmentId = original.spec.departments[0].id;
+  const member = { id: "directory-member", name: account.name, number: "D001", email: "", phone: "", departmentIds: [departmentId], primaryDepartmentId: departmentId, position: "", status: "active", joinedAt: "" };
+  const saved = await h.request(path, "PUT", { requestId: randomUUID(), namespace: original.namespace, before: original.spec, spec: { ...original.spec, employees: [member] } });
+  const linkPath = `/organization/member-accounts?namespace=${saved.namespace}`;
+  assert.deepEqual((await h.request(linkPath)).links, []);
+  const command = { requestId: randomUUID(), accountId: account.id, accountRevision: account.revision, expectedRevision: 0, source: { namespace: saved.namespace, memberId: member.id, name: member.name, number: member.number } };
+  await h.request("/organization/member-accounts", "PUT", { ...command, source: { ...command.source, number: "stale-number" } }, "admin", 409);
+  assert.deepEqual((await h.request(linkPath)).links, []);
+  const linked = await h.request("/organization/member-accounts", "PUT", command);
+  assert.equal(linked.source.memberId, member.id);
+  assert.equal(linked.account.id, account.id);
+  assert.deepEqual(await h.request("/organization/member-accounts", "PUT", command), linked);
+  await h.request("/organization/member-accounts", "PUT", { ...command, requestId: randomUUID() }, "admin", 409);
+  const actorDepartment = (await h.request("/organization")).spec.assignments.find((item: any) => item.userId === account.id);
+  assert.ok(actorDepartment.departmentIds.length);
+});

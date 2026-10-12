@@ -74,7 +74,7 @@ test("missing version/creator and unfinished workflow or extension semantics rem
   form.workflow = { enabled: false, nodes: [{ id: "node" }] }; form.extensions = { payment: { enabled: false, keep: "原配置" } }; source.access = { "legacy-form": { groups: [{ id: "old-permission" }] } };
   (source.entries[1] as any).definitionVersion = 99; delete source.entries[1].createdBy;
   const result = await prepare(await setup(source));
-  assert.ok(result.issues.some((item: any) => item.message.includes("发布版本不存在"))); assert.ok(result.issues.some((item: any) => item.message.includes("创建者缺失"))); assert.ok(result.issues.some((item: any) => item.message.includes("流程画布"))); assert.ok(result.issues.some((item: any) => item.message.includes("扩展配置"))); assert.ok(result.issues.some((item: any) => item.message.includes("访问权限")));
+  assert.ok(result.issues.some((item: any) => item.message.includes("发布版本不存在"))); assert.ok(result.issues.some((item: any) => item.message.includes("创建者缺失"))); assert.ok(result.issues.some((item: any) => item.message.includes("流程画布"))); assert.ok(result.issues.some((item: any) => item.message.includes("扩展配置"))); assert.ok(result.issues.some((item: any) => item.version === "访问权限"));
   assert.deepEqual((await saved(result.id)).payload.forms[0].extensions, form.extensions);
 });
 test("source row order changes regenerate only positional reservations and invalidate the prior plan", async () => {
@@ -107,7 +107,7 @@ test("duplicate record identities exclude all ambiguous variants from the conver
   assert.equal((await saved(result.id)).projection.records.some((item: any) => item.sourceId === "old-record"), false);
 });
 
-test("access conversion is archived with raw source while the API reveals only group summaries and never activates grants", async () => {
+test("access conversion is ready for import while preparation reveals only group summaries and never activates grants", async () => {
   const source = fixture();
   source.access = { "legacy-form": { membersEnabled: true, publicEnabled: false, allowMerged: false, filling: { enabled: false, startsAt: "", endsAt: "", limit: 8, allowRepeat: false }, groups: [
     { id: "export-original", name: "原导出组", enabled: true, archived: false, identities: ["old-member"], actions: ["view", "export"], scope: "custom", fields: { oldField: "read", lines: "read", amount: "read" }, filters: [{ id: "filter1", sourceFieldId: "oldField", operator: "contains", source: "constant", value: "不能出现在检查结果的筛选值" }] },
@@ -117,9 +117,9 @@ test("access conversion is archived with raw source while the API reveals only g
   const counts = async () => (await h.db.query("SELECT (SELECT count(*) FROM grants) grants,(SELECT count(*) FROM subject_grants) subject_grants,(SELECT count(*) FROM users) users,(SELECT count(*) FROM definitions) definitions,(SELECT count(*) FROM records) records")).rows[0];
   const baseline = await counts(), requestId = randomUUID(), plan = await prepare(s, 0, { requestId }), retry = await prepare(s, 0, { requestId });
   assert.equal(retry.id, plan.id); assert.deepEqual(retry.access, plan.access);
-  assert.equal(plan.access[0].checked, true); assert.equal(plan.access[0].executionReady, false); assert.equal(plan.importAvailable, false);
+  assert.equal(plan.access[0].checked, true); assert.equal(plan.access[0].executionReady, true); assert.equal(plan.importAvailable, false);
   assert.deepEqual(plan.access[0].groups.map((g: any) => g.id), ["export-original", "create-original"]);
-  assert.ok(plan.issues.some((i: any) => i.kind === "unsupported" && i.version === "访问权限"));
+  assert.ok(!plan.issues.some((i: any) => i.version === "访问权限"));
   assert.ok(!JSON.stringify(plan).includes("不能出现在检查结果的筛选值"));
   const snapshot = await saved(plan.id);
   assert.deepEqual(snapshot.payload, before); assert.equal(snapshot.projection.forms[0].access.groups[0].filters[0].value, "不能出现在检查结果的筛选值");

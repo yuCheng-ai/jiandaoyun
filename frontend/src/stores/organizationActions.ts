@@ -10,10 +10,9 @@ import {
   type OrganizationRole,
   type EmployeeStatus,
 } from "../domain/organization";
-import type { WorkspaceData } from "../domain/workspace";
-import { organizationContextMatches } from "../domain/organizationDraftAdapters";
+import { directoryContextMatches, validateDirectory } from "@platform/contracts";
 export function organizationActions(
-  data: Ref<WorkspaceData>,
+  data: Ref<Organization>,
   persist: () => boolean,
   notify: (message: string, type?: string) => void,
   protectExperienceMember = true,
@@ -22,22 +21,26 @@ export function organizationActions(
     action: (org: Organization) => void,
     expectedContext?: string,
   ): boolean {
-    const previous = copy(data.value.organization);
+    const previous = copy(data.value);
     try {
       if (
         expectedContext !== undefined &&
-        !organizationContextMatches(data.value, expectedContext)
+        !directoryContextMatches(data.value, expectedContext)
       )
         throw Error("组织或授权对象已变化，请重新核对后保存");
-      action(data.value.organization);
-      data.value.organization = parseOrganization(data.value.organization);
+      action(data.value);
+      if (protectExperienceMember) data.value = parseOrganization(data.value);
+      else {
+        const { currentUserId, ...spec } = data.value;
+        data.value = { ...validateDirectory(copy(spec)), currentUserId };
+      }
       if (!persist()) {
-        data.value.organization = previous;
+        data.value = previous;
         return false;
       }
       return true;
     } catch (error) {
-      data.value.organization = previous;
+      data.value = previous;
       notify(
         error instanceof Error ? error.message : "组织配置保存失败",
         "warning",
@@ -46,7 +49,7 @@ export function organizationActions(
     }
   }
   function saveDepartment(item: Department, expectedContext?: string) {
-    const errors = validateDepartment(data.value.organization, item);
+    const errors = validateDepartment(data.value, item);
     if (errors.length) {
       notify(errors[0]!, "warning");
       return false;
@@ -87,7 +90,7 @@ export function organizationActions(
     roleIds?: string[],
     expectedContext?: string,
   ) {
-    const errors = validateEmployee(data.value.organization, item);
+    const errors = validateEmployee(data.value, item);
     if (errors.length) {
       notify(errors[0]!, "warning");
       return false;

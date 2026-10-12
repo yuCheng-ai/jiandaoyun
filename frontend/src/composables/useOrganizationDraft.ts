@@ -1,10 +1,11 @@
 import { ref, watch } from "vue";
 import { onBeforeRouteLeave, useRouter } from "vue-router";
-import { useWorkspaceStore } from "../stores/workspace";
+import { useOrganizationStore } from "../stores/organization";
 import {
-  organizationEditContext,
-  type OrganizationEditScope,
-} from "../domain/organizationDraftAdapters";
+  directoryEditContext,
+  type DirectoryEditScope,
+} from "@platform/contracts";
+import { usePlatformSession } from "../stores/platformSession";
 import { useDraftDismiss } from "./useDraftDismiss";
 
 /** Shared recovery and write acknowledgement for organization editors. */
@@ -16,8 +17,15 @@ export function useOrganizationDraft(options: {
   restore: (value: unknown) => void;
   close: () => void;
 }) {
-  const store = useWorkspaceStore(),
+  const store = useOrganizationStore(),
     router = useRouter();
+  const session = usePlatformSession();
+  const owner = () => `${session.user?.id || ""}:${store.namespace || "new"}`;
+  // The first save assigns a server namespace; keep its recovery copy attached
+  // to the editor that created it until the save acknowledgement clears it.
+  const draftOwner = ref(owner());
+  const key = () => `${draftOwner.value}:${options.key()}`;
+  let baselineOwner = "";
   const busy = ref(false),
     error = ref(""),
     destination = ref("");
@@ -25,10 +33,10 @@ export function useOrganizationDraft(options: {
     initial = "";
   const context = () => {
     const [, kind, id] = options.key().split(":");
-    return organizationEditContext(store.data, {
+    return directoryEditContext(store.organization, {
       kind: kind?.startsWith("bulk-")
         ? "bulk"
-        : (kind as OrganizationEditScope["kind"]),
+        : (kind as DirectoryEditScope["kind"]),
       ids: (id || "new").split(","),
     });
   };
@@ -37,6 +45,8 @@ export function useOrganizationDraft(options: {
     (open) => {
       if (open) {
         baseline = context();
+        baselineOwner = owner();
+        draftOwner.value = baselineOwner;
         initial = JSON.stringify(options.value());
         error.value = "";
         destination.value = "";
@@ -51,9 +61,9 @@ export function useOrganizationDraft(options: {
     if (target) void router.push(target);
   }
   const recovery = useDraftDismiss(options.active, options.value, close, {
-    key: options.key,
+    key,
     title: options.title,
-    context,
+    context: () => ({ owner: owner(), directory: context() }),
     restore(value) {
       options.restore(value);
       recovery.confirmDiscard.value = false;
@@ -69,7 +79,7 @@ export function useOrganizationDraft(options: {
   ) {
     if (busy.value) return false;
     error.value = "";
-    if (context() !== baseline) {
+    if (owner() !== baselineOwner || context() !== baseline) {
       error.value =
         "组织或授权对象已变化，当前输入已保留。请重新打开编辑器核对后保存。";
       return false;

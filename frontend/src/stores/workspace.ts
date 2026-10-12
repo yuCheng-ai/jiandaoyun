@@ -50,11 +50,11 @@ import {
 } from "../domain/extensions";
 import { createRelationDemo } from "../domain/relationDemo";
 import { organizationActions } from "./organizationActions";
-import { serverOrganization } from "./serverOrganization";
 import { computed, ref, type Ref } from "vue";
 import { workspaceScopes } from "../domain/workspaceTransactions";
 import { workspaceWrites } from "./workspaceWrites";
-import { defineStore } from "pinia";
+import { defineStore, storeToRefs } from "pinia";
+import { useNotices } from "./notices";
 import { formulaConfigurationErrors } from "../domain/formula";
 import {
   copy,
@@ -113,7 +113,9 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   const data = ref(loaded.data) as Ref<WorkspaceData>;
   data.value.recentFormIds = repository.recentForms(data.value.recentFormIds);
   const drafts = ref({}) as Ref<Record<string, FormRecord>>;
-  const notices = ref<{ id: string; message: string; type: string }[]>([]);
+  const feedback = useNotices();
+  const { notices } = storeToRefs(feedback);
+  const { notify } = feedback;
   // Preserve the workflow built before the workspace was introduced.
   if (!localStorage.getItem("workflow-studio-workspace-v1")) {
     try {
@@ -131,14 +133,6 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   const activeForms = computed(() =>
     data.value.forms.filter((f) => !f.archived),
   );
-  function notify(message: string, type = "success") {
-    const id = uid("notice");
-    notices.value.push({ id, message, type });
-    setTimeout(
-      () => (notices.value = notices.value.filter((n) => n.id !== id)),
-      4000,
-    );
-  }
   const persistence = workspacePersistence(
     repository,
     data,
@@ -148,11 +142,6 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     (workspace) => workspace.forms.forEach(syncFormWorkflow),
   );
   const { persist } = persistence;
-  const directory = serverOrganization(
-    data,
-    persistence.acceptOrganization,
-    notify,
-  );
   function openForm(id: string) {
     // Commands already read and validate under the shared write lock. A nested
     // editor lookup must not clear a conflict or rebase that command's input.
@@ -904,7 +893,14 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     ...automationStoreActions(data, openForm, saveForm, notify),
     ...reminderActions(data, openForm, saveForm, persist, notify, appendRun),
     ...records,
-    setCurrentUser: organizationActions(data, persist, notify).setCurrentUser,
+    setCurrentUser: organizationActions(
+      computed({
+        get: () => data.value.organization,
+        set: (value) => { data.value.organization = value; },
+      }),
+      persist,
+      notify,
+    ).setCurrentUser,
     ...presentationActions(openForm, saveForm, notify, () => data.value),
     createWebhookCredential,
     recordExtensionRun,
@@ -943,13 +939,6 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     drafts,
     ...persistence,
     ...writes.guarded,
-    ...directory.actions,
-    loadDirectory: directory.load,
-    directoryLoading: directory.loading,
-    directoryError: directory.error,
-    directoryReady: computed(
-      () => !!directory.snapshot.value && !directory.error.value,
-    ),
     writePending: writes.writePending,
     activeForms,
     notices,

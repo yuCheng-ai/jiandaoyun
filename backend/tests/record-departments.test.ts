@@ -6,7 +6,7 @@ const h = harness(), a = randomUUID(), child = randomUUID(), b = randomUUID();
 let admin: string, editor: string, reviewer: string, base: any;
 const fields = { name: 'edit', secret: 'edit' };
 async function org(spec: any) { const current = await h.request('/organization'); return h.request('/organization', 'PUT', { expectedRevision: current.revision, spec }); }
-const grant = (id: string, userId: string, extra = {}) => h.request(`/definitions/${id}/grants`, 'PUT', { userId, read: true, create: true, edit: true, scope: 'all', fields, ...extra });
+const grant = (id: string, userId: string, extra = {}) => h.grant(id, { userId, read: true, create: true, edit: true, scope: 'all', fields, ...extra });
 async function setup() { const def = await h.definition('创建部门验收', schema(field('name'),field('secret'))); await grant(def.id,editor); return def; }
 before(async () => { await h.start(); const users = await h.request('/users'); [admin,editor,reviewer] = ['admin','editor','reviewer'].map(name=>users.find((u:any)=>u.username===name).id); base={ departments:[{id:a,name:'原业务部',parentId:null,archived:false},{id:child,name:'下级组',parentId:a,archived:false},{id:b,name:'新业务部',parentId:null,archived:false}],roleGroups:[],roles:[],assignments:[{userId:admin,departmentIds:[b],primaryDepartmentId:b},{userId:editor,departmentIds:[a],primaryDepartmentId:a},{userId:reviewer,departmentIds:[a],primaryDepartmentId:a}] }; });
 beforeEach(()=>org(structuredClone(base))); after(()=>h.close());

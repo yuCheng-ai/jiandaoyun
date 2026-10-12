@@ -28,25 +28,25 @@ test("relation configuration validates types, identities, mappings and publicati
   relation = await h.relation(relationSpec());
   await api(`/relations/${relation.id}/publish`, "POST", { expectedRevision: 1 }, "admin", 409);
   await assert.rejects(h.db.query("UPDATE relation_versions SET spec='{}' WHERE relation_id=$1", [relation.id]), /immutable/);
-  await api(`/definitions/${source.id}/grants`, "PUT", sourceGrant());
-  await api(`/definitions/${target.id}/grants`, "PUT", targetGrant());
+  await h.grant(source.id, sourceGrant());
+  await h.grant(target.id, targetGrant());
 });
 test("candidate filtering runs on persisted values and masks inaccessible columns", async () => {
   const page = await api(`/records/${sourceRecord.record.id}/relations/${relation.id}/candidates`, "GET", undefined, "editor");
   assert.equal(page.items.length, 1); assert.equal(page.items[0].recordId, targetRecord.record.id); assert.equal(page.items[0].values.secret, undefined);
   assert.ok(!JSON.stringify(page).includes("秘密"));
-  await api(`/definitions/${source.id}/grants`, "PUT", sourceGrant({ relations: {} }));
+  await h.grant(source.id, sourceGrant({ relations: {} }));
   await api(`/records/${sourceRecord.record.id}/relations/${relation.id}/candidates`, "GET", undefined, "editor", 403);
-  await api(`/definitions/${source.id}/grants`, "PUT", sourceGrant());
-  await api(`/definitions/${target.id}/grants`, "PUT", targetGrant({ fields: { ...targetFields, region: "hidden" } }));
+  await h.grant(source.id, sourceGrant());
+  await h.grant(target.id, targetGrant({ fields: { ...targetFields, region: "hidden" } }));
   await api(`/records/${sourceRecord.record.id}/relations/${relation.id}/candidates`, "GET", undefined, "editor", 403);
-  await api(`/definitions/${target.id}/grants`, "PUT", targetGrant());
+  await h.grant(target.id, targetGrant());
 });
 test("readonly or stale mapped fields roll back link creation and all data changes", async () => {
-  await api(`/definitions/${source.id}/grants`, "PUT", sourceGrant({ fields: { ...sourceFields, quoted: "read" } }));
+  await h.grant(source.id, sourceGrant({ fields: { ...sourceFields, quoted: "read" } }));
   await api(linkPath(), "POST", linkBody(), "editor", 403);
   assert.equal((await h.db.query("SELECT count(*)::integer AS count FROM record_links")).rows[0].count, 0);
-  await api(`/definitions/${source.id}/grants`, "PUT", sourceGrant());
+  await h.grant(source.id, sourceGrant());
   await api(linkPath(), "POST", linkBody(sourceRecord, targetRecord, { expectedCells: { quoted: 99 } }), "editor", 409);
   assert.equal((await api(`/records/${sourceRecord.record.id}`)).record.values.quoted, 0);
 });
@@ -65,13 +65,13 @@ test("snapshot reads keep captured values but apply current target permissions",
   let groups = await api(`/records/${sourceRecord.record.id}/relations`, "GET", undefined, "editor");
   assert.equal(groups[0].links[0].values.price, 120); assert.equal(groups[0].links[0].label, "资料 A");
   assert.equal(groups[0].relation.spec.filters.length, 0); assert.equal(groups[0].links[0].values.secret, undefined);
-  await api(`/definitions/${target.id}/grants`, "PUT", targetGrant({ fields: { ...targetFields, price: "hidden" } }));
+  await h.grant(target.id, targetGrant({ fields: { ...targetFields, price: "hidden" } }));
   groups = await api(`/records/${sourceRecord.record.id}/relations`, "GET", undefined, "editor");
   assert.equal(groups[0].links[0].values.price, undefined); assert.equal(groups[0].columnLabels.price, undefined);
-  await api(`/definitions/${target.id}/grants`, "PUT", targetGrant({ read: false }));
+  await h.grant(target.id, targetGrant({ read: false }));
   groups = await api(`/records/${sourceRecord.record.id}/relations`, "GET", undefined, "editor");
   assert.deepEqual(groups[0].links[0].values, {}); assert.equal(groups[0].links[0].restricted, true);
-  await api(`/definitions/${target.id}/grants`, "PUT", targetGrant());
+  await h.grant(target.id, targetGrant());
 });
 test("a republished live rule affects new links without rewriting historical snapshot links", async () => {
   const saved = await api(`/relations/${relation.id}`, "PUT", { expectedRevision: relation.revision, spec: relationSpec({ valueMode: "live" }) });

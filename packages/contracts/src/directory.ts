@@ -79,6 +79,47 @@ export interface DirectorySnapshot {
   revision: number;
   spec: DirectorySpec;
 }
+export interface DirectoryEditScope {
+  kind: "employee" | "department" | "role" | "group" | "bulk";
+  ids: string[];
+}
+
+/** Compare only the edited identities; unrelated directory changes may merge. */
+export function directoryEditContext(
+  spec: DirectorySpec,
+  scope?: DirectoryEditScope,
+): string {
+  const { version, name, departments, employees, roleGroups, roles } = spec;
+  const list = scope?.kind === "department"
+    ? departments
+    : scope?.kind === "role"
+      ? roles
+      : scope?.kind === "group" ? roleGroups : employees;
+  const value = scope
+    ? {
+        items: scope.ids.map(id => list.find(item => item.id === id)),
+        memberships: scope.kind === "employee" || scope.kind === "bulk"
+          ? scope.ids.map(id => roles
+              .filter(role => role.memberIds.includes(id))
+              .map(role => role.id)
+              .sort())
+          : undefined,
+      }
+    : { version, name, departments, employees, roleGroups, roles };
+  return directoryCanonical({ scope, value });
+}
+
+export function directoryContextMatches(
+  spec: DirectorySpec,
+  expected: string,
+): boolean {
+  try {
+    const { scope } = JSON.parse(expected);
+    return directoryEditContext(spec, scope) === expected;
+  } catch {
+    return false;
+  }
+}
 export interface DirectoryIdentity {
   kind: "department" | "role" | "group";
   id: string;

@@ -1,26 +1,35 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { createApp, h, nextTick, reactive, toRef } from "vue";
+import { createApp, computed, h, nextTick, reactive, toRef } from "vue";
 import { createPinia } from "pinia";
 import { createMemoryHistory, createRouter, RouterView } from "vue-router";
 import EmployeesView from "../src/features/organization/EmployeesView.vue";
 import RolesView from "../src/features/organization/RolesView.vue";
-import { useWorkspaceStore } from "../src/stores/workspace";
+import { useOrganizationStore } from "../src/stores/organization";
 import { useEditorDraftStore } from "../src/stores/editorDrafts";
 import { organizationActions } from "../src/stores/organizationActions";
 import { seedWorkspace } from "../src/domain/workspace";
 import { copy } from "../src/domain/form";
+import { directoryEditContext } from "@platform/contracts";
+import { platformApi } from "../src/repositories/platformApi";
+import { usePlatformSession } from "../src/stores/platformSession";
+import { runtimeDataKey } from "../src/composables/useRuntimeData";
 import { newEmployee } from "../src/domain/organization";
 import {
-  organizationEditContext,
   restoreBulkOrganizationDraft,
   restoreDepartmentDraft,
   restoreEmployeeDraft,
   restoreRoleDraft,
   restoreRoleGroupDraft,
-} from "../src/domain/organizationDraftAdapters";
+} from "../src/domain/organizationDrafts";
 
-vi.mock("../src/stores/workspace", () => ({ useWorkspaceStore: vi.fn() }));
+vi.mock("../src/repositories/platformApi", async (original) => ({
+  ...(await original<typeof import("../src/repositories/platformApi")>()),
+  platformApi: vi.fn(),
+}));
+vi.mock("../src/stores/organization", () => ({
+  useOrganizationStore: vi.fn(),
+}));
 vi.mock("../src/features/organization/AdminLayout.vue", () => ({
   default: {
     setup:
@@ -46,6 +55,8 @@ const actionNames = [
 function makeStore() {
   const source = {
     data: seedWorkspace(),
+    organization: seedWorkspace().organization,
+    namespace: "10000000-0000-4000-8000-000000000001",
     activeForms: [] as ReturnType<typeof seedWorkspace>["forms"],
     writePending: false,
     notices: [] as { id: string; type: string; message: string }[],
@@ -53,6 +64,8 @@ function makeStore() {
     ...Object.fromEntries(actionNames.map((name) => [name, vi.fn()])),
   } as {
     data: ReturnType<typeof seedWorkspace>;
+    organization: ReturnType<typeof seedWorkspace>["organization"];
+    namespace: string;
     activeForms: ReturnType<typeof seedWorkspace>["forms"];
     writePending: boolean;
     notices: { id: string; type: string; message: string }[];
@@ -60,6 +73,7 @@ function makeStore() {
   } & Record<(typeof actionNames)[number], ReturnType<typeof vi.fn>>;
   return reactive(source) as unknown as typeof source;
 }
+let actorId = "admin";
 let store: ReturnType<typeof makeStore>,
   persist: ReturnType<typeof vi.fn>,
   actions: ReturnType<typeof organizationActions>;
@@ -67,18 +81,34 @@ beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
   document.body.innerHTML = '<div id="app"></div>';
+  actorId = "admin";
   store = makeStore();
   store.notify.mockImplementation((message: string, type = "success") =>
     store.notices.push({ id: `notice-${store.notices.length}`, message, type }),
   );
   store.activeForms = store.data.forms.filter((form) => !form.archived);
   persist = vi.fn(() => true);
-  actions = organizationActions(toRef(store, "data"), persist, store.notify);
+  actions = organizationActions(
+    toRef(store, "organization"),
+    persist,
+    store.notify,
+  );
   for (const name of actionNames)
     store[name].mockImplementation(async (...args: any[]) =>
       (actions[name] as (...args: any[]) => boolean)(...args),
     );
-  vi.mocked(useWorkspaceStore).mockReturnValue(store as any);
+  vi.mocked(platformApi).mockImplementation(async (path) => {
+    if (path === "/organization/role-applications")
+      return store.data.apps.map((app) => ({
+        id: app.id,
+        name: app.name,
+        forms: store.activeForms
+          .filter((form) => form.appId === app.id)
+          .map((form) => ({ id: form.id, title: form.title, grouped: false })),
+      }));
+    throw new Error(path);
+  });
+  vi.mocked(useOrganizationStore).mockReturnValue(store as any);
 });
 afterEach(() => {
   [...disposers].forEach((dispose) => dispose());
@@ -136,7 +166,17 @@ async function mount(kind: "members" | "roles" = "members") {
     ],
   });
   await router.push(path);
+  usePlatformSession(pinia).user = {
+    id: actorId,
+    name: "当前管理员",
+    username: actorId,
+    role: "admin",
+  };
   const app = createApp({ render: () => h(RouterView) });
+  app.provide(
+    runtimeDataKey,
+    computed(() => ({ ...store.data, organization: store.organization })),
+  );
   app.use(pinia).use(router).mount(document.getElementById("app")!);
   await nextTick();
   const unmount = () => {
@@ -153,7 +193,13 @@ it("recovers an unfinished new employee including role assignments and only clea
   await edit("成员姓名", "恢复成员");
   await edit("成员工号", "");
   await edit("成员职务", "待保存岗位");
-  const roleId = store.data.organization.roles[1]!.id;
+  await click("选择成员所属部门");
+  await check(`选择${store.organization.departments[0]!.name}`);
+  await click(
+    "确定",
+    document.querySelector('dialog[aria-label="选择成员所属部门"]')!,
+  );
+  const roleId = store.organization.roles[1]!.id;
   const assigned = document.querySelector<HTMLInputElement>(
     `.role-checkboxes input[value='${roleId}']`,
   )!;
@@ -175,12 +221,12 @@ it("recovers an unfinished new employee including role assignments and only clea
   ).toBe(true);
   await click("保存");
   await vi.waitFor(() =>
-    expect(document.body.textContent).toContain("保存未完成"),
+    expect(document.body.textContent).toContain("请输入工号"),
   );
   expect(
     document.querySelector("dialog [role='alert']")?.textContent,
   ).toContain("请输入工号");
-  expect(store.data.organization.employees.some((item) => item.id === id)).toBe(
+  expect(store.organization.employees.some((item) => item.id === id)).toBe(
     false,
   );
   expect(second.drafts.entries).toHaveLength(1);
@@ -188,10 +234,10 @@ it("recovers an unfinished new employee including role assignments and only clea
   await click("保存");
   await vi.waitFor(() => expect(document.querySelector("dialog")).toBeNull());
   expect(
-    store.data.organization.employees.find((item) => item.id === id)?.name,
+    store.organization.employees.find((item) => item.id === id)?.name,
   ).toBe("恢复成员");
   expect(
-    store.data.organization.roles.find((role) => role.id === roleId)?.memberIds,
+    store.organization.roles.find((role) => role.id === roleId)?.memberIds,
   ).toContain(id);
   expect(second.drafts.entries).toHaveLength(0);
 });
@@ -238,7 +284,7 @@ it("keeps department input on failed or thrown saves, locks pending writes and r
     store.saveDepartment.mock.calls.every((call) => call[0].id === id),
   ).toBe(true);
   expect(
-    store.data.organization.departments.filter((item) => item.id === id),
+    store.organization.departments.filter((item) => item.id === id),
   ).toHaveLength(1);
   expect(current.drafts.entries).toHaveLength(0);
 });
@@ -258,7 +304,7 @@ it("restores new role groups with stable identities and explicit cancel/discard 
   await click("保存");
   await vi.waitFor(() => expect(document.querySelector("dialog")).toBeNull());
   expect(
-    store.data.organization.roleGroups.find((group) => group.id === id)?.name,
+    store.organization.roleGroups.find((group) => group.id === id)?.name,
   ).toBe("协作恢复组");
   expect(second.drafts.entries).toHaveLength(0);
   await click("新建分组");
@@ -267,9 +313,7 @@ it("restores new role groups with stable identities and explicit cancel/discard 
   await click("放弃修改");
   expect(second.drafts.entries).toHaveLength(0);
   expect(
-    store.data.organization.roleGroups.some(
-      (group) => group.name === "放弃此组",
-    ),
+    store.organization.roleGroups.some((group) => group.name === "放弃此组"),
   ).toBe(false);
 });
 
@@ -300,16 +344,14 @@ it("recovers role grants without widening scope or applying them before save", a
   const second = await mount("roles");
   await click("新建角色");
   await restore();
-  expect(store.data.organization.roles.some((role) => role.id === id)).toBe(
-    false,
-  );
+  expect(store.organization.roles.some((role) => role.id === id)).toBe(false);
   await click("权限配置", document.querySelector("dialog")!);
   expect(named<HTMLSelectElement>("授权1数据范围").value).toBe("department");
   expect(named<HTMLInputElement>("授权1 填写提交").checked).toBe(false);
   await click("保存");
   await vi.waitFor(() => expect(document.querySelector("dialog")).toBeNull());
   expect(
-    store.data.organization.roles.find((role) => role.id === id)?.grants,
+    store.organization.roles.find((role) => role.id === id)?.grants,
   ).toEqual([
     {
       appId: store.data.apps[0]!.id,
@@ -325,7 +367,7 @@ it("blocks restoring or overwriting organization edits after the source or curre
   const first = await mount();
   await click("编辑王五");
   await edit("成员职务", "旧草稿岗位");
-  store.data.organization.employees.find(
+  store.organization.employees.find(
     (employee) => employee.id === "wang",
   )!.position = "已更新岗位";
   await click("保存");
@@ -341,10 +383,10 @@ it("blocks restoring or overwriting organization edits after the source or curre
   await click("添加成员");
   await edit("成员姓名", "另一成员草稿");
   second.unmount();
-  store.data.organization.currentUserId = "li";
+  actorId = "another-admin";
   await mount();
   await click("添加成员");
-  expect(button("恢复内容").disabled).toBe(true);
+  expect(button("恢复内容")).toBeUndefined();
 });
 
 it("protects route navigation until changes are explicitly discarded", async () => {
@@ -382,14 +424,13 @@ it("restores a batch only for the same selected members and retains selection on
     expect(document.body.textContent).toContain("保存未完成"),
   );
   expect(
-    store.data.organization.employees.find(
-      (employee) => employee.id === "wang",
-    )!.status,
+    store.organization.employees.find((employee) => employee.id === "wang")!
+      .status,
   ).toBe("active");
   await click("保存");
   await vi.waitFor(() => expect(document.querySelector("dialog")).toBeNull());
   expect(
-    store.data.organization.employees
+    store.organization.employees
       .filter((employee) => ["wang", "zhao"].includes(employee.id))
       .every((employee) => employee.status === "left"),
   ).toBe(true);
@@ -415,26 +456,23 @@ it("shows temporary retention failures and can checkpoint the same input after r
 });
 
 it("rechecks the organization baseline inside the persistence action after an asynchronous wait", () => {
-  const baseline = organizationEditContext(store.data),
+  const baseline = directoryEditContext(store.organization),
     employee = copy(
-      store.data.organization.employees.find(
-        (employee) => employee.id === "wang",
-      )!,
+      store.organization.employees.find((employee) => employee.id === "wang")!,
     );
   employee.position = "陈旧修改";
-  store.data.organization.employees.find(
+  store.organization.employees.find(
     (employee) => employee.id === "wang",
   )!.position = "另一方的新岗位";
   expect(actions.saveEmployee(employee, [], baseline)).toBe(false);
   expect(persist).not.toHaveBeenCalled();
   expect(
-    store.data.organization.employees.find(
-      (employee) => employee.id === "wang",
-    )!.position,
+    store.organization.employees.find((employee) => employee.id === "wang")!
+      .position,
   ).toBe("另一方的新岗位");
 });
 
-it("recovery adapters preserve unfinished values and reject identity collisions, unsafe shapes and broader grants", () => {
+it("recovery validators preserve unfinished values and reject identity collisions, unsafe shapes and broader grants", () => {
   const employee = newEmployee();
   employee.name = "";
   employee.number = "";
@@ -458,7 +496,7 @@ it("recovery adapters preserve unfinished values and reject identity collisions,
     }).name,
   ).toBe("");
   expect(restoreRoleGroupDraft({ id: "group-new", name: "" }).name).toBe("");
-  const role = copy(store.data.organization.roles[0]!);
+  const role = copy(store.organization.roles[0]!);
   role.grants = [
     { appId: "oa", formIds: [], actions: ["view"], dataScope: "self" },
   ];

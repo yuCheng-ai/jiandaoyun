@@ -5,16 +5,16 @@ import type { GrantAction } from "../../domain/organization";
 import AdminLayout from "./AdminLayout.vue";
 import IdentityInput from "../../components/organization/IdentityInput.vue";
 import AppIcon from "../../components/AppIcon.vue";
-import { useWorkspaceStore } from "../../stores/workspace";
+import { useOrganizationStore } from "../../stores/organization";
 import {
   identityLabel,
   permissionsFor,
   rolesFor,
 } from "../../domain/organization";
-const store = useWorkspaceStore();
-const employeeId = ref(store.data.organization.currentUserId),
+const store = useOrganizationStore();
+const employeeId = ref(""),
   query = ref("");
-const org = computed(() => store.data.organization);
+const org = computed(() => store.organization);
 watch(
   org,
   (value) => {
@@ -121,13 +121,7 @@ const permissions = computed(() =>
                 >
               </td>
               <td>
-                {{
-                  !item.app.connected
-                    ? "应用尚未接入账号访问"
-                    : item.form.grouped
-                      ? "按表单权限组"
-                      : "角色授权"
-                }}
+                {{ item.form.grouped ? "按表单权限组" : "角色授权" }}
               </td>
             </tr>
           </tbody>

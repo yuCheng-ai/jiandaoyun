@@ -92,7 +92,8 @@ describe("server record commands", () => {
         lines: [{ _rowId: "row-a", quantity: 4, cost: 9 }],
       }),
     ).toEqual([]);
-    expect(emptyServerRecord(readonly)).toEqual({});
+    // Readonly fields remain visible for rendering; recordChanges still excludes their writes.
+    expect(emptyServerRecord(readonly)).toEqual({ lines: [] });
   });
   it("sends new rows without temporary IDs or readonly data and uses the original structure revision", () => {
     const value = structuredClone(detail); value.rowActions = { lines: { add: true, remove: false } }; value.record.rowRevisions = { lines: 7 };

@@ -5,14 +5,12 @@ import type {
   ApplicationSummary,
   ProcessTemplateDraft,
 } from "@platform/contracts";
-import { useWorkspaceStore } from "../../stores/workspace";
 import { usePlatformSession } from "../../stores/platformSession";
 import { platformApi } from "../../repositories/platformApi";
 import ProcessStartDialog from "./ProcessStartDialog.vue";
 import ProcessDetail from "./ProcessDetail.vue";
 const props = defineProps<{ applications: ApplicationSummary[] }>();
-const store = useWorkspaceStore(),
-  session = usePlatformSession(),
+const session = usePlatformSession(),
   router = useRouter();
 const templates = ref<(ProcessTemplateDraft & { applicationTitle: string })[]>(
   [],
@@ -21,20 +19,6 @@ const busy = ref(false),
   error = ref(""),
   starting = ref<ProcessTemplateDraft>(),
   processId = ref("");
-const forms = computed(() =>
-  session.user?.role === "admin"
-    ? store.data.forms
-        .filter(
-          (form) =>
-            !form.archived && form.kind === "workflow" && form.published,
-        )
-        .map((form) => ({
-          ...form,
-          applicationTitle: store.data.apps.find((app) => app.id === form.appId)
-            ?.name,
-        }))
-    : [],
-);
 async function load() {
   if (busy.value || session.user?.role !== "admin") return;
   busy.value = true;
@@ -78,16 +62,6 @@ onMounted(load);
     <p v-if="busy" role="status">正在读取…</p>
     <div class="process-start-list">
       <button
-        v-for="form in forms"
-        :key="form.id"
-        @click="
-          router.push({ path: `/apps/${form.appId}`, query: { form: form.id } })
-        "
-      >
-        <strong>{{ form.title }}</strong
-        ><span>{{ form.applicationTitle }}</span>
-      </button>
-      <button
         v-for="template in templates"
         :key="template.id"
         @click="starting = template"
@@ -97,7 +71,7 @@ onMounted(load);
       </button>
     </div>
     <p
-      v-if="!busy && !error && !templates.length && !forms.length"
+      v-if="!busy && !error && !templates.length"
       class="workspace-empty"
     >
       {{

@@ -6,7 +6,8 @@ import { createMemoryHistory, createRouter, RouterView } from "vue-router";
 import WorkbenchView from "../src/features/workspace/WorkbenchView.vue";
 import { installSessionGuard } from "../src/router/sessionGuard";
 import { platformApi, PlatformError } from "../src/repositories/platformApi";
-import { useWorkspaceStore } from "../src/stores/workspace";
+import App from "../src/App.vue";
+import { router as applicationRouter } from "../src/router";
 import { usePlatformSession } from "../src/stores/platformSession";
 vi.mock("../src/repositories/platformApi", async (original) => ({
   ...(await original<typeof import("../src/repositories/platformApi")>()),
@@ -61,33 +62,15 @@ async function login(name: string) {
 async function mount(path = "/") {
   router = createRouter({
     history: createMemoryHistory(),
-    routes: [
-      { path: "/", name: "home", component: WorkbenchView },
-      {
-        path: "/applications/:applicationId",
-        name: "data-workspace",
-        component: { template: "<p>应用记录入口</p>" },
-      },
-      {
-        path: "/apps/:appId",
-        name: "application-home",
-        component: { template: "<p>原应用管理员入口</p>" },
-      },
-      {
-        path: "/admin/organization",
-        name: "organization",
-        component: { template: "<p>本地组织入口</p>" },
-      },
-      {
-        path: "/apps/:appId/forms/:formId/:section",
-        name: "form-section",
-        component: { template: "<p>原填报入口</p>" },
-      },
-      { path: "/:pathMatch(.*)*", redirect: "/" },
-    ],
+    routes: applicationRouter.options.routes.map((route) => {
+      if (route.name === "home") return { path: route.path, name: route.name, component: WorkbenchView };
+      if (route.name === "data-workspace") return { path: route.path, name: route.name, component: { template: "<p>应用记录入口</p>" } };
+      if (route.name === "organization") return { path: route.path, name: route.name, component: { template: "<p>组织管理入口</p>" } };
+      return route;
+    }),
   });
   const pinia = createPinia();
-  app = createApp({ render: () => h(RouterView) });
+  app = createApp(App);
   app.use(pinia);
   installSessionGuard(router);
   await router.push(path);
@@ -96,7 +79,7 @@ async function mount(path = "/") {
   app.mount("#app");
   await settle();
   return {
-    workspace: useWorkspaceStore(pinia),
+    pinia,
     session: usePlatformSession(pinia),
   };
 }
@@ -120,6 +103,7 @@ beforeEach(() => {
         if (!signedIn) throw new PlatformError("登录已失效", 401);
         return users[signedIn as keyof typeof users];
       }
+      if (path === "/applications" && method === "POST") return { id: "new-server-app", title: (body as { title: string }).title };
       if (path === "/applications" && method !== "POST")
         return [
           {
@@ -143,8 +127,9 @@ afterEach(() => {
 });
 
 it("root requires real login, shows only the server application list and replaces it when another member logs in", async () => {
-  const { workspace } = await mount();
-  const localBefore = JSON.stringify(workspace.data);
+  localStorage.setItem("workflow-studio-workspace-v1", "preserved legacy data");
+  const read = vi.spyOn(Storage.prototype, "getItem");
+  const { pinia } = await mount();
   expect(document.body.textContent).not.toContain("OA审批系统");
   expect(
     vi
@@ -168,23 +153,22 @@ it("root requires real login, shows only the server application list and replace
   await login("reviewer");
   expect(document.body.textContent).toContain("核对业务");
   expect(document.body.textContent).not.toContain("录入业务");
-  expect(JSON.stringify(workspace.data)).toBe(localBefore);
+  expect(pinia.state.value.workspace).toBeUndefined();
+  expect(read.mock.calls.some(([key]) => key === "workflow-studio-workspace-v1")).toBe(false);
+  read.mockRestore();
+  expect(localStorage.getItem("workflow-studio-workspace-v1")).toBe("preserved legacy data");
 });
-it("administrator retains original applications and routes organization entry to the original directory", async () => {
+it("administrator sees only server applications and can open the existing organization layout", async () => {
   signedIn = "admin";
-  await mount();
+  const { pinia } = await mount();
   expect(document.body.textContent).toContain("管理业务");
-  expect(document.body.textContent).toContain("OA审批系统");
-  expect(document.body.textContent).not.toContain("本地应用");
+  expect(document.body.textContent).not.toContain("OA审批系统");
+  expect(pinia.state.value.workspace).toBeUndefined();
   await click("组织与成员");
-  expect(router.currentRoute.value.path).toBe("/admin/organization");
-  expect(document.body.textContent).toContain("本地组织入口");
-  expect(
-    vi
-      .mocked(platformApi)
-      .mock.calls.some(([path]) => path === "/organization"),
-  ).toBe(false);
+  await vi.waitFor(() => expect(router.currentRoute.value.path).toBe("/admin/organization"));
+  expect(document.body.textContent).toContain("组织管理入口");
 });
+
 it("guards deep links, resumes the exact authorized destination after login, and rejects member access to local administration", async () => {
   await mount("/applications/editor-app?tab=pages");
   expect(router.currentRoute.value.path).toBe("/");
@@ -195,17 +179,20 @@ it("guards deep links, resumes the exact authorized destination after login, and
   await router.push("/apps/oa");
   await settle();
   expect(router.currentRoute.value.path).toBe("/");
-  expect(document.body.textContent).toContain("当前账号没有访问此页面的权限");
+  expect(document.body.textContent).toContain("此旧入口已停用");
   expect(document.body.textContent).not.toContain("原应用管理员入口");
   await router.push("/admin/organization");
   await settle();
   expect(router.currentRoute.value.path).toBe("/");
 });
-it("keeps existing external filling links available without turning a preview member into a login identity", async () => {
-  await mount("/apps/oa/forms/form/fill");
-  expect(document.body.textContent).toContain("原填报入口");
-  expect(vi.mocked(platformApi)).not.toHaveBeenCalled();
+it.each(["/apps/oa", "/apps/oa/forms/expense/design", "/apps/oa/forms/expense/fill", "/apps/oa/forms/expense/flow", "/apps/oa/forms/expense/extensions", "/admin/payments"])("retires %s without guessing server IDs or opening local data", async (path) => {
+  const { pinia } = await mount(path);
+  expect(router.currentRoute.value.fullPath).toBe("/?notice=legacy-link");
+  expect(document.body.textContent).toContain("此旧入口已停用");
+  expect(pinia.state.value.workspace).toBeUndefined();
+  expect(vi.mocked(platformApi).mock.calls.some(([url]) => url.includes("oa") || url.includes("expense"))).toBe(false);
 });
+
 it("focus rechecks revoked sessions and preserves local resources; network failure offers retry", async () => {
   signedIn = "editor";
   await mount();
@@ -225,16 +212,18 @@ it("focus rechecks revoked sessions and preserves local resources; network failu
   await click("重试");
   expect(document.querySelector("[role=alert]")).toBeNull();
 });
-it("new applications reuse the original create flow and application home", async () => {
+it("creates an application through the server and opens its returned identity", async () => {
   signedIn = "admin";
-  const { workspace } = await mount();
-  const before = workspace.data.apps.length;
+  const { pinia } = await mount();
   await click("新建应用"); input("#new-app-name", "采购"); await settle();
   document.querySelector("form#workbench-create-app")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-  await vi.waitFor(() => expect(workspace.data.apps).toHaveLength(before + 1));
-  await vi.waitFor(() => expect(router.currentRoute.value.path).toBe(`/apps/${workspace.data.apps.find(app => app.name === "采购")!.id}`));
-  expect(vi.mocked(platformApi).mock.calls.some(([path, method]) => path === "/applications" && method === "POST")).toBe(false);
+  await vi.waitFor(() => expect(router.currentRoute.value.path).toBe("/applications/new-server-app"));
+  expect(vi.mocked(platformApi).mock.calls).toContainEqual([
+    "/applications", "POST", { title: "采购", requestId: expect.any(String) },
+  ]);
+  expect(pinia.state.value.workspace).toBeUndefined();
 });
+
 it("ignores external and recursive sign-in destinations", async () => {
   await mount("/?next=https://example.com");
   await login("editor");

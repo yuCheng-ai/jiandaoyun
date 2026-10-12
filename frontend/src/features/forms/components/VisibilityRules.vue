@@ -8,10 +8,10 @@ import ChoiceFieldControl from "./ChoiceFieldControl.vue";
 import { copy, createField, flattenFields, uid, type FormSchema } from "../../../domain/form";
 import { editableVisibilityRules, visibilityRuleIssue, visibilityScopes } from "../../../domain/visibility";
 import { resolveChoices } from "../../../domain/relations";
-import { useWorkspaceStore } from "../../../stores/workspace";
+import { useRuntimeData } from "../../../composables/useRuntimeData";
 
 const props = defineProps<{ schema: FormSchema; fieldId?: string; scopeId?: string }>();
-const store = useWorkspaceStore();
+const runtime = useRuntimeData();
 const allFields = computed(() => flattenFields(props.schema.fields));
 const scope = computed(() => visibilityScopes(props.schema.fields).find(scope =>
   props.fieldId ? scope.fields.some(field => field.id === props.fieldId) : scope.id === (props.scopeId ?? ""),
@@ -69,7 +69,7 @@ function targets(rule: ConditionalVisibilityRule) {
 function options(condition: VisibilityCondition) {
   const field = allFields.value.find(field => field.id === condition.sourceId);
   if (!field) return [];
-  const choices = resolveChoices({ ...field, choiceSource: { ...field.choiceSource, filters: [] } }, store.data, {}).map(({ other, ...option }) => option);
+  const choices = resolveChoices({ ...field, choiceSource: { ...field.choiceSource, filters: [] } }, runtime.value, {}).map(({ other, ...option }) => option);
   return condition.value && !choices.some(option => option.id === condition.value)
     ? [...choices, { id: condition.value, label: field?.choiceConversion?.options.find(option => option.id === condition.value)?.label || (field?.choiceConversion ? condition.value : "已配置选项") }]
     : choices;

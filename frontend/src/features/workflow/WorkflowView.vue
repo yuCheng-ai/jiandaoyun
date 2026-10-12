@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import "@vue-flow/core/dist/style.css";
+import "@vue-flow/core/dist/theme-default.css";
+import "@vue-flow/minimap/dist/style.css";
+import "./workflow.css";
 import {
   ref,
   computed,

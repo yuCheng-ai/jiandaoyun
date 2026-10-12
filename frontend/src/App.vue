@@ -1,36 +1,16 @@
 <script setup lang="ts">
-import { computed, provide, watch } from "vue";
-import { useRoute } from "vue-router";
-import { useWorkspaceStore } from "./stores/workspace";
+import { computed, provide } from "vue";
 import { usePlatformSession } from "./stores/platformSession";
+import { useNotices } from "./stores/notices";
 import { customColorOwnerKey } from "./repositories/customColors";
 import AppIcon from "./components/AppIcon.vue";
-import WorkspaceStorageNotice from "./components/WorkspaceStorageNotice.vue";
-import WorkspaceRecovery from "./features/workspace/WorkspaceRecovery.vue";
-const store = useWorkspaceStore();
-const route = useRoute();
+const feedback = useNotices();
 const session = usePlatformSession();
-const localWorkspaceRoute = computed(
-  () => route.path.startsWith("/apps/") || route.path.startsWith("/admin/"),
-);
 provide(
   customColorOwnerKey,
   computed(() =>
-    route.path === "/" || route.path.startsWith("/applications")
-      ? session.user
-        ? `account:${session.user.id}`
-        : ""
-      : store.data.organization.currentUserId
-        ? `local:${store.data.organization.currentUserId}`
-        : "",
+    session.user ? `account:${session.user.id}` : "",
   ),
-);
-watch(
-  () => route.fullPath,
-  () => {
-    if (localWorkspaceRoute.value) store.refreshForRead?.();
-  },
-  { immediate: true, flush: "sync" },
 );
 </script>
 <template>
@@ -41,12 +21,11 @@ watch(
       /></RouterView>
     </div>
     <div
-      v-if="localWorkspaceRoute"
       class="toast-stack global-notices"
       aria-live="polite"
     >
       <div
-        v-for="notice in store.notices"
+        v-for="notice in feedback.notices"
         :key="notice.id"
         class="toast"
         :class="notice.type"
@@ -56,10 +35,5 @@ watch(
         }}
       </div>
     </div>
-    <WorkspaceStorageNotice
-      v-if="localWorkspaceRoute"
-      class="global-storage-notice"
-    />
-    <WorkspaceRecovery v-if="localWorkspaceRoute" />
   </div>
 </template>

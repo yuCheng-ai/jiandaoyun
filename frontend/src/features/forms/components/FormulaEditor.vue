@@ -26,7 +26,7 @@ import {
 import { validateFieldConfiguration } from "../../../domain/fieldValidation";
 import { formulaLabel } from "../../../domain/formValidation";
 import { escapeText, serializeFieldText } from "./fieldText";
-import { useWorkspaceStore } from "../../../stores/workspace";
+import { useRuntimeData } from "../../../composables/useRuntimeData";
 import {
   batchExcludedFunctions,
   recordBatchFormulaErrors,
@@ -42,7 +42,7 @@ const emit = defineEmits<{
   update: [patch: Partial<FormField>];
   updateValidation: [patch: Pick<FormValidationRule, "expression" | "remark">];
 }>();
-const store = useWorkspaceStore();
+const runtime = useRuntimeData();
 const open = ref(false),
   full = ref(false),
   code = ref(""),
@@ -321,7 +321,7 @@ function apply() {
       });
     visit(schema.fields);
     error.value =
-      validateFieldConfiguration(schema, store.data).find((message) =>
+      validateFieldConfiguration(schema, runtime.value).find((message) =>
         message.includes("循环引用"),
       ) || "";
   }

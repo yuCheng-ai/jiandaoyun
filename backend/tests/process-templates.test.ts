@@ -39,9 +39,9 @@ before(async () => {
   appId = (await h.request(`/data-objects/${main.id}/draft`)).applicationId;
   mainRecord = await h.record(main.id, { name: "协作业务", decision: "", private: "不应泄露", lines: [{ item: "A", quantity: 1, outcome: "" }, { item: "B", quantity: 2, outcome: "" }] });
   auxiliaryRecord = await h.record(auxiliary.id, { name: "辅助单据", state: "待核对" });
-  await h.request(`/definitions/${main.id}/grants`, "PUT", grant(editor, editorFields));
-  await h.request(`/definitions/${main.id}/grants`, "PUT", grant(reviewer, reviewerFields));
-  await h.request(`/definitions/${auxiliary.id}/grants`, "PUT", grant(reviewer, { name: "read", state: "edit" }));
+  await h.grant(main.id, grant(editor, editorFields));
+  await h.grant(main.id, grant(reviewer, reviewerFields));
+  await h.grant(auxiliary.id, grant(reviewer, { name: "read", state: "edit" }));
 });
 after(() => h.close());
 
@@ -124,10 +124,10 @@ test("references prevent row deletion and waiting tasks are read-only", async ()
   await h.request(`${taskPath(finish)}/record`, "PATCH", { requestId: randomUUID(), changes: [{ fieldId: "decision", value: "提前完成", expectedRevision: 1 }] }, "reviewer", 409);
 });
 test("permission loss blocks pending task and current authorization recovery unblocks it", async () => {
-  await h.request(`/definitions/${main.id}/grants`, "PUT", grant(editor, { ...editorFields, outcome: "hidden" }));
+  await h.grant(main.id, grant(editor, { ...editorFields, outcome: "hidden" }));
   let result = await h.request(`/processes/${processView.id}`); assert.equal(result.tasks[1].status, "blocked"); assert.match(result.tasks[1].reason, /无法查看/);
   await h.request(`${taskPath(result.tasks[1])}/record`, "GET", undefined, "editor", 403);
-  await h.request(`/definitions/${main.id}/grants`, "PUT", grant(editor, editorFields));
+  await h.grant(main.id, grant(editor, editorFields));
   result = await h.request(`/processes/${processView.id}`); assert.equal(result.tasks[1].status, "ready");
   assert.ok(result.events.some((e: any) => e.action === "blocked"));
 });
@@ -155,9 +155,9 @@ test("a second configuration handles same-row waits independently and never gran
   const preview = await h.request(`${path(template)}/preview`, "POST", { bindings: { business: mainRecord.record.id } }, "admin", 201);
   const result = await h.request(`${path(template)}/start`, "POST", { ...preview, requestId: randomUUID() }, "admin", 201);
   secondaryProcess = result; assert.deepEqual(result.tasks.map((t: any) => t.status), ["ready", "waiting"]);
-  await h.request(`/definitions/${main.id}/grants`, "PUT", { ...grant(editor, editorFields), read: false, edit: false });
+  await h.grant(main.id, { ...grant(editor, editorFields), read: false, edit: false });
   await h.request(`${path(template)}/preview`, "POST", { bindings: { business: mainRecord.record.id } }, "admin", 403);
-  await h.request(`/definitions/${main.id}/grants`, "PUT", grant(editor, editorFields));
+  await h.grant(main.id, grant(editor, editorFields));
 });
 test("a transient background reconciliation failure is persisted and the next successful check clears it", async () => {
   await h.db.query("CREATE FUNCTION test_process_refresh_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected refresh failure'; END $$");
