@@ -14,6 +14,11 @@ export const router = createRouter({
       component: () => import("../features/data/PageDesignerView.vue"),
     },
     {
+      path: "/applications/:applicationId/pages/:pageId/flow",
+      name: "page-workflow",
+      component: () => import("../features/workflow/WorkflowView.vue"),
+    },
+    {
       path: "/applications",
       redirect: "/",
     },
@@ -64,7 +69,8 @@ router.afterEach((to, _from, failure) => {
   if (failure) return;
   const labels: Record<string, string> = {
     "data-workspace": "应用",
-    "page-designer": "表单页面设计",
+    "page-designer": "表单设计",
+    "page-workflow": "流程设计",
     organization: "内部组织",
     roles: "角色管理",
     permissions: "权限查询",

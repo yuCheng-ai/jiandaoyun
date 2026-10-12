@@ -35,10 +35,18 @@ import { useRoute, useRouter } from "vue-router";
 import { useWorkspaceStore, syncFormWorkflow } from "../../stores/workspace";
 import DesignerHeader from "../../components/shared/DesignerHeader.vue";
 import { useWorkflow } from "../../composables/useWorkflow";
+import { platformApi } from "../../repositories/platformApi";
+import {
+  composeFormSchema,
+  type PageEditorData,
+  type FormSchema,
+} from "@platform/contracts";
 import {
   kindLabels,
   validate,
   serialize,
+  parseDocument,
+  initialDocument,
   simulationPath,
   clone,
   type NodeKind,
@@ -48,8 +56,35 @@ import {
 const pageRoute = useRoute(),
   router = useRouter(),
   workspace = useWorkspaceStore();
-const formId = String(pageRoute.params.formId);
-const currentForm = workspace.openForm(formId);
+const appId = computed(() =>
+  String(pageRoute.params.applicationId || pageRoute.params.appId || ""),
+);
+const formId = computed(() =>
+  String(pageRoute.params.pageId || pageRoute.params.formId || ""),
+);
+const currentForm = workspace.openForm(formId.value);
+const serverPage = ref<PageEditorData>();
+const serverSchema = computed<FormSchema | undefined>(() => {
+  if (!serverPage.value) return undefined;
+  return composeFormSchema(
+    serverPage.value.model || { version: 1, fields: [] },
+    serverPage.value.draft.schema,
+  );
+});
+const storageKey = computed(() => `vue-workflow-${formId.value || "default"}`);
+
+const initialFlow = (() => {
+  if (currentForm) return currentForm.workflow;
+  const key = `vue-workflow-${formId.value || "default"}`;
+  const saved = localStorage.getItem(key);
+  if (saved) {
+    try {
+      return parseDocument(saved);
+    } catch {}
+  }
+  return initialDocument();
+})();
+
 const {
   doc,
   selectedId,
@@ -73,22 +108,37 @@ const {
   layout,
   checkpoint,
   loadError,
-} = useWorkflow(
-  currentForm
-    ? {
-        initial: currentForm.workflow,
-        onChange: (value) => {
-          currentForm.workflow = value;
-          currentForm.title = value.title;
-        },
-        onSave: async (value) => {
-          currentForm.workflow = value;
-          currentForm.title = value.title;
-          syncFormWorkflow(currentForm);
-          return await workspace.saveForm(formId);
-        },
-      }
-    : undefined,
+} = useWorkflow({
+  initial: initialFlow,
+  onChange: (value) => {
+    if (currentForm) {
+      currentForm.workflow = value;
+      currentForm.title = value.title;
+    }
+  },
+  onSave: async (value) => {
+    if (currentForm) {
+      currentForm.workflow = value;
+      currentForm.title = value.title;
+      syncFormWorkflow(currentForm);
+      await workspace.saveForm(formId.value);
+    }
+    localStorage.setItem(storageKey.value, serialize(value));
+    return true;
+  },
+});
+
+watch(
+  serverSchema,
+  (schema) => {
+    if (schema) {
+      doc.value.formFields = schema.fields.map((f) => ({
+        id: f.id,
+        label: f.label,
+      }));
+    }
+  },
+  { immediate: true },
 );
 const {
   setViewport,
@@ -255,9 +305,22 @@ function openDialog(name: string) {
     records: "data",
   };
   if (routes[name]) {
-    router.push(
-      `/apps/${pageRoute.params.appId}/forms/${formId}/${routes[name]}`,
-    );
+    if (pageRoute.params.applicationId) {
+      if (routes[name] === "design") {
+        router.push(
+          `/applications/${appId.value}/pages/${formId.value}/design`,
+        );
+      } else if (routes[name] === "data") {
+        router.push({
+          path: `/applications/${appId.value}`,
+          query: { form: formId.value, view: "records" },
+        });
+      }
+    } else {
+      router.push(
+        `/apps/${pageRoute.params.appId}/forms/${formId.value}/${routes[name]}`,
+      );
+    }
     return;
   }
   picker.value = null;
@@ -268,7 +331,7 @@ function openDialog(name: string) {
     issues.value = validate(
       doc.value,
       workspace.data.organization,
-      currentForm?.schema,
+      currentForm?.schema || serverSchema.value,
     );
     testRunning.value = false;
     testIndex.value = -1;
@@ -391,7 +454,7 @@ async function activate() {
   issues.value = validate(
     doc.value,
     workspace.data.organization,
-    currentForm?.schema,
+    currentForm?.schema || serverSchema.value,
   );
   if (issues.value.length) return;
   doc.value.enabled = true;
@@ -411,13 +474,14 @@ function handleIssue(issue: ValidationIssue) {
   }
 }
 function startTest() {
+  const schema = currentForm?.schema || serverSchema.value;
   issues.value = validate(
     doc.value,
     workspace.data.organization,
-    currentForm?.schema,
+    schema,
   );
   if (issues.value.length) return;
-  testValues.value = currentForm ? sampleValues(currentForm.schema) : {};
+  testValues.value = schema ? sampleValues(schema) : {};
   for (const node of doc.value.nodes.filter((n) => n.data.kind === "condition"))
     testValues.value[node.data.conditionFieldId || "amount"] = testAmount.value;
   pluginTrial.value = undefined;
@@ -431,14 +495,14 @@ async function nextStep() {
     const previous = pluginTrial.value;
     pluginTrial.value = runPlugin(
       node.data.pluginConfig || newInvocation(node.data.plugin),
-      currentForm?.schema || emptySchema(),
+      currentForm?.schema || serverSchema.value || emptySchema(),
       testValues.value,
       workspace.data,
       forcePluginFailure.value,
       node.id,
     );
     if (previous?.status === "failed") pluginTrial.value.retryOf = previous.id;
-    await workspace.recordExtensionRun(pluginTrial.value, formId);
+    await workspace.recordExtensionRun(pluginTrial.value, formId.value);
     if (pluginTrial.value.status !== "success") return;
     Object.assign(testValues.value, pluginTrial.value.mappedValues);
   }
@@ -568,6 +632,23 @@ onMounted(() => {
   window.addEventListener("resize", closeShortcuts);
   window.addEventListener("beforeunload", beforeUnload);
   if (loadError) notify(loadError, "warning");
+  if (pageRoute.params.pageId) {
+    platformApi<PageEditorData>(
+      `/pages/${pageRoute.params.pageId}/editor`,
+    )
+      .then((data) => {
+        if (data) {
+          serverPage.value = data;
+          if (
+            data.draft.title &&
+            (!doc.value.title || doc.value.title === "未命名表单")
+          ) {
+            doc.value.title = data.draft.title;
+          }
+        }
+      })
+      .catch(() => {});
+  }
   if (
     typeof pageRoute.query.node === "string" &&
     doc.value.nodes.some((n) => n.id === pageRoute.query.node)
@@ -596,7 +677,7 @@ onBeforeUnmount(() => {
   >
     <DesignerHeader
       v-model:title="doc.title"
-      :app-id="String(pageRoute.params.appId)"
+      :app-id="appId"
       :form-id="formId"
       active="flow"
       @help="openDialog('help')"
@@ -882,7 +963,7 @@ onBeforeUnmount(() => {
       :open="pluginOpen"
       :model-value="selected?.data.pluginConfig"
       :legacy="selected?.data.plugin"
-      :schema="currentForm?.schema || emptySchema()"
+      :schema="currentForm?.schema || serverSchema || emptySchema()"
       :form-id="formId"
       :node-id="selectedId"
       :save-config="applyPlugin"

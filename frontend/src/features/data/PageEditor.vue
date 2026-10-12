@@ -53,6 +53,7 @@ import ChoiceSettings from "../forms/components/ChoiceSettings.vue";
 import FieldValueRules from "./FieldValueRules.vue";
 import DateRangeInspector from "../forms/components/DateRangeInspector.vue";
 import { serverFieldTypes, isChoiceField } from "@platform/contracts";
+import UserMenu from "../../components/shared/UserMenu.vue";
 import PagePublishDialog from "./PagePublishDialog.vue";
 const store = usePageDesignerStore(),
   session = usePlatformSession(),
@@ -404,6 +405,25 @@ function keyboard(event: KeyboardEvent) {
     event.shiftKey ? redo() : undo();
   }
 }
+async function goToWorkflow() {
+  if (store.dirty) {
+    const ok = await store.save();
+    if (!ok) return;
+  }
+  await router.push(
+    `/applications/${route.params.applicationId}/pages/${data.value.draft.id}/flow`,
+  );
+}
+async function goToData() {
+  if (store.dirty) {
+    const ok = await store.save();
+    if (!ok) return;
+  }
+  await router.push({
+    path: `/applications/${route.params.applicationId}`,
+    query: { form: data.value.draft.id, view: "records" },
+  });
+}
 onMounted(() => {
   window.addEventListener("beforeunload", beforeUnload);
   window.addEventListener("keydown", keyboard);
@@ -437,10 +457,26 @@ onBeforeUnmount(() => {
           :disabled="store.busy || !!data.draft.archivedAt"
         />
       </div>
-      <span class="page-header-context"
-        >表单设计</span
-      >
-      <div class="header-utilities">{{ session.user?.name }}</div>
+      <nav class="main-navigation" aria-label="表单设计导航">
+        <button class="active" aria-current="page">
+          表单设计
+        </button>
+        <button @click="goToWorkflow">
+          流程设计
+        </button>
+        <span class="nav-divider" />
+        <button @click="goToData">
+          数据管理
+        </button>
+      </nav>
+      <div class="header-utilities">
+        <UserMenu
+          v-if="session.user"
+          :account="session.user"
+          :busy="store.busy"
+        />
+        <span v-else>未登录</span>
+      </div>
     </header>
     <main class="form-designer-shell">
       <div v-if="!data.draft.archivedAt" class="form-editor-toolbar">

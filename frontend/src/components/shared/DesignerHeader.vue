@@ -13,15 +13,40 @@ const props = defineProps<{
 const emit = defineEmits<{ "update:title": [value: string]; help: [] }>();
 const router = useRouter();
 const route = useRoute();
+const isServerRoute = computed(() => !!route.params.applicationId);
 const tabs = computed(() => [
   { id: "design", label: "表单设计" },
-  { id: "flow", label: "流程设定" },
-  { id: "extensions", label: "扩展功能" },
-  { id: "publish", label: "表单发布" },
+  { id: "flow", label: "流程设计" },
   { id: "data", label: "数据管理" },
 ]);
 function go(id: string) {
-  router.push(`/apps/${props.appId}/forms/${props.formId}/${id}`);
+  if (isServerRoute.value) {
+    if (id === "design") {
+      router.push(`/applications/${props.appId}/pages/${props.formId}/design`);
+    } else if (id === "flow") {
+      router.push(`/applications/${props.appId}/pages/${props.formId}/flow`);
+    } else if (id === "data") {
+      router.push({
+        path: `/applications/${props.appId}`,
+        query: { form: props.formId, view: "records" },
+      });
+    }
+  } else {
+    router.push(`/apps/${props.appId}/forms/${props.formId}/${id}`);
+  }
+}
+function goBack() {
+  if (isServerRoute.value) {
+    router.push({
+      path: `/applications/${props.appId}`,
+      query: { form: props.formId },
+    });
+  } else {
+    router.push({
+      path: `/apps/${props.appId}`,
+      query: { form: props.formId },
+    });
+  }
 }
 </script>
 <template>
@@ -30,7 +55,7 @@ function go(id: string) {
       <button
         class="icon-button back-button"
         aria-label="返回应用首页"
-        @click="router.push({ path: `/apps/${appId}`, query: { form: formId } })"
+        @click="goBack"
       >
         <AppIcon name="back" :size="23" /></button
       ><input
