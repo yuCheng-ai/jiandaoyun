@@ -82,11 +82,24 @@ const recordPage = ref(1),
   columnDraft = ref<string[]>([]),
   viewError = ref("");
 const viewConflict = ref(false);
+const searchKeyword = ref("");
 const recordColumns = computed(() =>
   (recordList.value?.view.settings.fieldIds || [])
     .map((id) => recordList.value?.fields.find((field) => field.id === id))
     .filter((field): field is NonNullable<typeof field> => !!field),
 );
+const filteredRecords = computed(() => {
+  if (!searchKeyword.value.trim()) return records.value;
+  const kw = searchKeyword.value.trim().toLowerCase();
+  return records.value.filter((r) => {
+    if (r.id.toLowerCase().includes(kw)) return true;
+    if (r.createdAt.includes(kw)) return true;
+    if (!r.preview?.values) return false;
+    return Object.values(r.preview.values).some((v) =>
+      String(v ?? "").toLowerCase().includes(kw),
+    );
+  });
+});
 async function loadRecords(request = disposedRequest) {
   const page = selected.value;
   if (!page) return;
@@ -208,7 +221,10 @@ async function loadForm(resetList = true) {
   groups.value = undefined;
   records.value = [];
   recordList.value = undefined;
-  if (resetList) recordPage.value = 1;
+  if (resetList) {
+    recordPage.value = 1;
+    searchKeyword.value = "";
+  }
   columnsOpen.value = false;
   viewError.value = "";
   viewConflict.value = false;
@@ -231,6 +247,11 @@ async function loadForm(resetList = true) {
   ) {
     await loadRecords(request);
   }
+}
+function selectRecordState(state: "active" | "draft") {
+  if (recordState.value === state) return;
+  recordState.value = state;
+  void run(loadForm);
 }
 async function load() {
   loading = true;
@@ -400,16 +421,19 @@ async function permissions() {
       </button></template
     >
     <template v-if="selected" #actions>
-      <button v-if="session.user?.role === 'admin'" @click="design">
-        <AppIcon name="edit" />编辑
+      <button
+        v-if="view !== 'records'"
+        class="header-action-btn"
+        @click="show('records')"
+      >
+        <AppIcon name="table" />数据管理
       </button>
       <button
-        v-if="form?.access.create"
-        @click="show(view === 'records' ? 'fill' : 'records')"
+        v-if="session.user?.role === 'admin'"
+        class="header-action-btn"
+        @click="design"
       >
-        <AppIcon :name="view === 'records' ? 'document' : 'table'" />{{
-          view === "records" ? "填写表单" : "数据管理"
-        }}
+        <AppIcon name="edit" />编辑表单
       </button>
       <details v-if="session.user?.role === 'admin'" class="server-form-menu">
         <summary aria-label="更多表单操作">···</summary>
@@ -483,81 +507,171 @@ async function permissions() {
           @saved="saved"
         />
         <section v-else class="server-record-list">
-          <div class="organization-toolbar">
-            <button
-              v-if="form.access.create"
-              class="button primary"
-              @click="show('fill')"
-            >
-              新增记录
-            </button>
-            <label
-              >表单版本
-              <select
-                v-model.number="pageVersion"
-                :disabled="busy"
-                @change="run(loadForm)"
-              >
-                <option
-                  v-for="version in selected.versions || selected.latestVersion"
-                  :key="version"
-                  :value="version"
-                >
-                  V{{ version }}
-                </option>
-              </select></label
-            >
-            <label
-              >记录范围
-              <select
-                v-model="recordState"
-                :disabled="busy"
-                @change="run(loadForm)"
-              >
-                <option v-if="form.access.read" value="active">正式记录</option>
-                <option v-if="canReadRecordDrafts(form.access)" value="draft">
-                  草稿
-                </option>
-              </select></label
-            >
-            <template v-if="session.user?.role === 'admin' && recordList">
-              <div class="toolbar-spacer" />
-              <label
-                >排序<select
-                  aria-label="数据排序字段"
-                  :value="recordList.view.settings.sortField"
-                  :disabled="busy"
-                  @change="
-                    changeRecordView({
-                      sortField: ($event.target as HTMLSelectElement).value,
-                    })
-                  "
-                >
-                  <option value="$createdAt">创建时间</option>
-                  <option
-                    v-for="field in recordList.fields"
-                    :key="field.id"
-                    :value="field.id"
-                  >
-                    {{ field.label }}
-                  </option>
-                </select></label
-              >
+          <div class="record-management-toolbar">
+            <div class="record-toolbar-left">
               <button
-                class="text-button"
-                :disabled="busy"
-                @click="
-                  changeRecordView({
-                    descending: !recordList.view.settings.descending,
-                  })
-                "
+                v-if="form.access.create"
+                class="button primary record-add-btn"
+                @click="show('fill')"
               >
-                {{ recordList.view.settings.descending ? "降序" : "升序" }}
+                <AppIcon name="add" :size="15" />新增记录
               </button>
-              <button class="button" :disabled="busy" @click="openColumns">
-                列设置
+
+              <div class="record-state-tabs">
+                <button
+                  v-if="form.access.read"
+                  type="button"
+                  class="record-state-tab"
+                  :class="{ active: recordState === 'active' }"
+                  @click="selectRecordState('active')"
+                >
+                  正式记录
+                </button>
+                <button
+                  v-if="canReadRecordDrafts(form.access)"
+                  type="button"
+                  class="record-state-tab"
+                  :class="{ active: recordState === 'draft' }"
+                  @click="selectRecordState('draft')"
+                >
+                  草稿箱
+                </button>
+                <select
+                  v-model="recordState"
+                  class="sr-only"
+                  tabindex="-1"
+                  aria-hidden="true"
+                  @change="run(loadForm)"
+                >
+                  <option v-if="form.access.read" value="active">正式记录</option>
+                  <option v-if="canReadRecordDrafts(form.access)" value="draft">
+                    草稿
+                  </option>
+                </select>
+              </div>
+
+              <div
+                v-if="
+                  (selected.versions && selected.versions.length > 1) ||
+                  (!selected.versions && (selected.latestVersion || 1) > 1)
+                "
+                class="record-version-selector"
+                title="表单版本"
+              >
+                <span class="version-label">版本:</span>
+                <select
+                  v-model.number="pageVersion"
+                  :disabled="busy"
+                  class="version-select"
+                  @change="run(loadForm)"
+                >
+                  <option
+                    v-for="version in selected.versions || selected.latestVersion"
+                    :key="version"
+                    :value="version"
+                  >
+                    V{{ version }}
+                  </option>
+                </select>
+              </div>
+            </div>
+
+            <div class="record-toolbar-right">
+              <div class="record-search-box">
+                <AppIcon name="search" :size="14" class="search-icon" />
+                <input
+                  v-model="searchKeyword"
+                  type="text"
+                  placeholder="搜索数据..."
+                  class="record-search-input"
+                  aria-label="搜索数据"
+                />
+                <button
+                  v-if="searchKeyword"
+                  type="button"
+                  class="search-clear-btn"
+                  aria-label="清空搜索"
+                  @click="searchKeyword = ''"
+                >
+                  <AppIcon name="close" :size="12" />
+                </button>
+              </div>
+
+              <template v-if="session.user?.role === 'admin' && recordList">
+                <div class="record-sort-group">
+                  <span class="sort-prefix">
+                    <AppIcon name="filter" :size="13" />
+                    排序
+                  </span>
+                  <select
+                    aria-label="数据排序字段"
+                    :value="recordList.view.settings.sortField"
+                    :disabled="busy"
+                    class="sort-select"
+                    @change="
+                      changeRecordView({
+                        sortField: ($event.target as HTMLSelectElement).value,
+                      })
+                    "
+                  >
+                    <option value="$createdAt">创建时间</option>
+                    <option
+                      v-for="field in recordList.fields"
+                      :key="field.id"
+                      :value="field.id"
+                    >
+                      {{ field.label }}
+                    </option>
+                  </select>
+                  <button
+                    type="button"
+                    class="sort-order-btn"
+                    :title="
+                      recordList.view.settings.descending
+                        ? '降序 (点击切换升序)'
+                        : '升序 (点击切换降序)'
+                    "
+                    :disabled="busy"
+                    @click="
+                      changeRecordView({
+                        descending: !recordList.view.settings.descending,
+                      })
+                    "
+                  >
+                    <AppIcon
+                      :name="
+                        recordList.view.settings.descending ? 'moveDown' : 'up'
+                      "
+                      :size="12"
+                    />
+                    <span>{{
+                      recordList.view.settings.descending ? "降序" : "升序"
+                    }}</span>
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  class="record-tool-btn"
+                  :disabled="busy"
+                  @click="openColumns"
+                >
+                  <AppIcon name="table" :size="14" />
+                  <span>列设置</span>
+                </button>
+              </template>
+
+              <button
+                v-if="recordList"
+                type="button"
+                class="record-tool-btn record-refresh-btn"
+                title="刷新数据"
+                :disabled="busy"
+                @click="run(loadRecords)"
+              >
+                <AppIcon name="refresh" :size="14" />
               </button>
-            </template>
+            </div>
           </div>
           <p
             v-if="viewError && !columnsOpen"
@@ -599,7 +713,7 @@ async function permissions() {
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="record in records" :key="record.id">
+                <tr v-for="record in filteredRecords" :key="record.id">
                   <td v-for="field in recordColumns" :key="field.id">
                     <span
                       class="server-record-cell record-cell-value"
@@ -631,6 +745,9 @@ async function permissions() {
             </table>
             <p v-if="!records.length" class="field-hint">
               {{ recordState === "draft" ? "暂无保存的草稿" : "暂无记录" }}
+            </p>
+            <p v-else-if="!filteredRecords.length" class="field-hint">
+              没有找到与“{{ searchKeyword }}”匹配的记录
             </p>
           </div>
           <RecordPagination
@@ -779,11 +896,304 @@ async function permissions() {
 .server-home-message {
   margin: 12px 24px;
 }
+.header-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid #d9dfe9;
+  background: #ffffff;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+.header-action-btn:hover {
+  border-color: #00b894;
+  color: #00b894;
+  background: #f0fdf4;
+}
 .server-record-list {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  background: #ffffff;
+}
+
+/* Data Management Toolbar */
+.record-management-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 20px;
+  background: #ffffff;
+  border-bottom: 1px solid #edf0f5;
+  flex-shrink: 0;
+}
+.record-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.record-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.record-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  background: #00b894;
+  border: 1px solid #00b894;
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  box-shadow: 0 1px 2px rgba(0, 184, 148, 0.2);
+}
+.record-add-btn:hover {
+  background: #00a884;
+  border-color: #00a884;
+}
+
+/* Status tabs (正式记录 / 草稿箱) */
+.record-state-tabs {
+  display: inline-flex;
+  align-items: center;
+  background: #f1f3f7;
+  border-radius: 6px;
+  padding: 2px;
+}
+.record-state-tab {
+  height: 28px;
+  line-height: 28px;
+  padding: 0 14px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+.record-state-tab:hover {
+  color: #1e293b;
+}
+.record-state-tab.active {
+  background: #ffffff;
+  color: #00b894;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Schema version pill */
+.record-version-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #64748b;
+}
+.record-version-selector .version-label {
+  font-size: 12px;
+  color: #94a3b8;
+}
+.record-version-selector .version-select {
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  outline: none;
+  padding: 0 2px;
+}
+
+/* Search Box */
+.record-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 32px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0 8px;
+  width: 170px;
+  transition: all 0.2s ease-in-out;
+}
+.record-search-box:focus-within {
+  width: 220px;
+  background: #ffffff;
+  border-color: #00b894;
+  box-shadow: 0 0 0 2px rgba(0, 184, 148, 0.12);
+}
+.record-search-box .search-icon {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+.record-search-input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+  color: #1e293b;
+  width: 100%;
+  margin-left: 6px;
+  padding: 0;
+}
+.record-search-input::placeholder {
+  color: #94a3b8;
+}
+.search-clear-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s;
+}
+.search-clear-btn:hover {
+  color: #475569;
+}
+
+/* Sort Controls */
+.record-sort-group {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0 3px 0 8px;
+  font-size: 13px;
+}
+.sort-prefix {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #64748b;
+  font-size: 12px;
+  margin-right: 4px;
+  user-select: none;
+}
+.sort-select {
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  color: #1e293b;
+  outline: none;
+  cursor: pointer;
+  height: 26px;
+  padding: 0 4px;
+}
+.sort-order-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.sort-order-btn:hover {
+  color: #00b894;
+  border-color: #00b894;
+}
+
+/* General Tool Buttons (列设置, 刷新) */
+.record-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.record-tool-btn:hover {
+  border-color: #cbd5e1;
+  color: #0f172a;
+  background: #f8fafc;
+}
+.record-refresh-btn {
+  padding: 0 8px;
+}
+
+/* Table styling */
+.organization-table-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.record-display-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.record-display-table th {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+  text-align: left;
+}
+.record-display-table td {
+  padding: 10px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 13px;
+  color: #334155;
+  vertical-align: middle;
+}
+.record-display-table tr:hover td {
+  background: #f8fafc;
 }
 .server-record-cell {
   display: block;
@@ -791,6 +1201,7 @@ async function permissions() {
   max-width: 280px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .server-record-list th:last-child,
 .server-record-list td:last-child {
@@ -804,6 +1215,10 @@ async function permissions() {
 .server-record-list td:last-child {
   background: white;
 }
+.server-record-list tr:hover td:last-child {
+  background: #f8fafc;
+}
+
 .server-form-menu {
   position: relative;
 }
