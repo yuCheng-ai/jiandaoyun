@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import {
   serverFieldTypes,
+  hasFieldValue,
   maxSubformRows,
   emptyFieldValue,
   fieldDefaultValue,
@@ -117,6 +118,7 @@ export function parseSchema(
     ids.add(raw.id);
     if (
       !serverFieldTypes.includes(raw.type) ||
+      raw.type === "serial" ||
       (nested && raw.type === "subform")
     )
       throw new BadRequestException(
@@ -159,7 +161,7 @@ export function parseSchema(
       typeof raw.required !== "boolean" ||
       !Array.isArray(raw.children) ||
       raw.children.length > 40 ||
-      (raw.type !== "subform" && raw.children.length)
+      (raw.type !== "subform" && raw.type !== "tabs" && raw.children.length)
     )
       throw new BadRequestException("字段结构不合法");
     if (
@@ -195,7 +197,7 @@ export function parseSchema(
     if (choiceErrors.length)
       throw new BadRequestException(`「${field.label}」${choiceErrors[0]}`);
     validateFieldRules(field, allowIncomplete, identifier);
-    if (field.type !== "subform")
+    if (field.type !== "subform" && hasFieldValue(field))
       scalar(field, fieldDefaultValue(field), false);
     return field;
   };

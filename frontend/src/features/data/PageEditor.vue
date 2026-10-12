@@ -52,7 +52,7 @@ import ManualChoiceEditor from "../forms/components/ManualChoiceEditor.vue";
 import ChoiceSettings from "../forms/components/ChoiceSettings.vue";
 import FieldValueRules from "./FieldValueRules.vue";
 import DateRangeInspector from "../forms/components/DateRangeInspector.vue";
-import { serverFieldTypes, isChoiceField } from "@platform/contracts";
+import { isChoiceField } from "@platform/contracts";
 import UserMenu from "../../components/shared/UserMenu.vue";
 import PagePublishDialog from "./PagePublishDialog.vue";
 const store = usePageDesignerStore(),
@@ -120,9 +120,21 @@ async function locateField() {
     ?.scrollIntoView({ block: "nearest" });
 }
 watch(() => route.query.field, locateField);
-const palette = fieldRegistry.filter((item) =>
-  serverFieldTypes.includes(item.type),
-);
+const paletteGroups = computed(() => {
+  const q = query.value.trim();
+  const filterGroup = (groupName: "常用" | "高级" | "关联") =>
+    fieldRegistry.filter(
+      (item) =>
+        item.group === groupName &&
+        (!q || item.label.includes(q)) &&
+        (!editor.activeParent.value || item.subform),
+    );
+  return [
+    { id: "common", label: "常用字段", items: filterGroup("常用") },
+    { id: "advanced", label: "高级字段", items: filterGroup("高级") },
+    { id: "relation", label: "关联字段", items: filterGroup("关联") },
+  ].filter((group) => group.items.length > 0);
+});
 const baseFields = computed(() => modelFields(data.value.model));
 const chosenBase = computed(() =>
   baseFields.value.find((item) => item.field.id === editor.selected.value?.id),
@@ -639,28 +651,35 @@ onBeforeUnmount(() => {
                 placeholder="搜索字段"
               />
             </div>
-            <section v-if="fieldMode === 'new'" class="palette-section">
-              <header><h3>常用字段</h3></header>
-              <div class="palette-grid">
-                <button
-                  v-for="item in palette.filter((item) =>
-                    item.label.includes(query),
-                  )"
-                  :key="item.type"
-                  class="palette-field"
-                  :data-field-type="item.type"
-                  :aria-label="`添加${item.label}`"
-                  draggable="true"
-                  @dragstart="drag($event, { type: item.type })"
-                  @click="add(item.type)"
-                >
-                  <AppIcon :name="item.icon" :size="14" />{{ item.label }}
-                </button>
-              </div>
+            <template v-if="fieldMode === 'new'">
+              <section
+                v-for="group in paletteGroups"
+                :key="group.id"
+                class="palette-section"
+              >
+                <header><h3>{{ group.label }}</h3></header>
+                <div class="palette-grid">
+                  <button
+                    v-for="item in group.items"
+                    :key="item.type"
+                    class="palette-field"
+                    :data-field-type="item.type"
+                    :aria-label="`添加${item.label}`"
+                    draggable="true"
+                    @dragstart="drag($event, { type: item.type })"
+                    @click="add(item.type)"
+                  >
+                    <AppIcon :name="item.icon" :size="14" />{{ item.label }}
+                  </button>
+                </div>
+              </section>
               <p v-if="!canEditFields" class="field-hint">
                 新增字段随页面草稿保存，发布后可供其他页面使用。
               </p>
-            </section>
+              <p v-if="!paletteGroups.length" class="field-hint">
+                没有找到匹配的字段。
+              </p>
+            </template>
             <section v-else class="palette-section">
               <p class="field-hint">
                 字段来自「{{ data.object.title }}」{{

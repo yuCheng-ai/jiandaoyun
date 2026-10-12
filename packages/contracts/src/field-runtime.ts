@@ -5,9 +5,26 @@ import type { DataField, DataKind } from "./data-view";
 import { formatNumberValue, type NumberSettings } from "./numbers";
 
 /** Types with server-side definition, value and permission enforcement. */
-export const serverFieldTypes: readonly FieldType[] = ["text", "textarea", "number", "datetime", "radio", "select", "checkbox", "multiselect", "phone", "member", "members", "department", "departments", "subform"];
-export const serverDataKinds: readonly DataKind[] = ["text", "number", "datetime", "choice", "choices", "phone", "member", "members", "department", "departments", "subform"];
-export const serverDataKindLabels: Partial<Record<DataKind, string>> = { text: "文本", number: "数字", datetime: "日期时间", choice: "单选", choices: "多选", phone: "手机号", member: "成员", members: "多成员", department: "部门", departments: "多部门", subform: "明细" };
+export const serverFieldTypes: readonly FieldType[] = [
+  "text", "textarea", "number", "datetime", "radio", "select", "checkbox", "multiselect",
+  "phone", "member", "members", "department", "departments", "subform",
+  "image", "file", "address", "location", "signature", "serial", "calculated",
+  "richtext", "ocr", "button", "query", "lookup", "relation", "relationTable",
+  "divider", "tabs",
+];
+export const serverDataKinds: readonly DataKind[] = [
+  "text", "number", "datetime", "choice", "choices", "phone", "member", "members",
+  "department", "departments", "subform",
+  "image", "file", "address", "location", "signature", "serial", "calculated",
+  "richtext", "ocr", "query", "lookup", "relation", "relationTable",
+];
+export const serverDataKindLabels: Partial<Record<DataKind, string>> = {
+  text: "文本", number: "数字", datetime: "日期时间", choice: "单选", choices: "多选",
+  phone: "手机号", member: "成员", members: "多成员", department: "部门", departments: "多部门",
+  subform: "明细", image: "图片", file: "附件", address: "地址", location: "定位",
+  signature: "手写签名", serial: "流水号", calculated: "计算", richtext: "富文本", ocr: "文字识别",
+  query: "查询", lookup: "选择数据", relation: "关联数据", relationTable: "关联子表",
+};
 export const isChoiceField = (type: string) => ["radio", "select", "checkbox", "multiselect"].includes(type);
 export const isMultipleChoice = (type: string) => type === "checkbox" || type === "multiselect";
 export const maxFieldLabelLength = 1000;

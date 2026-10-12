@@ -29,7 +29,7 @@ export function validateFieldRules(field: FormField, allowIncomplete: boolean, i
   if (!emptyFieldValue(field.defaultValue) && (isMultipleChoice(field.type) ? !Array.isArray(field.defaultValue) || field.defaultValue.some(value => typeof value !== "string") : typeof field.defaultValue !== "string")) throw new BadRequestException(`「${field.label}」默认值应从预设选项中选择`);
 }
 
-export function scalar(field: FormField, value: unknown, required = true): number | ChoiceValue | ChoiceValue[] {
+export function scalar(field: FormField, value: unknown, required = true): any {
   const multiple = isMultipleChoice(field.type) || isMultipleOrganization(field.type);
   if (emptyFieldValue(value)) {
     if (required && field.required) throw new BadRequestException(`「${field.label}」不能为空`);
@@ -54,6 +54,9 @@ export function scalar(field: FormField, value: unknown, required = true): numbe
       throw new BadRequestException(`「${field.label}」${message}`);
     }
     return value as number;
+  }
+  if (["image", "file", "location", "address", "signature", "relationTable", "relation", "lookup", "query"].includes(field.type)) {
+    return structuredClone(value);
   }
   if (typeof value !== "string" || value.length > (field.maxLength || 10000)) throw new BadRequestException(`「${field.label}」的文本格式或长度不符合要求`);
   if (required && field.required && !value.trim()) throw new BadRequestException(`「${field.label}」不能为空`);

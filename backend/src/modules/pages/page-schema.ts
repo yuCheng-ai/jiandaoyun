@@ -53,8 +53,10 @@ export function parsePage(raw: unknown, model: DataModel, incomplete = false): F
   if (raw.version !== 1 || !Array.isArray(raw.controls)) throw new BadRequestException("页面结构不合法");
   let count = 0;
   const visit = (raw: unknown, nested: boolean): PageControl => {
-    object(raw); object(raw.properties); object(raw.binding); identifier(raw.id); identifier(raw.binding.fieldId);
-    if (++count > 120 || !Array.isArray(raw.children) || !serverFieldTypes.includes(raw.type) || (nested && raw.type === "subform") || (raw.type !== "subform" && raw.children.length)) throw new BadRequestException("页面控件结构暂不支持");
+    object(raw); object(raw.properties);
+    const hasBinding = raw.binding !== undefined;
+    if (hasBinding) { object(raw.binding); identifier(raw.binding.fieldId); }
+    if (++count > 120 || !Array.isArray(raw.children) || !serverFieldTypes.includes(raw.type) || (nested && raw.type === "subform") || (raw.type !== "subform" && raw.type !== "tabs" && raw.children.length)) throw new BadRequestException("页面控件结构暂不支持");
     const properties = { ...defaultPageProperties() };
     for (const key of pagePropertyKeys) if (Object.hasOwn(raw.properties, key)) (properties as any)[key] = raw.properties[key];
     const rowPermissionErrors = subformPermissionSettingErrors({ ...properties, type: raw.type } as any);
@@ -68,10 +70,10 @@ export function parsePage(raw: unknown, model: DataModel, incomplete = false): F
     const mobileErrors = subformMobileErrors({ ...properties, type: raw.type, children: raw.children?.map((child: any) => ({ id: child.binding?.fieldId || child.id, type: child.type })) } as any, true);
     if (mobileErrors.length) throw new BadRequestException(mobileErrors[0]);
     for (const key of ["showLabel", "required", "visible", "editable", "masked"] as const) if (typeof properties[key] !== "boolean") throw new BadRequestException("页面控件设置不合法");
-    if (properties.masked || !Array.isArray(properties.tabs) || properties.tabs.length || properties.tabId) throw new BadRequestException("页面脱敏与标签页尚未接入服务端");
+    if (properties.masked) throw new BadRequestException("页面脱敏尚未接入服务端");
     if (!Number.isInteger(properties.width) || properties.width < 1 || properties.width > 12 || !Number.isInteger(properties.rows) || properties.rows < 1 || properties.rows > 50) throw new BadRequestException("控件宽度或行数不合法");
     if (typeof properties.buttonText !== "string" || properties.buttonText.length > 2000) throw new BadRequestException("按钮文字过长或格式不合法");
-    return { id: raw.id, type: raw.type, binding: { fieldId: raw.binding.fieldId }, properties, children: raw.children.map((child: unknown) => visit(child, true)) };
+    return { id: raw.id, type: raw.type, ...(hasBinding ? { binding: { fieldId: raw.binding.fieldId } } : {}), ...(raw.unboundSettings ? { unboundSettings: raw.unboundSettings } : {}), properties, children: raw.children.map((child: unknown) => visit(child, true)) };
   };
   const settings = { ...defaultPageSettings() };
   if (raw.settings.hiddenValueRules !== undefined && (!raw.settings.hiddenValueRules || typeof raw.settings.hiddenValueRules !== "object" || Array.isArray(raw.settings.hiddenValueRules) || Object.keys(raw.settings.hiddenValueRules).length)) throw new BadRequestException("特殊字段赋值规则尚未接入服务端，请保留原配置");
