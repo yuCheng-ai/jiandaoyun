@@ -11,6 +11,7 @@ import "./features/forms/record-presentation.css";
 import "./features/organization/organization.css";
 import "./features/organization/access.css";
 import "./features/quick-fill/quick-fill.css";
+import "./features/extensions/extensions.css";
 import "./components/shared/user-menu.css";
 
 installSessionGuard(router);

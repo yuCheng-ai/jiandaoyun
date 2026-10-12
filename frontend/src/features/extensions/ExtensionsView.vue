@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import "./extensions.css";
 import { isPushEvent } from "../../domain/events";
 import { computed, ref, onBeforeUnmount } from "vue";
 import { useRoute, useRouter } from "vue-router";
