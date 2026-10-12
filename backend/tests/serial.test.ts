@@ -6,8 +6,8 @@ import {
   type FormSchema,
 } from "@platform/contracts";
 import { field, schema } from "./helpers";
-import { parseSchema } from "../src/schema";
-import { parseModel } from "../src/page-schema";
+import { parseSchema } from "../src/core/database/schema";
+import { parseModel } from "../src/modules/pages/page-schema";
 
 test("unimplemented server serial execution cannot be silently accepted as ordinary metadata", () => {
   assert.throws(

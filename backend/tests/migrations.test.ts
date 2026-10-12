@@ -6,8 +6,8 @@ import { resolve } from "node:path";
 import { Pool } from "pg";
 
 process.env.DATABASE_SCHEMA = `platform_test_${randomUUID().replaceAll("-", "")}`;
-const { Database } = require("../src/database") as typeof import("../src/database");
-const { config } = require("../src/config") as typeof import("../src/config");
+const { Database } = require("../src/core/database/database") as typeof import("../src/core/database/database");
+const { config } = require("../src/core/config/config") as typeof import("../src/core/config/config");
 const db = new Database(), second = new Database();
 const definitionId = randomUUID(), actorId = randomUUID(), recordId = randomUUID();
 before(async () => {

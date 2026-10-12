@@ -5,8 +5,8 @@ import {
   frontendEventSettingsErrors,
   type FrontendEvent,
 } from "@platform/contracts";
-import { parseSchema } from "../src/schema";
-import { parsePage } from "../src/page-schema";
+import { parseSchema } from "../src/core/database/schema";
+import { parsePage } from "../src/modules/pages/page-schema";
 import { field, schema } from "./helpers";
 
 test("unconnected frontend events are rejected by both server definition and page paths, retaining source objects", () => {

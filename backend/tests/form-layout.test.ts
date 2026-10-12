@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseSchema } from "../src/schema";
+import { parseSchema } from "../src/core/database/schema";
 import { schema, field } from "./helpers";
 test("definition schemas round-trip device layouts and reject invalid optional presentation metadata", () => {
   const input = schema(field("name"));

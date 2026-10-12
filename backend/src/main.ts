@@ -1,5 +1,5 @@
 import { createApp } from "./app";
-import { config } from "./config";
+import { config } from "./core/config/config";
 void createApp()
   .then(async (app) => {
     await app.listen(config.port, config.host);

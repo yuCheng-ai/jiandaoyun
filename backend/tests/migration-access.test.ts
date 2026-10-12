@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import type { FormSchema, MigrationIdentityChoice } from "@platform/contracts";
-import { migrateAccess } from "../src/migration-access";
+import { migrateAccess } from "../src/modules/migrations/migration-access";
 import { field, schema } from "./helpers";
 const model = () =>
   schema(

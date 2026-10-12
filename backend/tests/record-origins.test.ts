@@ -4,9 +4,9 @@ import { randomUUID } from 'node:crypto';
 import { modelFormSchema } from '@platform/contracts';
 import { harness, field, schema } from './helpers';
 const h=harness();
-const { RecordOriginService } = require('../src/record-origins') as typeof import('../src/record-origins');
-const { MigrationIdentityService } = require('../src/migration-identities') as typeof import('../src/migration-identities');
-const { OrganizationService } = require('../src/organization') as typeof import('../src/organization');
+const { RecordOriginService } = require('../src/modules/migrations/record-origins.service') as typeof import('../src/modules/migrations/record-origins.service');
+const { MigrationIdentityService } = require('../src/modules/migrations/migration-identities.service') as typeof import('../src/modules/migrations/migration-identities.service');
+const { OrganizationService } = require('../src/modules/directory/organization.service') as typeof import('../src/modules/directory/organization.service');
 let actor:any,editor:string,service:InstanceType<typeof RecordOriginService>;
 const at='2024-03-02T10:11:12+08:00';
 async function fixture(status='approved',deleted=false,invalidHistory=false) {

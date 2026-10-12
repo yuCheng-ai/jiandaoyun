@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { separateFormSchema } from "@platform/contracts";
-import { parseSchema } from "../src/schema";
-import { parsePage } from "../src/page-schema";
+import { parseSchema } from "../src/core/database/schema";
+import { parsePage } from "../src/modules/pages/page-schema";
 import { field, schema } from "./helpers";
 
 test("native definition and page parsers preserve valid subfield presentation and reject malformed widths", () => {

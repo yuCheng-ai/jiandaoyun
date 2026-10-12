@@ -181,7 +181,7 @@ test("legacy conversion runs once under concurrent startup and preserves histori
   const legacy = randomUUID();
   await h.db.query("INSERT INTO definitions(id,workspace_id,title,draft,latest_version,application_id) SELECT $1,'local','新标题',$2,2,id FROM applications WHERE workspace_id='local' AND is_default", [legacy, source]);
   await h.db.query("INSERT INTO definition_versions(definition_id,version,title,schema) VALUES($1,1,'旧标题',$2),($1,2,'新标题',$2)", [legacy, source]);
-  const { upgradeDataProjection } = require("../src/data-projection") as typeof import("../src/data-projection");
+  const { upgradeDataProjection } = require("../src/modules/records/data-projection") as typeof import("../src/modules/records/data-projection");
   await Promise.all([upgradeDataProjection(h.db), upgradeDataProjection(h.db)]);
   const [page] = await h.request(`/pages?definitionId=${legacy}`);
   assert.equal((await h.request(`/pages/${page.id}?version=1`)).page.title, "旧标题");

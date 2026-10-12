@@ -6,10 +6,10 @@ import { Pool } from "pg";
 
 process.env.DATABASE_SCHEMA = `platform_test_${randomUUID().replaceAll("-", "")}`;
 const { createApp } = require("../src/app") as typeof import("../src/app");
-const { config } = require("../src/config") as typeof import("../src/config");
+const { config } = require("../src/core/config/config") as typeof import("../src/core/config/config");
 const { Database } =
-  require("../src/database") as typeof import("../src/database");
-const { passwordHash } = require("../src/auth") as typeof import("../src/auth");
+  require("../src/core/database/database") as typeof import("../src/core/database/database");
+const { passwordHash } = require("../src/core/auth/auth.service") as typeof import("../src/core/auth/auth.service");
 let app: INestApplication,
   base = "",
   admin = "",
@@ -447,7 +447,7 @@ test("cross-workspace IDs and self-only scopes are enforced", async () => {
     [foreign, passwordHash("not-used-password")],
   );
   const { PlatformService } =
-    require("../src/platform") as typeof import("../src/platform");
+    require("../src/modules/pages/platform.service") as typeof import("../src/modules/pages/platform.service");
   await assert.rejects(
     app
       .get(PlatformService)

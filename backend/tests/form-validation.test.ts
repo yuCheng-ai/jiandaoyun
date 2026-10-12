@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { separateFormSchema, type FormSchema } from "@platform/contracts";
-import { parseSchema } from "../src/schema";
-import { parseModel, parsePage } from "../src/page-schema";
+import { parseSchema } from "../src/core/database/schema";
+import { parseModel, parsePage } from "../src/modules/pages/page-schema";
 import { schema, field } from "./helpers";
 
 const rule = { id: "check", expression: "{{amount}} <= 100", message: "超过预算", mode: "block", realtime: true };

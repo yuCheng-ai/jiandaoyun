@@ -5,11 +5,11 @@ import {
   composeFormSchema,
   type FormField,
 } from "@platform/contracts";
-import { scalar } from "../src/field-values";
-import { parseSchema } from "../src/schema";
+import { scalar } from "../src/modules/pages/field-values";
+import { parseSchema } from "../src/core/database/schema";
 import { field, schema } from "./helpers";
-import { dataModelImpact } from "../src/model-impact";
-import type { Transaction } from "../src/database";
+import { dataModelImpact } from "../src/modules/pages/model-impact";
+import type { Transaction } from "../src/core/database/database";
 
 const values = {
   mobile: "086-12000000001",

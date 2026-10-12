@@ -8,8 +8,8 @@ export const schema = (...fields: ReturnType<typeof field>[]) => ({ version: 1, 
 export function harness() {
   process.env.DATABASE_SCHEMA = `platform_test_${randomUUID().replaceAll("-", "")}`;
   const { createApp } = require("../src/app") as typeof import("../src/app");
-  const { config } = require("../src/config") as typeof import("../src/config");
-  const { Database } = require("../src/database") as typeof import("../src/database");
+  const { config } = require("../src/core/config/config") as typeof import("../src/core/config/config");
+  const { Database } = require("../src/core/database/database") as typeof import("../src/core/database/database");
   let app: INestApplication, base = "";
   const cookies: Record<string, string> = {};
   const request = async (path: string, method = "GET", body?: unknown, user = "admin", expected: number | number[] = 200, extraHeaders: Record<string, string> = {}) => {

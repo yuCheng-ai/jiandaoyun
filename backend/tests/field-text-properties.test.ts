@@ -5,8 +5,8 @@ import {
   separateFormSchema,
   type FormSchema,
 } from "@platform/contracts";
-import { parseSchema } from "../src/schema";
-import { parseModel, parsePage } from "../src/page-schema";
+import { parseSchema } from "../src/core/database/schema";
+import { parseModel, parsePage } from "../src/modules/pages/page-schema";
 import { field, schema } from "./helpers";
 
 function throughPages(source: unknown) {

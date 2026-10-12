@@ -295,7 +295,7 @@ test("a login queued behind a password change verifies the committed password be
     201,
   );
   const { passwordHash } =
-    require("../src/auth") as typeof import("../src/auth");
+    require("../src/core/auth/auth.service") as typeof import("../src/core/auth/auth.service");
   const tx = await h.db.pool.connect();
   let pending: Promise<any> | undefined;
   try {
@@ -341,7 +341,7 @@ test("a login queued behind a password change verifies the committed password be
 
 test("account operations cannot target another workspace or create blank passwords", async () => {
   const { passwordHash } =
-    require("../src/auth") as typeof import("../src/auth");
+    require("../src/core/auth/auth.service") as typeof import("../src/core/auth/auth.service");
   const id = randomUUID();
   await h.db.query(
     "INSERT INTO users(id,workspace_id,username,name,role,password_hash) VALUES($1,'other',$2,'外部账号','member',$3)",

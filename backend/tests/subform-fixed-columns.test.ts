@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { composeFormSchema, separateFormSchema } from "@platform/contracts";
-import { parseSchema } from "../src/schema";
-import { parsePage } from "../src/page-schema";
+import { parseSchema } from "../src/core/database/schema";
+import { parsePage } from "../src/modules/pages/page-schema";
 import { field, schema } from "./helpers";
 
 test("fixed columns remain page-only metadata through native schema and page parsing", () => {

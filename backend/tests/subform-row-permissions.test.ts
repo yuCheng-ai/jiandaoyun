@@ -5,8 +5,8 @@ import {
   composeFormSchema,
   newSubformPermissions,
 } from "@platform/contracts";
-import { parseSchema } from "../src/schema";
-import { parsePage } from "../src/page-schema";
+import { parseSchema } from "../src/core/database/schema";
+import { parsePage } from "../src/modules/pages/page-schema";
 import { field, schema } from "./helpers";
 test("page conversion and native parsers retain row restrictions for server enforcement", () => {
   const source: any = schema(

@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 
 test('test startup rejects a previously cached development schema before opening an application',()=>{
   const script = `
-    const { config } = require(${JSON.stringify(resolve(__dirname,'../src/config.js'))});
+    const { config } = require(${JSON.stringify(resolve(__dirname,'../src/core/config/config.js'))});
     config.schema = 'public';
     const { harness } = require(${JSON.stringify(resolve(__dirname,'helpers.js'))});
     harness().start().then(() => process.exitCode = 1).catch(error => {

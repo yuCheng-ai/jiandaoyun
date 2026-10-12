@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseSchema } from "../src/schema";
+import { parseSchema } from "../src/core/database/schema";
 import { field, schema } from "./helpers";
 test("native schemas explicitly reject unsupported whole-subform defaults instead of dropping their rules", () => {
   for (const defaultRows of [[], [{ code: "SYN-DEFAULT" }], {}, null])
