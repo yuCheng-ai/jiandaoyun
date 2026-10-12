@@ -9,3 +9,4 @@ backend/dist/
 packages/*/dist/
 tmp/
 output/
+*.tar.gz
