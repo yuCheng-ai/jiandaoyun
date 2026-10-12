@@ -6,8 +6,39 @@ import BindingEditor from "./BindingEditor.vue";
 import SampleEditor from "./SampleEditor.vue";
 import RunTrace from "./RunTrace.vue";
 import { useDraftDismiss } from "../../../composables/useDraftDismiss";
-import { restorePluginDraft } from "../../../domain/extensionDraftAdapters";
+import { checkedDraftValue } from "../../../domain/editorDrafts";
 import { copy, type FormSchema, type FormValues } from "../../../domain/form";
+
+function restorePluginDraft(value: unknown) {
+  const raw = checkedDraftValue(value);
+  if (!raw || typeof raw !== "object" || Array.isArray(raw))
+    throw Error("扩展配置暂存格式无效");
+  const obj = raw as Record<string, any>;
+  if (
+    typeof obj.actionId !== "string" ||
+    !obj.inputs ||
+    typeof obj.inputs !== "object" ||
+    Array.isArray(obj.inputs) ||
+    !Array.isArray(obj.outputs) ||
+    Object.values(obj.inputs).some(
+      (binding: any) =>
+        !binding ||
+        !["constant", "field", "template"].includes(binding.source) ||
+        typeof binding.value !== "string",
+    ) ||
+    obj.outputs.some(
+      (mapping: any) =>
+        !mapping ||
+        typeof mapping.outputKey !== "string" ||
+        typeof mapping.fieldId !== "string",
+    )
+  )
+    throw Error("插件参数或回填关系格式无效");
+  const parsed = parseInvocation(obj);
+  if (parsed.outputs.length !== obj.outputs.length)
+    throw Error("插件回填关系格式无效");
+  return parsed;
+}
 import {
   configurableFields,
   pluginRegistry,

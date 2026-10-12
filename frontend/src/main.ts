@@ -10,7 +10,6 @@ import "./features/forms/form-designer.css";
 import "./features/forms/record-presentation.css";
 import "./features/organization/organization.css";
 import "./features/organization/access.css";
-import "./features/extensions/extensions.css";
 import "./features/quick-fill/quick-fill.css";
 import "./components/shared/user-menu.css";
 

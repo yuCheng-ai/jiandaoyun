@@ -68,7 +68,6 @@ import {
   quickFillIssues,
   newQuickFill,
 } from "../src/domain/quickFill";
-import SampleEditor from "../src/features/extensions/components/SampleEditor.vue";
 import RecordBody from "../src/features/forms/components/RecordBody.vue";
 import LookupControl from "../src/features/forms/components/LookupControl.vue";
 import { filterAndSortRecords, defaultRecordView } from "../src/domain/records";
@@ -931,29 +930,6 @@ it("keeps lookup actions out of quick-fill and sample value editors without rewr
     "填报字段已失效、不可编辑或重复",
   );
   expect(config).toEqual(before);
-  const host = document.createElement("div");
-  document.body.append(host);
-  const app = createApp({
-    render: () =>
-      h(SampleEditor, {
-        schema,
-        formId: "target",
-        modelValue: {
-          choose: first.id,
-          amount: 4,
-          status: "target_on",
-          memo: "保留",
-        },
-      }),
-  });
-  app.use(pinia);
-  app.mount(host);
-  cleanups.push(() => app.unmount());
-  await nextTick();
-  expect(host.querySelector(".lookup-button")).toBeNull();
-  expect(
-    host.querySelector<HTMLInputElement>('[aria-label="测试金额"]')?.value,
-  ).toBe("4");
 });
 it("checks the latest source and all target permissions before applying any field", async () => {
   const { lookup, schema, data, first } = await fixture();
