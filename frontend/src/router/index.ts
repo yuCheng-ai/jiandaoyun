@@ -66,5 +66,5 @@ router.afterEach((to, _from, failure) => {
     permissions: "权限查询",
     home: "工作台",
   };
-  document.title = `${labels[String(to.name)] || ({ publish: "表单发布", data: "记录管理", fill: "填写表单", extensions: "扩展功能" } as Record<string, string>)[String(to.params.section)] || "工作台"} · 流程工作台`;
+  document.title = `${labels[String(to.name)] || "工作台"} · 流程工作台`;
 });

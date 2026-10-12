@@ -4,27 +4,19 @@ import { createApp, h, nextTick, reactive, ref } from "vue";
 import { createPinia } from "pinia";
 import { createMemoryHistory, createRouter } from "vue-router";
 import PrintTemplateEditor from "../src/features/extensions/components/PrintTemplateEditor.vue";
-import PaymentSettings from "../src/features/extensions/components/PaymentSettings.vue";
-import MerchantEditor from "../src/features/payments/MerchantEditor.vue";
 import QuickFillSettings from "../src/features/extensions/components/QuickFillSettings.vue";
 import { createField } from "../src/domain/form";
 import { newForm, seedWorkspace } from "../src/domain/workspace";
-import { newPayment } from "../src/domain/payments";
 import { newPrintTemplate } from "../src/domain/presentation";
 import { newQuickFill } from "../src/domain/quickFill";
 import { useWorkspaceStore } from "../src/stores/workspace";
 import { useEditorDraftStore } from "../src/stores/editorDrafts";
 import {
   restorePrintTemplateDraft,
-  restoreMerchantDraft,
-  restorePaymentDraft,
   restoreQuickFillDraft,
 } from "../src/domain/extensionDraftAdapters";
 
 vi.mock("../src/stores/workspace", () => ({ useWorkspaceStore: vi.fn() }));
-vi.mock("../src/components/WorkspaceStorageNotice.vue", () => ({
-  default: { render: () => null },
-}));
 vi.mock("../src/features/forms/components/PrintDocument.vue", () => ({
   default: { render: () => null },
 }));
@@ -41,8 +33,6 @@ function makeStore() {
     storageError: "",
     notify: vi.fn(),
     savePrintTemplate: vi.fn(),
-    savePayment: vi.fn(),
-    savePaymentMerchant: vi.fn(),
     saveQuickFill: vi.fn(),
   });
 }
@@ -63,18 +53,6 @@ const cases = [
     label: "模板名称",
     save: "保存模板",
     commit: "savePrintTemplate",
-  },
-  {
-    kind: "payment",
-    label: "订单说明",
-    save: "保存支付配置",
-    commit: "savePayment",
-  },
-  {
-    kind: "merchant",
-    label: "商户名称",
-    save: "保存商户",
-    commit: "savePaymentMerchant",
   },
   {
     kind: "quick",
@@ -127,10 +105,6 @@ async function mount(kind: (typeof cases)[number]["kind"]) {
           title: form.title,
           onClose: close,
         });
-      if (kind === "merchant")
-        return h(MerchantEditor, { open: open.value, onClose: close });
-      if (kind === "payment")
-        return h(PaymentSettings, { formId: form.id, schema });
       return h(QuickFillSettings, { form });
     },
   });
@@ -141,7 +115,6 @@ async function mount(kind: (typeof cases)[number]["kind"]) {
   };
   disposers.add(unmount);
   await nextTick();
-  if (kind === "payment") await click("配置在线支付");
   if (kind === "quick") await click("配置快捷填报");
   return { drafts: useEditorDraftStore(pinia), unmount, close, schema };
 }
@@ -220,22 +193,7 @@ describe.each(cases)(
   },
 );
 
-it("preserves unfinished payment controls and stable IDs without accepting malformed configuration", () => {
-  const config = {
-    ...newPayment(),
-    amount: { source: "field", value: "amount-id" },
-    expiresMinutes: "",
-    resultMappings: [{ source: "status", targetId: "status-id" }],
-  };
-  expect(restorePaymentDraft(config)).toEqual(config);
-  expect(() =>
-    restorePaymentDraft({ ...config, methods: ["unknown"] }),
-  ).toThrow("格式");
-  expect(() =>
-    restorePaymentDraft({ ...config, amount: { source: "code", value: "" } }),
-  ).toThrow("格式");
-});
-it("restores template order and identity, and refuses incompatible templates or merchants", () => {
+it("restores template order and identity, and refuses incompatible templates", () => {
   const template = newPrintTemplate(newForm("oa", "测试").schema, "采购");
   template.fieldIds = ["second", "first"];
   expect(restorePrintTemplateDraft(template, template.id)).toEqual(template);
@@ -243,15 +201,6 @@ it("restores template order and identity, and refuses incompatible templates or 
   expect(() =>
     restorePrintTemplateDraft({ ...template, fieldIds: ["a", "a"] }),
   ).toThrow("格式");
-  const merchant = {
-    id: "merchant",
-    name: "",
-    enabled: true,
-    methods: [],
-    note: "尚未完成",
-  };
-  expect(restoreMerchantDraft(merchant, "merchant")).toEqual(merchant);
-  expect(() => restoreMerchantDraft(merchant, "other")).toThrow("不属于");
 });
 it("retains raw alias input and field binding without treating old preview results as configuration", () => {
   const value = {

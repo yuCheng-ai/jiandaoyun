@@ -1,4 +1,3 @@
-import { parsePaymentMerchants, parsePaymentOrders } from "../domain/payments";
 import { workspaceReadIsLossless } from "../domain/workspaceSync";
 import { assertWorkspaceWriteLock } from "./workspaceWriteLock";
 import { parseAccess } from "../domain/access";
@@ -78,8 +77,6 @@ export function parseWorkspace(text: string): WorkspaceData {
   raw.organization = parseOrganization(raw.organization);
   if (raw.serialCounters !== undefined)
     raw.serialCounters = parseSerialCounters(raw.serialCounters);
-  raw.paymentMerchants = parsePaymentMerchants(raw.paymentMerchants);
-  raw.paymentOrders = parsePaymentOrders(raw.paymentOrders);
   raw.webhookCredentials = parseWebhookCredentials(raw.webhookCredentials);
   const appIds = new Set<string>();
   for (const app of raw.apps) {

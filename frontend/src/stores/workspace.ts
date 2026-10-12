@@ -8,7 +8,6 @@ import { copyFormDesign } from "../domain/formCopy";
 import { fillingSession } from "../domain/fillingSession";
 import { quickFillDesignSchema } from "../domain/quickFill";
 import { workspacePersistence } from "./workspacePersistence";
-import { paymentActions } from "./paymentActions";
 import { quickFillActions } from "./quickFillActions";
 import { isPushEvent, type AutomationEvent } from "../domain/events";
 import { recordCheckpoint, commitAutomationEntries } from "./recordTransaction";
@@ -870,17 +869,6 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   const buttons = buttonActions(data, openForm, saveForm, notify);
   const commands = {
     ...quickFillActions(openForm, saveForm, notify),
-    ...paymentActions(
-      data,
-      openForm,
-      saveForm,
-      persist,
-      notify,
-      (entry, event, actorId) => {
-        const form = data.value.forms.find((f) => f.id === entry.formId);
-        if (form) emitDataEvent(form, entry, event, undefined, actorId);
-      },
-    ),
     ...accessActions(
       data,
       persist,

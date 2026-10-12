@@ -74,8 +74,6 @@ export interface FormEntry {
 }
 export interface WorkspaceData {
   serialCounters?: import("./serial").SerialCounters;
-  paymentMerchants?: import("./payments").PaymentMerchant[];
-  paymentOrders?: import("./payments").PaymentOrder[];
   formAccess?: Record<string, import("./access").FormAccess>;
   recordViews?: Record<string, RecordViewSettings>;
   webhookCredentials?: WebhookCredential[];

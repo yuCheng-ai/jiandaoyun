@@ -6,12 +6,6 @@ import { buttonActions, buttonPositions, parseButtons } from "./buttons";
 import { parseFilters } from "./fieldConfig";
 import { pushEvents } from "./extensions";
 import { parsePrintTemplates } from "./presentation";
-import {
-  parsePayment,
-  parsePaymentMerchants,
-  paymentMethods,
-  paymentResults,
-} from "./payments";
 import { parseQuickFill } from "./quickFill";
 
 function object(value: unknown): Record<string, any> {
@@ -199,56 +193,6 @@ export function restorePrintTemplateDraft(value: unknown, expectedId?: string) {
   )
     throw Error("打印模板暂存格式无效");
   return parsePrintTemplates([raw])[0]!;
-}
-
-function checkedMethods(value: unknown) {
-  return (
-    strings(value) &&
-    value.every((method) => Object.hasOwn(paymentMethods, method)) &&
-    new Set(value).size === value.length
-  );
-}
-export function restoreMerchantDraft(value: unknown, expectedId?: string) {
-  const raw = object(value);
-  configId(raw, expectedId, "演示商户");
-  if (
-    typeof raw.name !== "string" ||
-    typeof raw.note !== "string" ||
-    typeof raw.enabled !== "boolean" ||
-    !checkedMethods(raw.methods)
-  )
-    throw Error("演示商户暂存格式无效");
-  return parsePaymentMerchants([raw])[0]!;
-}
-
-export function restorePaymentDraft(value: unknown) {
-  const raw = object(value);
-  const binding = (v: any) =>
-    v && ["fixed", "field"].includes(v.source) && typeof v.value === "string";
-  if (
-    !booleans(raw, ["enabled"]) ||
-    typeof raw.merchantId !== "string" ||
-    !binding(raw.amount) ||
-    !binding(raw.description) ||
-    !["submit", "detail", "both"].includes(raw.timing) ||
-    !checkedMethods(raw.methods) ||
-    (raw.expiresMinutes !== "" &&
-      (typeof raw.expiresMinutes !== "number" ||
-        !Number.isFinite(raw.expiresMinutes))) ||
-    !Array.isArray(raw.resultMappings) ||
-    raw.resultMappings.some(
-      (m: any) =>
-        !m ||
-        !Object.hasOwn(paymentResults, m.source) ||
-        typeof m.targetId !== "string",
-    )
-  )
-    throw Error("支付配置暂存格式无效");
-  return {
-    ...parsePayment(raw),
-    filters: filters(raw.filters),
-    expiresMinutes: raw.expiresMinutes,
-  };
 }
 
 export function restoreQuickFillDraft(value: unknown) {

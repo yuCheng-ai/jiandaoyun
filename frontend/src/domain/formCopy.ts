@@ -18,8 +18,6 @@ export function copyFormDesign(
   duplicate.extensions = parseExtensions(duplicate.extensions);
   if (duplicate.extensions.quickFill)
     duplicate.extensions.quickFill.enabled = false;
-  if (duplicate.extensions.payment)
-    duplicate.extensions.payment.enabled = false;
   duplicate.extensions.automations?.forEach((c) => {
     c.id = uid("automation");
     c.enabled = false;

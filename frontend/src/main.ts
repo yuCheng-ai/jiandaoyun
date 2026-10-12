@@ -6,7 +6,6 @@ import App from "./App.vue";
 import "./assets/styles/base.css";
 import "./assets/styles/ui.css";
 import "./features/workspace/workspace.css";
-import "./features/workspace/workspace-recovery.css";
 import "./features/forms/form-designer.css";
 import "./features/forms/record-presentation.css";
 import "./features/organization/organization.css";

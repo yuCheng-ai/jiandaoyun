@@ -11,13 +11,11 @@ export function recordCheckpoint(data: WorkspaceData) {
   const entries = [...data.entries],
     values = entries.map(copy),
     runs = data.extensionRuns,
-    orders = data.paymentOrders,
     counters = data.serialCounters;
   return () => {
     entries.forEach((e, i) => restoreEntry(e, values[i]!));
     data.entries = entries;
     data.extensionRuns = runs;
-    data.paymentOrders = orders;
     data.serialCounters = counters;
   };
 }

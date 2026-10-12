@@ -123,7 +123,7 @@ async function save() {
         先把文字整理成可检查的字段值，再由填写者确认回填。当前未接入模型或图片识别。
       </p>
     </div>
-    <article class="payment-summary">
+    <article class="quick-fill-summary">
       <div>
         <span class="mode-tag">{{
           form.extensions?.quickFill?.enabled

@@ -24,9 +24,6 @@ vi.mock("../src/composables/useRuntimeData", async () => {
 vi.mock("../src/features/forms/components/PrintDocument.vue", () => ({
   default: { render: () => null },
 }));
-vi.mock("../src/components/WorkspaceStorageNotice.vue", () => ({
-  default: { render: () => null },
-}));
 vi.mock("../src/components/shared/EditorDraftNotice.vue", () => ({
   default: { render: () => null },
 }));

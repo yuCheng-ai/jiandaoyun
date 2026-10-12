@@ -38,9 +38,6 @@ vi.mock("../src/features/organization/AdminLayout.vue", () => ({
         h("main", slots.default?.()),
   },
 }));
-vi.mock("../src/components/WorkspaceStorageNotice.vue", () => ({
-  default: { render: () => null },
-}));
 const disposers = new Set<() => void>();
 const actionNames = [
   "saveEmployee",

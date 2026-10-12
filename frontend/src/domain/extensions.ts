@@ -6,12 +6,6 @@ import {
   type QuickFillConfig,
 } from "./quickFill";
 import {
-  parsePayment,
-  paymentIssues,
-  paymentReferences,
-  type PaymentConfig,
-} from "./payments";
-import {
   parseAutomations,
   automationIssues,
   automationReferences,
@@ -80,7 +74,6 @@ export interface WebhookConfig {
 }
 export interface FormExtensions {
   quickFill?: QuickFillConfig;
-  payment?: PaymentConfig;
   automations?: AutomationConfig[];
   collaboration?: CollaborationSettings;
   webhooks: WebhookConfig[];
@@ -254,9 +247,6 @@ export function parseExtensions(raw: any): FormExtensions {
   return {
     ...(raw?.quickFill !== undefined
       ? { quickFill: parseQuickFill(raw.quickFill) }
-      : {}),
-    ...(raw?.payment !== undefined
-      ? { payment: parsePayment(raw.payment) }
       : {}),
     ...(raw?.automations !== undefined
       ? { automations: parseAutomations(raw.automations) }
@@ -869,16 +859,6 @@ export function extensionIssues(
         message: `AI 快捷填报：${message}`,
       })),
     );
-  if (form.extensions?.payment?.enabled)
-    issues.push(
-      ...paymentIssues(form.extensions.payment, form.schema, data).map(
-        (message) => ({
-          step: 0,
-          target: "payment",
-          message: `在线支付：${message}`,
-        }),
-      ),
-    );
   if (form.extensions?.collaboration)
     issues.push(
       ...collaborationIssues(form.extensions.collaboration, form.schema).map(
@@ -950,11 +930,6 @@ export function fieldExtensionImpacts(
     result: string[] = [];
   if (form.extensions?.quickFill?.fields.some((f) => set.has(f.fieldId)))
     result.push("AI 快捷填报的目标字段");
-  if (
-    form.extensions?.payment &&
-    paymentReferences(form.extensions.payment).some((id) => set.has(id))
-  )
-    result.push("在线支付的金额、说明、条件或结果回填");
   if (
     form.extensions?.collaboration?.titleMode === "custom" &&
     form.extensions.collaboration.titleParts.some(

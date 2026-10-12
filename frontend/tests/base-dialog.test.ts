@@ -13,9 +13,6 @@ vi.mock("../src/stores/workspace", async () => {
 vi.mock("../src/components/AppIcon.vue", () => ({
   default: { render: () => null },
 }));
-vi.mock("../src/components/WorkspaceStorageNotice.vue", () => ({
-  default: { render: () => null },
-}));
 vi.mock("../src/components/shared/EditorDraftNotice.vue", () => ({
   default: { render: () => null },
 }));

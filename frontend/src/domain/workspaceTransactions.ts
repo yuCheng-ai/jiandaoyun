@@ -42,13 +42,6 @@ const recordScope: ScopeFactory = ([id]) => ({
   label: (data) =>
     `「${form(data, data.entries.find((e) => e.id === id)?.formId || "")?.title || "当前表单"}」中的这条记录`,
 });
-const orderScope: ScopeFactory = ([id]) => ({
-  label: () => "当前订单",
-  select: (data) => {
-    const order = data.paymentOrders?.find((o) => o.id === id);
-    return { order, ...record(data, order?.entryId || "") };
-  },
-});
 /** Explicit, exhaustive at the store boundary. New commands must declare their edit scope. */
 export const workspaceScopes = {
   createApp: fresh,
@@ -151,17 +144,9 @@ export const workspaceScopes = {
   memberDelete: recordScope,
   processEntry: recordScope,
   retryEntryPlugin: recordScope,
-  startPayment: recordScope,
   recycleEntries: ([ids]) => ({
     label: () => "选中的记录",
     select: (data) => ids.map((id: string) => record(data, id)),
-  }),
-  finishPayment: orderScope,
-  cancelPayment: orderScope,
-  refundPayment: orderScope,
-  savePaymentMerchant: ([merchant]) => ({
-    label: () => "当前商户",
-    select: (data) => data.paymentMerchants?.find((m) => m.id === merchant.id),
   }),
   setCurrentUser: fresh,
   persist: () => ({ select: businessSnapshot }),
@@ -170,8 +155,6 @@ export const workspaceScopes = {
 export function businessSnapshot({ recentFormIds: _, ...data }: WorkspaceData) {
   return {
     ...data,
-    paymentMerchants: data.paymentMerchants || [],
-    paymentOrders: data.paymentOrders || [],
     webhookCredentials: data.webhookCredentials || [],
     extensionRuns: data.extensionRuns || [],
   };

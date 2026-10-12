@@ -27,7 +27,6 @@ import {
 import { createLookupFields } from "../src/domain/lookup";
 import { defaultRecordView, filterAndSortRecords } from "../src/domain/records";
 import { fieldValueType } from "../src/domain/extensions";
-import { newPayment, paymentIssues } from "../src/domain/payments";
 import { seedWorkspace, type FormEntry } from "../src/domain/workspace";
 import { LocalWorkspaceRepository } from "../src/repositories/workspaceRepository";
 import { useWorkspaceStore } from "../src/stores/workspace";
@@ -201,7 +200,7 @@ it("creates a text receiver for a text calculation without creating a second cal
   ).toEqual([{ sourceFieldId: text.id, targetFieldId: receiver.id }]);
 });
 
-it("keeps text calculations textual in output bindings, display, record sorting and payment amounts", () => {
+it("keeps text calculations textual in output bindings, display and record sorting", () => {
   const data = seedWorkspace();
   const form = data.forms[0]!;
   form.schema.fields = [copy(text)];
@@ -247,14 +246,6 @@ it("keeps text calculations textual in output bindings, display, record sorting 
       view,
     }).map((r) => r.id),
   ).toEqual(expected.map((r) => r.id));
-  const payment = {
-    ...newPayment(),
-    enabled: true,
-    amount: { source: "field" as const, value: text.id },
-  };
-  expect(paymentIssues(payment, form.schema, data)).toContain(
-    "金额来源须为当前表单的数字或计算字段",
-  );
 });
 
 it("switches a new result type by clearing its formula, hides numeric formatting and enforces the saved lock", async () => {
