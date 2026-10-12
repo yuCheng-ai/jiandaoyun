@@ -426,6 +426,24 @@ async function goToWorkflow() {
     `/applications/${route.params.applicationId}/pages/${data.value.draft.id}/flow`,
   );
 }
+async function goToExtensions() {
+  if (store.dirty) {
+    const ok = await store.save();
+    if (!ok) return;
+  }
+  await router.push(
+    `/applications/${route.params.applicationId}/pages/${data.value.draft.id}/extensions`,
+  );
+}
+async function goToPublish() {
+  if (store.dirty) {
+    const ok = await store.save();
+    if (!ok) return;
+  }
+  await router.push(
+    `/applications/${route.params.applicationId}/pages/${data.value.draft.id}/publish`,
+  );
+}
 async function goToData() {
   if (store.dirty) {
     const ok = await store.save();
@@ -475,6 +493,12 @@ onBeforeUnmount(() => {
         </button>
         <button @click="goToWorkflow">
           流程设计
+        </button>
+        <button @click="goToExtensions">
+          扩展功能
+        </button>
+        <button @click="goToPublish">
+          表单发布
         </button>
         <span class="nav-divider" />
         <button @click="goToData">
