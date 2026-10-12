@@ -19,6 +19,16 @@ export const router = createRouter({
       component: () => import("../features/workflow/WorkflowView.vue"),
     },
     {
+      path: "/applications/:applicationId/pages/:pageId/extensions",
+      name: "page-extensions",
+      component: () => import("../features/extensions/ExtensionsView.vue"),
+    },
+    {
+      path: "/applications/:applicationId/pages/:pageId/publish",
+      name: "page-publish",
+      component: () => import("../features/forms/PublishView.vue"),
+    },
+    {
       path: "/applications",
       redirect: "/",
     },
@@ -71,6 +81,8 @@ router.afterEach((to, _from, failure) => {
     "data-workspace": "应用",
     "page-designer": "表单设计",
     "page-workflow": "流程设计",
+    "page-extensions": "扩展功能",
+    "page-publish": "表单发布",
     organization: "内部组织",
     roles: "角色管理",
     permissions: "权限查询",

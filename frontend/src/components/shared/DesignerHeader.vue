@@ -17,6 +17,8 @@ const isServerRoute = computed(() => !!route.params.applicationId);
 const tabs = computed(() => [
   { id: "design", label: "表单设计" },
   { id: "flow", label: "流程设计" },
+  { id: "extensions", label: "扩展功能" },
+  { id: "publish", label: "表单发布" },
   { id: "data", label: "数据管理" },
 ]);
 function go(id: string) {
@@ -25,6 +27,12 @@ function go(id: string) {
       router.push(`/applications/${props.appId}/pages/${props.formId}/design`);
     } else if (id === "flow") {
       router.push(`/applications/${props.appId}/pages/${props.formId}/flow`);
+    } else if (id === "extensions") {
+      router.push(
+        `/applications/${props.appId}/pages/${props.formId}/extensions`,
+      );
+    } else if (id === "publish") {
+      router.push(`/applications/${props.appId}/pages/${props.formId}/publish`);
     } else if (id === "data") {
       router.push({
         path: `/applications/${props.appId}`,
