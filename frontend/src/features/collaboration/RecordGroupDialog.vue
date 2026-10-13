@@ -18,7 +18,7 @@ const props = defineProps<{ definition: ServerDefinition }>();
 const emit = defineEmits<{ close: []; saved: [] }>();
 const state = ref<RecordGroupConfiguration>({
     revision: 0,
-    mode: "direct",
+    mode: "groups",
     allowMerged: false,
     groups: [],
   }),
@@ -56,7 +56,7 @@ async function load() {
       ),
     ]);
     relations.value = (links || []).filter((link) => link.latestVersion);
-    state.value = config;
+    state.value = { ...config, mode: "groups" };
     org.value = directory;
     selected.value = config.groups[0]?.id || "";
     loaded.value = true;
@@ -193,10 +193,7 @@ async function save() {
     @close="requestClose"
   >
     <p class="collab-help">
-      权限组分别定义成员能处理哪些记录和字段。启用后按所选组执行，原按成员、部门或角色直接设置的授权保留，切回原模式才恢复适用。
-    </p>
-    <p class="collab-notice">
-      支持新增、自己的草稿及已有记录的操作。收集时间、数量限制和流程任务固定权限组仍待接入。
+      权限组分别定义成员、部门或角色能处理哪些记录、字段及关联操作。
     </p>
     <p v-if="error" class="collab-error" role="alert">
       {{ error }}
@@ -221,12 +218,6 @@ async function save() {
       ><button class="button" @click="discard">放弃修改</button>
     </p>
     <template v-if="loaded">
-      <label class="collab-field"
-        >授权模式<select v-model="state.mode">
-          <option value="direct">按成员、部门和角色授权</option>
-          <option value="groups">按权限组授权</option>
-        </select></label
-      >
       <label class="checkbox-line"
         ><input
           v-model="state.allowMerged"

@@ -37,7 +37,7 @@ import {
 } from "../../domain/serverRecords";
 import RecordGroupSelector from "../collaboration/RecordGroupSelector.vue";
 import RecordEditor from "../collaboration/RecordEditor.vue";
-import PermissionDialog from "../collaboration/PermissionDialog.vue";
+import RecordGroupDialog from "../collaboration/RecordGroupDialog.vue";
 import CollectionDialog from "../data/CollectionDialog.vue";
 import PageLifecycleDialog from "../data/PageLifecycleDialog.vue";
 import RecordUpgradeDialog from "../data/RecordUpgradeDialog.vue";
@@ -844,10 +844,14 @@ async function permissions() {
           run(load);
         "
       />
-      <PermissionDialog
+      <RecordGroupDialog
         v-if="permission"
         :definition="permission"
         @close="
+          permission = undefined;
+          run(loadForm);
+        "
+        @saved="
           permission = undefined;
           run(loadForm);
         "
