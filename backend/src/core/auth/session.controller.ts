@@ -4,17 +4,24 @@ import { AuthGuard, AuthService, AuthenticatedRequest } from "./auth.service";
 import { Database } from "../database/database";
 import { config } from "../config/config";
 
+/** 健康检查与用户会话（登录 / 当前身份 / 退出登录）控制器 */
 @Controller("api")
 export class SessionController {
   constructor(
     private readonly auth: AuthService,
     private readonly db: Database,
   ) {}
-  @Get("health") async health() {
+
+  /** 数据库连通性与服务健康检查 */
+  @Get("health")
+  async health() {
     await this.db.query("SELECT 1");
     return { status: "ok", mode: "local-development" };
   }
-  @Post("auth/login") async login(
+
+  /** 账号密码登录并下发 HttpOnly 会话 Cookie */
+  @Post("auth/login")
+  async login(
     @Body() body: any,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
@@ -33,13 +40,17 @@ export class SessionController {
     });
     return user;
   }
-  @Get("auth/me") @UseGuards(AuthGuard) me(@Req() req: AuthenticatedRequest) {
+
+  /** 获取当前已登录用户信息 */
+  @Get("auth/me")
+  @UseGuards(AuthGuard)
+  me(@Req() req: AuthenticatedRequest) {
     return req.actor;
   }
-  @Post("auth/logout") async logout(
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
-  ) {
+
+  /** 退出登录并清除会话 Cookie */
+  @Post("auth/logout")
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     await this.auth.logout(req.headers.cookie);
     res.clearCookie("platform_session", { path: "/api" });
     return { ok: true };

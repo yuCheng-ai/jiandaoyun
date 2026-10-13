@@ -6,167 +6,214 @@ import {
   ForbiddenException,
   BadRequestException,
 } from "@nestjs/common";
-import {
-  createHash,
-  randomBytes,
-  randomUUID,
-  scryptSync,
-  timingSafeEqual,
-} from "node:crypto";
+import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 import type { Request } from "express";
 import type { SessionUser } from "@platform/contracts";
 import { Database } from "../database/database";
 
+/** 当前请求的操作者上下文（包含会话用户信息、工作空间及所选权限组） */
 export interface Actor extends SessionUser {
   workspaceId: string;
   accessGroups?: Record<string, string>;
 }
+
+/** 已通过身份认证的 HTTP 请求对象 */
 export interface AuthenticatedRequest extends Request {
   actor: Actor;
 }
-export const tokenHash = (value: string) =>
-  createHash("sha256").update(value).digest("hex");
-export function sessionTokenHash(cookie = "") {
+
+// ============================================================================
+// 1. 令牌与密码哈希工具函数
+// ============================================================================
+
+/** 计算会话令牌的 SHA-256 摘要（数据库中仅存储摘要，不存明文令牌） */
+export const tokenHash = (value: string) => createHash("sha256").update(value).digest("hex");
+
+/** 从 Cookie 请求头中提取 `platform_session` 并计算其哈希摘要 */
+export function sessionTokenHash(cookie = ""): string | undefined {
   const token = cookie
     .split(";")
     .map((value) => value.trim())
     .find((value) => value.startsWith("platform_session="))
-    ?.slice(17);
+    ?.slice("platform_session=".length);
   return token ? tokenHash(token) : undefined;
 }
-export function passwordHash(value: string) {
+
+/** 使用随机盐值与 scrypt 算法生成密码哈希（格式：`salt:hash`） */
+export function passwordHash(value: string): string {
   const salt = randomBytes(16).toString("hex");
-  return `${salt}:${scryptSync(value, salt, 64).toString("hex")}`;
+  const hash = scryptSync(value, salt, 64).toString("hex");
+  return `${salt}:${hash}`;
 }
-function verifyPassword(value: string, encoded: string) {
+
+/** 恒定时间比对密码明文与已存储的哈希值，防范时序攻击 */
+function verifyPassword(value: string, encoded: string): boolean {
   const [salt, hash] = encoded.split(":");
   const actual = scryptSync(value, salt!, 64);
   const expected = Buffer.from(hash!, "hex");
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
-const publicUser = (row: any): Actor => ({
-  id: row.id,
-  name: row.name,
-  username: row.username,
-  role: row.role,
-  workspaceId: row.workspace_id,
-});
+
+/** 将数据库用户行映射为对外公开的 Actor 结构 */
+function publicUser(row: any): Actor {
+  return {
+    id: row.id,
+    name: row.name,
+    username: row.username,
+    role: row.role,
+    workspaceId: row.workspace_id,
+  };
+}
+
+// ============================================================================
+// 2. 认证与会话服务
+// ============================================================================
 
 @Injectable()
 export class AuthService {
+  /** 登录失败频率限制表：记录 `${ip}:${username}` 的连续失败次数与锁定期限 */
   private failures = new Map<string, { count: number; until: number }>();
+
+  /** 虚拟密码哈希：当用户名不存在时参与空转计算，消除账号枚举时序差异 */
   private dummyHash = passwordHash(randomBytes(32).toString("hex"));
+
   constructor(private readonly db: Database) {}
+
+  /** 初始化本地预置账号（admin / editor / reviewer） */
   async seed() {
     const accounts = [
       ["admin", "平台管理员", "admin", process.env.PLATFORM_ADMIN_PASSWORD],
       ["editor", "录入成员", "member", process.env.PLATFORM_EDITOR_PASSWORD],
-      [
-        "reviewer",
-        "核对成员",
-        "member",
-        process.env.PLATFORM_REVIEWER_PASSWORD,
-      ],
-    ];
+      ["reviewer", "核对成员", "member", process.env.PLATFORM_REVIEWER_PASSWORD],
+    ] as const;
+
     for (const [username, name, role, password] of accounts) {
-      if (!password || password.length < 16)
-        throw new Error(
-          "Local account passwords of at least 16 characters are required.",
-        );
-      await this.db.query(
-        `INSERT INTO users(id,workspace_id,username,name,role,password_hash)
-        VALUES($1,'local',$2,$3,$4,$5) ON CONFLICT(username) DO NOTHING`,
-        [randomUUID(), username, name, role, passwordHash(password)],
-      );
+      if (!password || password.length < 16) {
+        throw new Error("Local account passwords of at least 16 characters are required.");
+      }
+
+      const sql = `
+        INSERT INTO users (id, workspace_id, username, name, role, password_hash)
+        VALUES ($1, 'local', $2, $3, $4, $5)
+        ON CONFLICT (username) DO NOTHING
+      `;
+      await this.db.query(sql, [randomUUID(), username, name, role, passwordHash(password)]);
     }
   }
+
+  /** 校验账号密码并创建有效期 8 小时的登录会话 */
   async login(username: unknown, password: unknown, ip: string) {
     if (
       typeof username !== "string" ||
       typeof password !== "string" ||
       username.length > 100 ||
       password.length > 256
-    )
+    ) {
       throw new UnauthorizedException("账号或密码不正确");
+    }
+
     const key = `${ip}:${username}`;
     const prior = this.failures.get(key);
-    if (prior && prior.until > Date.now() && prior.count >= 8)
+    if (prior && prior.until > Date.now() && prior.count >= 8) {
       throw new UnauthorizedException("尝试次数过多，请稍后重试");
+    }
+
     return this.db.transaction(async (tx) => {
-      // Serialize password verification and session creation with account changes.
-      const row = (
-        await tx.query(
-          "SELECT * FROM users WHERE username=$1 AND active FOR UPDATE",
-          [username],
-        )
-      ).rows[0];
-      const valid = verifyPassword(
-        password,
-        row?.password_hash || this.dummyHash,
+      // 加行锁串行化密码验证与会话创建，确保与账号停用/改密操作并发安全
+      const { rows } = await tx.query(
+        "SELECT * FROM users WHERE username=$1 AND active FOR UPDATE",
+        [username],
       );
+      const row = rows[0];
+      const valid = verifyPassword(password, row?.password_hash || this.dummyHash);
+
       if (!row || !valid) {
         if (this.failures.size > 10000) this.failures.clear();
+        const isWindowActive = prior && prior.until > Date.now();
         this.failures.set(key, {
-          count: prior && prior.until > Date.now() ? prior.count + 1 : 1,
+          count: isWindowActive ? prior.count + 1 : 1,
           until: Date.now() + 60000,
         });
         throw new UnauthorizedException("账号或密码不正确");
       }
+
       this.failures.delete(key);
       const token = randomBytes(32).toString("base64url");
       await tx.query(
-        "INSERT INTO sessions VALUES($1,$2,now()+interval '8 hours')",
+        "INSERT INTO sessions VALUES ($1, $2, now() + interval '8 hours')",
         [tokenHash(token), row.id],
       );
       return { token, user: publicUser(row) };
     });
   }
-  async actor(cookie = "") {
+
+  /** 根据请求 Cookie 解析并校验当前登录用户 */
+  async actor(cookie = ""): Promise<Actor> {
     const hash = sessionTokenHash(cookie);
-    if (!hash) throw new UnauthorizedException("请先登录");
-    const row = (
-      await this.db.query(
-        `SELECT u.* FROM users u JOIN sessions s ON s.user_id=u.id
-      WHERE s.token_hash=$1 AND s.expires_at>now() AND u.active`,
-        [hash],
-      )
-    ).rows[0];
-    if (!row) throw new UnauthorizedException("登录已失效，请重新登录");
+    if (!hash) {
+      throw new UnauthorizedException("请先登录");
+    }
+
+    const sql = `
+      SELECT u.*
+      FROM users u
+      JOIN sessions s ON s.user_id = u.id
+      WHERE s.token_hash = $1
+        AND s.expires_at > now()
+        AND u.active
+    `;
+    const { rows } = await this.db.query(sql, [hash]);
+    const row = rows[0];
+    if (!row) {
+      throw new UnauthorizedException("登录已失效，请重新登录");
+    }
     return publicUser(row);
   }
+
+  /** 销毁当前 Cookie 对应的服务端会话 */
   async logout(cookie = "") {
     const hash = sessionTokenHash(cookie);
-    if (hash)
-      await this.db.query("DELETE FROM sessions WHERE token_hash=$1", [hash]);
+    if (hash) {
+      await this.db.query("DELETE FROM sessions WHERE token_hash = $1", [hash]);
+    }
   }
 }
+
+// ============================================================================
+// 3. 路由守卫与管理员断言
+// ============================================================================
+
+/** 登录态守卫：验证会话 Cookie 并解析请求头中的权限组选择（`x-platform-access-groups`） */
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(private readonly auth: AuthService) {}
-  async canActivate(context: ExecutionContext) {
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     request.actor = await this.auth.actor(request.headers.cookie);
+
     const header = request.headers["x-platform-access-groups"];
     if (header !== undefined) {
       try {
-        if (typeof header !== "string" || header.length > 12000)
+        if (typeof header !== "string" || header.length > 12000) {
           throw new Error();
+        }
         const choices = JSON.parse(header);
         if (
           !choices ||
           typeof choices !== "object" ||
           Array.isArray(choices) ||
           Object.keys(choices).length > 50
-        )
+        ) {
           throw new Error();
-        for (const [key, value] of Object.entries(choices))
-          if (
-            !/^[0-9a-f-]{36}$/i.test(key) ||
-            typeof value !== "string" ||
-            !value ||
-            value.length > 200
-          )
+        }
+        for (const [key, value] of Object.entries(choices)) {
+          const isValidKey = /^[0-9a-f-]{36}$/i.test(key);
+          const isValidVal = typeof value === "string" && value.length > 0 && value.length <= 200;
+          if (!isValidKey || !isValidVal) {
             throw new Error();
+          }
+        }
         request.actor.accessGroups = choices;
       } catch {
         throw new BadRequestException("权限组选择格式不合法");
@@ -175,6 +222,10 @@ export class AuthGuard implements CanActivate {
     return true;
   }
 }
+
+/** 校验当前操作者是否为系统管理员 */
 export function requireAdmin(actor: Pick<Actor, "role">) {
-  if (actor.role !== "admin") throw new ForbiddenException("需要管理员权限");
+  if (actor.role !== "admin") {
+    throw new ForbiddenException("需要管理员权限");
+  }
 }

@@ -3,6 +3,7 @@ import { AccessModule } from "../access/access.module";
 import { ApplicationsController } from "./applications.controller";
 import { ApplicationService } from "./applications.service";
 
+/** 应用管理模块 */
 @Module({
   imports: [AccessModule],
   controllers: [ApplicationsController],

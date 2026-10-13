@@ -21,46 +21,63 @@ import { Database, Transaction } from "../../core/database/database";
 import { OrganizationService } from "../directory/organization.service";
 import { identifier, object, title, uuid } from "../../core/database/schema";
 import { directGroupConfiguration, eligibleRecordGroups } from "./group-access";
-const keys = (raw: Record<string, unknown>, allowed: string[]) => {
-  if (Object.keys(raw).some((key) => !allowed.includes(key)))
+
+/** 校验配置对象是否仅包含受支持的属性键 */
+const assertAllowedKeys = (raw: Record<string, unknown>, allowed: string[]) => {
+  if (Object.keys(raw).some((key) => !allowed.includes(key))) {
     throw new BadRequestException("权限组包含未支持的配置，请保留原配置后核对");
+  }
 };
+
+/** 校验字段或关联关系权限映射表（`hidden` | `read` | `edit`） */
+function parsePermissionLevels(
+  input: unknown,
+  exists: (key: string) => boolean,
+): Record<string, "hidden" | "read" | "edit"> {
+  object(input);
+  const result: Record<string, "hidden" | "read" | "edit"> = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (!exists(key) || !["hidden", "read", "edit"].includes(value)) {
+      throw new BadRequestException("字段或关系权限不合法");
+    }
+    result[key] = value;
+  }
+  return result;
+}
+
 @Injectable()
 export class GroupConfigurationService {
   constructor(
     private readonly db: Database,
     private readonly organizations: OrganizationService,
   ) {}
-  private async definition(
-    tx: Transaction,
-    actor: Actor,
-    id: string,
-    write = false,
-  ) {
+
+  /** 锁定组织架构并校验目标表单定义存在且归属于当前工作空间 */
+  private async definition(tx: Transaction, actor: Actor, id: string, write = false) {
     uuid(id);
     await this.organizations.lock(tx, actor.workspaceId);
-    const row = (
-      await tx.query(
-        `SELECT id FROM definitions WHERE id=$1 AND workspace_id=$2 FOR ${write ? "UPDATE" : "SHARE"}`,
-        [id, actor.workspaceId],
-      )
-    ).rows[0];
-    if (!row) throw new NotFoundException("数据对象不存在或不可访问");
+
+    const lockMode = write ? "UPDATE" : "SHARE";
+    const { rows } = await tx.query(
+      `SELECT id FROM definitions WHERE id = $1 AND workspace_id = $2 FOR ${lockMode}`,
+      [id, actor.workspaceId],
+    );
+    if (!rows[0]) {
+      throw new NotFoundException("数据对象不存在或不可访问");
+    }
   }
-  private async read(
-    tx: Transaction,
-    id: string,
-  ): Promise<RecordGroupConfiguration> {
-    const row = (
-      await tx.query(
-        "SELECT revision,config FROM record_permission_groups WHERE definition_id=$1",
-        [id],
-      )
-    ).rows[0];
-    return row
-      ? { ...row.config, revision: row.revision }
-      : directGroupConfiguration();
+
+  /** 读取指定表单的权限组配置；若尚未配置则初始化为空权限组配置 */
+  private async read(tx: Transaction, id: string): Promise<RecordGroupConfiguration> {
+    const { rows } = await tx.query(
+      "SELECT revision, config FROM record_permission_groups WHERE definition_id = $1",
+      [id],
+    );
+    const row = rows[0];
+    return row ? { ...row.config, mode: "groups", revision: row.revision } : directGroupConfiguration();
   }
+
+  /** 获取表单的权限组完整配置（仅管理员可访问） */
   async get(actor: Actor, id: string) {
     requireAdmin(actor);
     return this.db.transaction(async (tx) => {
@@ -68,84 +85,101 @@ export class GroupConfigurationService {
       return this.read(tx, id);
     });
   }
+
+  /** 获取当前用户在指定表单下可用的权限组摘要选项 */
   async options(actor: Actor, id: string): Promise<RecordGroupOptions> {
     return this.db.transaction(async (tx) => {
       await this.definition(tx, actor, id);
       const config = await this.read(tx, id);
-      if (actor.role === "admin" || config.mode === "direct")
+
+      if (actor.role === "admin") {
         return {
           mode: "direct",
           revision: config.revision,
           allowMerged: false,
           groups: [],
         };
-      const groups = eligibleRecordGroups(
-        actor,
-        await this.organizations.snapshot(tx, actor),
-        config,
-      );
-      if (!groups.length)
+      }
+
+      const org = await this.organizations.snapshot(tx, actor);
+      const groups = eligibleRecordGroups(actor, org, config);
+      if (!groups.length) {
         throw new ForbiddenException("没有此数据对象的权限组");
+      }
+
       return {
         mode: "groups",
         revision: config.revision,
         allowMerged: config.allowMerged,
-        groups: groups.map(({ id, name, actions }) => ({ id, name, actions })),
+        groups: groups.map(({ id: groupId, name, actions }) => ({ id: groupId, name, actions })),
       };
     });
   }
+
+  /** 在独立事务中校验并保存表单的权限组配置 */
   async save(actor: Actor, id: string, body: unknown) {
-    return this.db.transaction(tx => this.saveIn(tx, actor, id, body));
+    return this.db.transaction((tx) => this.saveIn(tx, actor, id, body));
   }
+
+  /**
+   * 在现有事务中校验并持久化表单权限组配置：
+   * 1. 校验乐观锁版本号 `expectedRevision`；
+   * 2. 收集所有历史发布版本的字段与关联关系集合，校验各权限组的受众、操作、字段掩码与自定义筛选器；
+   * 3. 更新 `record_permission_groups` 并写入审计事件表 `record_permission_group_events`。
+   */
   async saveIn(tx: Transaction, actor: Actor, id: string, body: unknown) {
     requireAdmin(actor);
     object(body);
-    keys(body, ["expectedRevision", "mode", "allowMerged", "groups"]);
+    assertAllowedKeys(body, ["expectedRevision", "mode", "allowMerged", "groups"]);
+
     if (
-      !["direct", "groups"].includes(body.mode) ||
+      (body.mode !== undefined && body.mode !== "groups") ||
       typeof body.allowMerged !== "boolean" ||
       !Array.isArray(body.groups) ||
       body.groups.length > 100
-    )
+    ) {
       throw new BadRequestException("权限模式或权限组列表不合法");
+    }
+
     await this.definition(tx, actor, id, true);
     const current = await this.read(tx, id);
-    if (body.expectedRevision !== current.revision)
-      throw new ConflictException(
-        "权限组已被其他人修改，请重新读取后合并，当前输入保留",
-      );
+    if (body.expectedRevision !== current.revision) {
+      throw new ConflictException("权限组已被其他人修改，请重新读取后合并，当前输入保留");
+    }
+
     const org = await this.organizations.snapshot(tx, actor);
-    const versions = (
-      await tx.query(
-        "SELECT schema FROM definition_versions WHERE definition_id=$1 ORDER BY version DESC",
-        [id],
-      )
-    ).rows;
-    if (!versions.length && body.groups.length) throw new BadRequestException("请先发布数据对象");
-    const variants = new Map<
-      string,
-      { field: FormField; child: boolean }[]
-    >();
-    for (const { schema } of versions as { schema: FormSchema }[])
-      for (const parent of schema.fields)
+    const { rows: versions } = await tx.query<{ schema: FormSchema }>(
+      "SELECT schema FROM definition_versions WHERE definition_id = $1 ORDER BY version DESC",
+      [id],
+    );
+    if (!versions.length && body.groups.length) {
+      throw new BadRequestException("请先发布数据对象");
+    }
+
+    // 汇总各历史版本的字段信息，支持对存量字段配置权限与筛选
+    const variants = new Map<string, { field: FormField; child: boolean }[]>();
+    for (const { schema } of versions) {
+      for (const parent of schema.fields) {
         for (const field of [parent, ...parent.children]) {
           const list = variants.get(field.id) || [];
           list.push({ field, child: field !== parent });
           variants.set(field.id, list);
         }
-    const relationIds = new Set(
-      (
-        await tx.query(
-          "SELECT id FROM relation_definitions WHERE source_definition_id=$1 OR target_definition_id=$1",
-          [id],
-        )
-      ).rows.map((row) => row.id),
+      }
+    }
+
+    const { rows: relationRows } = await tx.query(
+      "SELECT id FROM relation_definitions WHERE source_definition_id = $1 OR target_definition_id = $1",
+      [id],
     );
-    const groups: RecordPermissionGroup[] = [],
-      seen = new Set<string>();
+    const relationIds = new Set(relationRows.map((row) => row.id));
+
+    const groups: RecordPermissionGroup[] = [];
+    const seenGroupIds = new Set<string>();
+
     for (const raw of body.groups) {
       object(raw);
-      keys(raw, [
+      assertAllowedKeys(raw, [
         "id",
         "name",
         "enabled",
@@ -159,60 +193,73 @@ export class GroupConfigurationService {
       ]);
       identifier(raw.id);
       title(raw.name);
-      if (seen.has(raw.id)) throw new BadRequestException("权限组标识重复");
-      seen.add(raw.id);
+
+      if (seenGroupIds.has(raw.id)) {
+        throw new BadRequestException("权限组标识重复");
+      }
+      seenGroupIds.add(raw.id);
+
       if (
         typeof raw.enabled !== "boolean" ||
         typeof raw.archived !== "boolean" ||
         typeof raw.scope !== "string" ||
         !Object.hasOwn(groupScopeNames, raw.scope)
-      )
+      ) {
         throw new BadRequestException("权限组状态或记录范围不合法");
+      }
+
       if (
         !Array.isArray(raw.actions) ||
         !raw.actions.length ||
         new Set(raw.actions).size !== raw.actions.length ||
         raw.actions.some(
-          (a: unknown) =>
-            typeof a !== "string" || !Object.hasOwn(groupActionNames, a),
+          (a: unknown) => typeof a !== "string" || !Object.hasOwn(groupActionNames, a),
         )
-      )
+      ) {
         throw new BadRequestException("操作权限不合法");
-      if (raw.actions.some((action: string) => !["create", "view"].includes(action)) && !raw.actions.includes("view"))
+      }
+
+      const hasRecordMutationOrOutput = raw.actions.some(
+        (action: string) => !["create", "view"].includes(action),
+      );
+      if (hasRecordMutationOrOutput && !raw.actions.includes("view")) {
         throw new BadRequestException("已有记录的操作需要查看权限");
-      if (
-        !Array.isArray(raw.subjects) ||
-        !raw.subjects.length ||
-        raw.subjects.length > 1000
-      )
+      }
+
+      if (!Array.isArray(raw.subjects) || !raw.subjects.length || raw.subjects.length > 1000) {
         throw new BadRequestException("请选择权限对象");
-      const subjects: RecordPermissionGroup["subjects"] = [],
-        seenSubjects = new Set<string>();
+      }
+
+      // 校验授权受众（成员 / 部门 / 角色）
+      const subjects: RecordPermissionGroup["subjects"] = [];
+      const seenSubjects = new Set<string>();
+
       for (const subject of raw.subjects) {
         object(subject);
-        keys(subject, ["kind", "id", "includeChildren"]);
+        assertAllowedKeys(subject, ["kind", "id", "includeChildren"]);
         uuid(subject.id);
-        const source =
-          subject.kind === "member"
-            ? org.users
-            : subject.kind === "department"
-              ? org.spec.departments
-              : subject.kind === "role"
-                ? org.spec.roles
-                : [];
-        if (
-          !source.some((item) => item.id === subject.id) ||
-          seenSubjects.has(`${subject.kind}/${subject.id}`)
-        )
-          throw new BadRequestException(
-            "权限对象不存在、重复或不属于当前组织",
-          );
+
+        let source: { id: string }[] = [];
+        if (subject.kind === "member") {
+          source = org.users;
+        } else if (subject.kind === "department") {
+          source = org.spec.departments;
+        } else if (subject.kind === "role") {
+          source = org.spec.roles;
+        }
+
+        const subjectKey = `${subject.kind}/${subject.id}`;
+        if (!source.some((item) => item.id === subject.id) || seenSubjects.has(subjectKey)) {
+          throw new BadRequestException("权限对象不存在、重复或不属于当前组织");
+        }
+
         if (
           subject.includeChildren !== undefined &&
-          (subject.kind !== "department" ||
-            typeof subject.includeChildren !== "boolean")
-        )
+          (subject.kind !== "department" || typeof subject.includeChildren !== "boolean")
+        ) {
           throw new BadRequestException("下级部门配置不合法");
+        }
+
         subjects.push({
           kind: subject.kind,
           id: subject.id,
@@ -220,84 +267,81 @@ export class GroupConfigurationService {
             ? { includeChildren: subject.includeChildren === true }
             : {}),
         });
-        seenSubjects.add(`${subject.kind}/${subject.id}`);
+        seenSubjects.add(subjectKey);
       }
-      const levels = (input: unknown, exists: (key: string) => boolean) => {
-        object(input);
-        const result: Record<string, "hidden" | "read" | "edit"> = {};
-        for (const [key, value] of Object.entries(input)) {
-          if (!exists(key) || !["hidden", "read", "edit"].includes(value))
-            throw new BadRequestException("字段或关系权限不合法");
-          result[key] = value;
-        }
-        return result;
-      };
-      const fields = levels(raw.fields, (key) => variants.has(key)),
-        relations = levels(raw.relations || {}, (key) =>
-          relationIds.has(key),
-        );
+
+      // 校验字段权限与关联关系权限
+      const fields = parsePermissionLevels(raw.fields, (key) => variants.has(key));
+      const relations = parsePermissionLevels(raw.relations || {}, (key) => relationIds.has(key));
+
+      // 校验自定义数据范围筛选条件
       if (
         !Array.isArray(raw.filters) ||
         raw.filters.length > 100 ||
         (raw.actions.includes("view") && raw.scope === "custom" && !raw.filters.length)
-      )
+      ) {
         throw new BadRequestException("自定义范围需要有效筛选条件");
-      const filterIds = new Set<string>(),
-        filters: RecordPermissionGroup["filters"] = [];
+      }
+
+      const filterIds = new Set<string>();
+      const filters: RecordPermissionGroup["filters"] = [];
+
       for (const filter of raw.filters) {
         object(filter);
-        keys(filter, ["id", "sourceFieldId", "operator", "source", "value"]);
+        assertAllowedKeys(filter, ["id", "sourceFieldId", "operator", "source", "value"]);
         identifier(filter.id);
         identifier(filter.sourceFieldId);
-        const fields = variants.get(filter.sourceFieldId);
+
+        const fieldVariants = variants.get(filter.sourceFieldId);
         if (
           filterIds.has(filter.id) ||
-          !fields?.length ||
-          fields.some((item) => item.child || item.field.type === "subform")
-        )
+          !fieldVariants?.length ||
+          fieldVariants.some((item) => item.child || item.field.type === "subform")
+        ) {
           throw new BadRequestException("筛选标识重复或字段不属于主记录");
+        }
         filterIds.add(filter.id);
+
+        const validOperators = ["equals", "notEquals", "contains", "greater", "less", "notEmpty"];
+        const validSources = ["constant", "currentUser", "currentDepartment"];
         if (
-          ![
-            "equals",
-            "notEquals",
-            "contains",
-            "greater",
-            "less",
-            "notEmpty",
-          ].includes(filter.operator) ||
-          !["constant", "currentUser", "currentDepartment"].includes(
-            filter.source,
-          ) ||
+          !validOperators.includes(filter.operator) ||
+          !validSources.includes(filter.source) ||
           typeof filter.value !== "string" ||
           filter.value.length > 10000
-        )
+        ) {
           throw new BadRequestException("筛选规则不合法");
+        }
+
         if (
           filter.operator !== "notEmpty" &&
           filter.source === "constant" &&
           !filter.value.trim()
-        )
+        ) {
           throw new BadRequestException("请填写筛选常量");
+        }
+
         if (
           ["greater", "less"].includes(filter.operator) &&
           (filter.source !== "constant" ||
             !Number.isFinite(Number(filter.value)) ||
-            !fields.every((item) => item.field.type === "number"))
-        )
+            !fieldVariants.every((item) => item.field.type === "number"))
+        ) {
           throw new BadRequestException("数值比较需要数字字段与有效数字常量");
-        if (
-          filter.source !== "constant" &&
-          filter.operator !== "notEmpty" &&
-          !fields.every(
-            ({ field }) =>
-              isOrganizationField(field.type) &&
-              (field.type.startsWith("department")
-                ? "currentDepartment"
-                : "currentUser") === filter.source,
-          )
-        )
+        }
+
+        const matchesDynamicSource = fieldVariants.every(({ field }) => {
+          if (!isOrganizationField(field.type)) return false;
+          const expectedSource = field.type.startsWith("department")
+            ? "currentDepartment"
+            : "currentUser";
+          return expectedSource === filter.source;
+        });
+
+        if (filter.source !== "constant" && filter.operator !== "notEmpty" && !matchesDynamicSource) {
           throw new BadRequestException("当前身份来源与筛选字段类型不一致");
+        }
+
         filters.push({
           id: filter.id,
           sourceFieldId: filter.sourceFieldId,
@@ -306,6 +350,7 @@ export class GroupConfigurationService {
           value: filter.value,
         });
       }
+
       if (
         body.mode === "groups" &&
         raw.enabled &&
@@ -314,7 +359,7 @@ export class GroupConfigurationService {
         raw.scope === "custom" &&
         filters.some(
           (filter) =>
-            !versions[0].schema.fields.some(
+            !versions[0]!.schema.fields.some(
               (field: FormField) => field.id === filter.sourceFieldId,
             ),
         )
@@ -323,6 +368,7 @@ export class GroupConfigurationService {
           "使用中的范围字段已经从当前数据版本移除，请调整条件后再启用权限组",
         );
       }
+
       groups.push({
         id: raw.id,
         name: raw.name.trim(),
@@ -336,16 +382,24 @@ export class GroupConfigurationService {
         filters,
       });
     }
-    const config = { mode: body.mode, allowMerged: body.allowMerged, groups },
-      revision = current.revision + 1;
-    await tx.query(
-      "INSERT INTO record_permission_groups(definition_id,revision,config) VALUES($1,$2,$3) ON CONFLICT(definition_id) DO UPDATE SET revision=$2,config=$3,updated_at=now()",
-      [id, revision, config],
-    );
-    await tx.query(
-      "INSERT INTO record_permission_group_events(id,definition_id,actor_id,revision,config) VALUES($1,$2,$3,$4,$5)",
-      [randomUUID(), id, actor.id, revision, config],
-    );
+
+    const config = { mode: body.mode, allowMerged: body.allowMerged, groups };
+    const revision = current.revision + 1;
+
+    const upsertSql = `
+      INSERT INTO record_permission_groups (definition_id, revision, config)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (definition_id)
+      DO UPDATE SET revision = $2, config = $3, updated_at = now()
+    `;
+    await tx.query(upsertSql, [id, revision, config]);
+
+    const eventSql = `
+      INSERT INTO record_permission_group_events (id, definition_id, actor_id, revision, config)
+      VALUES ($1, $2, $3, $4, $5)
+    `;
+    await tx.query(eventSql, [randomUUID(), id, actor.id, revision, config]);
+
     return { ...config, revision } as RecordGroupConfiguration;
   }
 }

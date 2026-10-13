@@ -2,11 +2,27 @@ import { Body, Controller, Get, Param, Put, Req, UseGuards } from "@nestjs/commo
 import { AuthGuard, AuthenticatedRequest } from "../../core/auth/auth.service";
 import { GroupConfigurationService } from "./group-config.service";
 
+/** 表单记录权限组配置与可选列表控制器 */
 @Controller("api/definitions")
 @UseGuards(AuthGuard)
 export class GroupConfigurationController {
   constructor(private readonly groups: GroupConfigurationService) {}
-  @Get(":id/permission-groups") get(@Req() r: AuthenticatedRequest, @Param("id") id: string) { return this.groups.get(r.actor, id); }
-  @Put(":id/permission-groups") save(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Body() body: unknown) { return this.groups.save(r.actor, id, body); }
-  @Get(":id/permission-groups/options") options(@Req() r: AuthenticatedRequest, @Param("id") id: string) { return this.groups.options(r.actor, id); }
+
+  /** 获取指定表单的权限组完整配置（仅管理员） */
+  @Get(":id/permission-groups")
+  get(@Req() req: AuthenticatedRequest, @Param("id") id: string) {
+    return this.groups.get(req.actor, id);
+  }
+
+  /** 保存指定表单的权限组配置（仅管理员） */
+  @Put(":id/permission-groups")
+  save(@Req() req: AuthenticatedRequest, @Param("id") id: string, @Body() body: unknown) {
+    return this.groups.save(req.actor, id, body);
+  }
+
+  /** 获取当前用户在指定表单下可切换的权限组选项列表 */
+  @Get(":id/permission-groups/options")
+  options(@Req() req: AuthenticatedRequest, @Param("id") id: string) {
+    return this.groups.options(req.actor, id);
+  }
 }

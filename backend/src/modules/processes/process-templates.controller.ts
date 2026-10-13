@@ -2,16 +2,76 @@ import { Body, Controller, Get, Param, Post, Put, Query, Req, UseGuards } from "
 import { AuthGuard, AuthenticatedRequest } from "../../core/auth/auth.service";
 import { ProcessTemplateService } from "./process-templates.service";
 
+/** 任务模板管理与基于模板发起流程接口 */
 @Controller("api/process-templates")
 @UseGuards(AuthGuard)
 export class ProcessTemplateController {
   constructor(private readonly templates: ProcessTemplateService) {}
-  @Get() list(@Req() r: AuthenticatedRequest, @Query("applicationId") appId: string) { return this.templates.list(r.actor, appId); }
-  @Post() create(@Req() r: AuthenticatedRequest, @Body() b: unknown) { return this.templates.save(r.actor, b); }
-  @Put(":id") save(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Body() b: unknown) { return this.templates.save(r.actor, b, id); }
-  @Post(":id/publish") publish(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Body() b: unknown) { return this.templates.publish(r.actor, id, b); }
-  @Get(":id/versions/:version") published(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Param("version") version: string) { return this.templates.published(r.actor, id, Number(version)); }
-  @Get(":id/versions/:version/records") records(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Param("version") version: string, @Query("bindingId") bindingId: string) { return this.templates.records(r.actor, id, Number(version), bindingId); }
-  @Post(":id/versions/:version/preview") preview(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Param("version") version: string, @Body() b: unknown) { return this.templates.preview(r.actor, id, Number(version), b); }
-  @Post(":id/versions/:version/start") start(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Param("version") version: string, @Body() b: unknown) { return this.templates.start(r.actor, id, Number(version), b); }
+
+  /** 获取指定应用下的任务模板列表 */
+  @Get()
+  list(@Req() r: AuthenticatedRequest, @Query("applicationId") appId: string) {
+    return this.templates.list(r.actor, appId);
+  }
+
+  /** 新建任务模板草稿 */
+  @Post()
+  create(@Req() r: AuthenticatedRequest, @Body() b: unknown) {
+    return this.templates.save(r.actor, b);
+  }
+
+  /** 保存更新指定任务模板草稿 */
+  @Put(":id")
+  save(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Body() b: unknown) {
+    return this.templates.save(r.actor, b, id);
+  }
+
+  /** 发布任务模板新版本 */
+  @Post(":id/publish")
+  publish(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Body() b: unknown) {
+    return this.templates.publish(r.actor, id, b);
+  }
+
+  /** 获取已发布的任务模板指定版本详情 */
+  @Get(":id/versions/:version")
+  published(
+    @Req() r: AuthenticatedRequest,
+    @Param("id") id: string,
+    @Param("version") version: string,
+  ) {
+    return this.templates.published(r.actor, id, Number(version));
+  }
+
+  /** 查询与模板业务数据绑定兼容的可选业务记录列表 */
+  @Get(":id/versions/:version/records")
+  records(
+    @Req() r: AuthenticatedRequest,
+    @Param("id") id: string,
+    @Param("version") version: string,
+    @Query("bindingId") bindingId: string,
+  ) {
+    return this.templates.records(r.actor, id, Number(version), bindingId);
+  }
+
+  /** 预览根据已发布模板与所选记录展开后的任务列表 */
+  @Post(":id/versions/:version/preview")
+  preview(
+    @Req() r: AuthenticatedRequest,
+    @Param("id") id: string,
+    @Param("version") version: string,
+    @Body() b: unknown,
+  ) {
+    return this.templates.preview(r.actor, id, Number(version), b);
+  }
+
+  /** 基于已发布模板正式发起流程 */
+  @Post(":id/versions/:version/start")
+  start(
+    @Req() r: AuthenticatedRequest,
+    @Param("id") id: string,
+    @Param("version") version: string,
+    @Body() b: unknown,
+  ) {
+    return this.templates.start(r.actor, id, Number(version), b);
+  }
 }
