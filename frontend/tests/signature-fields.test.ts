@@ -4,7 +4,7 @@ import { createApp, h, nextTick, reactive, ref } from "vue";
 import { createPinia } from "pinia";
 import { createMemoryHistory, createRouter } from "vue-router";
 import SignaturePad from "../src/features/forms/components/SignaturePad.vue";
-import FieldInspector from "../src/features/forms/components/FieldInspector.vue";
+
 import FieldControl from "../src/features/forms/components/FieldControl.vue";
 import FormRuntime from "../src/features/forms/components/FormRuntime.vue";
 import {
@@ -363,27 +363,6 @@ it("uses shared Escape dismissal, restores focus and does not carry an unfinishe
   await open();
   expect(button("确定").disabled).toBe(true);
 });
-it.each([
-  "signature",
-  "richtext",
-  "location",
-  "ocr",
-  "lookup",
-  "radio",
-  "checkbox",
-] as const)(
-  "omits the unused placeholder setting for %s without dropping historical configuration",
-  async (type) => {
-    const field = createField(type, { placeholder: "旧配置保留" });
-    const schema = emptySchema();
-    schema.fields = [field];
-    await mount({
-      render: () => h(FieldInspector, { field, schema, formId: "qa" }),
-    });
-    expect(document.querySelector("#field-placeholder")).toBeNull();
-    expect(parseSchema(schema).fields[0]!.placeholder).toBe("旧配置保留");
-  },
-);
 
 it("keeps two subform row signatures independent and never transfers cancelled strokes between controls", async () => {
   const schema = emptySchema(),

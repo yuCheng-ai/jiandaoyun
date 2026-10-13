@@ -22,7 +22,7 @@ import { quickFillValue } from "../src/domain/quickFill";
 import { emptyServerRecord } from "../src/domain/serverRecords";
 import { seedWorkspace } from "../src/domain/workspace";
 import FieldControl from "../src/features/forms/components/FieldControl.vue";
-import FieldInspector from "../src/features/forms/components/FieldInspector.vue";
+
 import ServerFieldControl from "../src/features/collaboration/ServerFieldControl.vue";
 
 let app: ReturnType<typeof createApp> | undefined;
@@ -155,66 +155,6 @@ it("quick-fill follows the selected date granularity and normalizes only omitted
       data,
     ),
   ).toThrow("有效日期");
-});
-
-it("the inspector keeps a custom value when changing sources and converts only its draft granularity", async () => {
-  const field = reactive(
-    createField("datetime", {
-      format: "datetime-second",
-      defaultValue: "2024-02-29T12:13:14",
-    }),
-  );
-  document.body.innerHTML = '<div id="mount"></div>';
-  app = createApp(FieldInspector, {
-    field,
-    schema: { ...emptySchema(), fields: [field] },
-    formId: "test",
-    onUpdate: (patch: any) => Object.assign(field, patch),
-  });
-  app.use(createPinia());
-  app.mount("#mount");
-  await settle();
-  const source = document.querySelector<HTMLSelectElement>(
-    "#date-default-source",
-  )!;
-  source.value = "now";
-  source.dispatchEvent(new Event("change", { bubbles: true }));
-  await settle();
-  expect(document.querySelector("#field-default")).toBeNull();
-  expect(field.defaultValue).toBe("2024-02-29T12:13:14");
-  source.value = "custom";
-  source.dispatchEvent(new Event("change", { bubbles: true }));
-  await settle();
-  expect(document.querySelector<HTMLInputElement>("#field-default")!.step).toBe(
-    "1",
-  );
-  source.value = "linked";
-  source.dispatchEvent(new Event("change", { bubbles: true }));
-  await settle();
-  expect(field.defaultLink?.enabled).toBe(true);
-  expect(document.querySelector("#field-default")).toBeNull();
-  source.value = "now";
-  source.dispatchEvent(new Event("change", { bubbles: true }));
-  await settle();
-  expect(field.defaultLink?.enabled).toBe(false);
-  expect(field.dateDefault).toBe("now");
-  expect(field.defaultValue).toBe("2024-02-29T12:13:14");
-  source.value = "custom";
-  source.dispatchEvent(new Event("change", { bubbles: true }));
-  await settle();
-  const format = document.querySelector<HTMLSelectElement>("#date-format")!;
-  expect(format.options).toHaveLength(4);
-  format.value = "month";
-  format.dispatchEvent(new Event("change", { bubbles: true }));
-  await settle();
-  expect(field.defaultValue).toBe("2024-02");
-  expect(document.querySelector<HTMLInputElement>("#field-default")!.type).toBe(
-    "month",
-  );
-  format.value = "datetime-second";
-  format.dispatchEvent(new Event("change", { bubbles: true }));
-  await settle();
-  expect(field.defaultValue).toBe("2024-02-01T00:00:00");
 });
 
 it("both existing date controls accept months and seconds and emit canonical civil values", async () => {

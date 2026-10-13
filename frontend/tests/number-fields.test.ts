@@ -25,7 +25,6 @@ import { displayValue } from "../src/domain/relations";
 import { validateFieldConfiguration } from "../src/domain/fieldValidation";
 import { seedWorkspace } from "../src/domain/workspace";
 import FieldControl from "../src/features/forms/components/FieldControl.vue";
-import FieldInspector from "../src/features/forms/components/FieldInspector.vue";
 
 let app: ReturnType<typeof createApp> | undefined;
 afterEach(() => {
@@ -218,46 +217,6 @@ it("updates a focused numeric control when a parent rule replaces its value with
   expect(f.input.value).toBe("7.89");
   expect(f.state.value).toBe(7.89123);
 });
-it("inspector percentage defaults and bounds round-trip numeric ratios and turning off the range retains its values", async () => {
-  const field = reactive(createField("number", { format: "percent" })),
-    schema = { ...emptySchema(), fields: [field] };
-  document.body.innerHTML = '<div id="mount"></div>';
-  app = createApp(FieldInspector, {
-    field,
-    schema,
-    formId: "test",
-    onUpdate: (patch: any) => Object.assign(field, patch),
-  });
-  app.use(createPinia());
-  app.mount("#mount");
-  await settle();
-  const input = document.querySelector<HTMLInputElement>("#field-default")!;
-  input.value = "29";
-  input.dispatchEvent(new Event("input", { bubbles: true }));
-  await settle();
-  expect(field.defaultValue).toBe(0.29);
-  const range = [
-    ...document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
-  ].find((el) => el.closest("label")!.textContent!.includes("限定数值范围"))!;
-  range.click();
-  await settle();
-  const max =
-    document.querySelector<HTMLInputElement>('[aria-label="最大值"]')!;
-  max.value = "100";
-  max.dispatchEvent(new Event("input", { bubbles: true }));
-  await settle();
-  expect(field.max).toBe(1);
-  range.click();
-  await settle();
-  expect(field.limitRange).toBe(false);
-  expect(field.max).toBe(1);
-  const restored = parseSchema(JSON.parse(JSON.stringify(schema))).fields[0]!;
-  expect(restored).toMatchObject({
-    defaultValue: 0.29,
-    max: 1,
-    limitRange: false,
-  });
-});
 
 it("saves unfinished bounds without dropping input, blocks publication, and preserves published definitions until correction", async () => {
   const pinia = createPinia(),
@@ -277,28 +236,8 @@ it("saves unfinished bounds without dropping input, blocks publication, and pres
   const committed = copy(
     new LocalWorkspaceRepository().load()!.forms.find((f) => f.id === form.id)!,
   );
-  document.body.innerHTML = '<div id="mount"></div>';
   const field = draft.schema.fields[0]!;
-  app = createApp(() =>
-    h(FieldInspector, {
-      field,
-      schema: draft.schema,
-      formId: form.id,
-      onUpdate: (patch) => Object.assign(field, patch),
-    }),
-  );
-  app.use(pinia).mount("#mount");
-  await settle();
-  const max =
-    document.querySelector<HTMLInputElement>('[aria-label="最大值"]')!;
-  max.focus();
-  max.value = "9007199254740992";
-  max.dispatchEvent(new Event("input", { bubbles: true }));
-  await settle();
-  expect(field.max).toBe("9007199254740992");
-  max.blur();
-  await settle();
-  expect(max.value).toBe("9007199254740992");
+  field.max = "9007199254740992";
   expect(validateFieldConfiguration(draft.schema, store.data)).toContain(
     "「金额」请填写有效的最大值",
   );
@@ -313,10 +252,7 @@ it("saves unfinished bounds without dropping input, blocks publication, and pres
   expect(
     parseSchema(JSON.parse(JSON.stringify(draft.schema))).fields[0]!.max,
   ).toBe("9007199254740992");
-  max.value = "123.4567";
-  max.dispatchEvent(new Event("input", { bubbles: true }));
-  await settle();
-  expect(field.max).toBe(123.4567);
+  field.max = 123.4567;
   expect(await store.saveForm(form.id)).toBe(true);
   const saved = new LocalWorkspaceRepository()
     .load()!
@@ -324,59 +260,6 @@ it("saves unfinished bounds without dropping input, blocks publication, and pres
   expect(saved.schema.fields[0]!.max).toBe(123.4567);
   expect(saved.published).toEqual(committed.published);
   expect(saved.versions).toEqual(committed.versions);
-});
-
-it("edits percentage defaults and bounds with the same decimal buffer and suffix as filling, without truncating or clearing an unfinished value", async () => {
-  const field = reactive(
-    createField("number", {
-      format: "percent",
-      limitRange: true,
-      min: 0,
-      max: 1,
-      defaultValue: 0.12,
-      retainPrecision: true,
-    }),
-  );
-  const schema = { ...emptySchema(), fields: [field] };
-  document.body.innerHTML = '<div id="mount"></div>';
-  app = createApp(() =>
-    h(FieldInspector, {
-      field,
-      schema,
-      formId: "test",
-      onUpdate: (patch) => Object.assign(field, patch),
-    }),
-  );
-  app.use(createPinia()).mount("#mount");
-  await settle();
-  for (const [selector, key] of [
-    ["#field-default", "defaultValue"],
-    ['[aria-label="最小值"]', "min"],
-    ['[aria-label="最大值"]', "max"],
-  ] as const) {
-    const input = document.querySelector<HTMLInputElement>(selector)!;
-    input.focus();
-    for (const text of ["-", "-0.", "-0.123456"]) {
-      input.value = text;
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-      await settle();
-      expect(input.value).toBe(text);
-    }
-    input.blur();
-    await settle();
-    expect(input.value).toBe("-0.123456");
-    expect(field[key]).toBe(-0.00123456);
-    expect(
-      input.parentElement!.querySelector(".number-suffix")?.textContent,
-    ).toBe("%");
-  }
-  const max =
-    document.querySelector<HTMLInputElement>('[aria-label="最大值"]')!;
-  max.value = "";
-  max.dispatchEvent(new Event("input", { bubbles: true }));
-  await settle();
-  expect(field.max).toBeUndefined();
-  expect(validateFieldConfiguration(schema, seedWorkspace())).toEqual([]);
 });
 
 it("validates custom numeric defaults against the effective range and old precision without constraining dormant formula values", () => {

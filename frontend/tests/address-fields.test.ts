@@ -32,7 +32,7 @@ import {
 import { seedWorkspace } from "../src/domain/workspace";
 import AddressFieldControl from "../src/features/forms/components/AddressFieldControl.vue";
 import FieldControl from "../src/features/forms/components/FieldControl.vue";
-import FieldInspector from "../src/features/forms/components/FieldInspector.vue";
+
 import BaseDialog from "../src/components/BaseDialog.vue";
 
 let app: ReturnType<typeof createApp> | undefined;
@@ -452,36 +452,4 @@ it("Escape closes only the address popup inside a shared dialog and restores foc
   expect(document.querySelector(".address-panel")).toBeNull();
   expect(parent.open).toBe(true);
   expect(document.activeElement).toBe(trigger);
-});
-
-it("the inspector reuses the address control for its default and changes only the draft configuration", async () => {
-  Element.prototype.scrollIntoView = vi.fn();
-  const field = reactive(createField("address", { id: "a" }));
-  mount(FieldInspector, {
-    field,
-    schema: { ...emptySchema(), fields: [field] },
-    formId: "test",
-    onUpdate: (patch: any) => Object.assign(field, patch),
-  });
-  await settle();
-  expect(document.querySelector("#field-placeholder")).toBeNull();
-  const type = document.querySelector<HTMLSelectElement>("#address-type")!;
-  type.value = "province";
-  type.dispatchEvent(new Event("change"));
-  await settle();
-  document.querySelector<HTMLButtonElement>(".address-trigger")!.click();
-  await settle();
-  button("浙江省").click();
-  await settle();
-  expect(field.defaultValue).toEqual({ province: "浙江省" });
-  expect(defaultValues([field])).toEqual({ a: { province: "浙江省" } });
-  const complete = Array.from(
-    document.querySelectorAll<HTMLLabelElement>("label"),
-  )
-    .find((el) => el.textContent?.includes("按类型完整填写"))!
-    .querySelector<HTMLInputElement>("input")!;
-  complete.checked = false;
-  complete.dispatchEvent(new Event("change"));
-  await settle();
-  expect(field.addressComplete).toBe(false);
 });

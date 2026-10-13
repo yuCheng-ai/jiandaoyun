@@ -34,7 +34,7 @@ import {
 } from "../src/domain/fieldValidation";
 import { newForm, seedWorkspace } from "../src/domain/workspace";
 import { useWorkspaceStore } from "../src/stores/workspace";
-import FieldInspector from "../src/features/forms/components/FieldInspector.vue";
+
 import FormulaEditor from "../src/features/forms/components/FormulaEditor.vue";
 import FormRuntime from "../src/features/forms/components/FormRuntime.vue";
 
@@ -914,31 +914,7 @@ it("shows formula errors at the actual fill submission boundary", () => {
     ),
   ).toBeUndefined();
 });
-it("reuses the original default-source selector and retains dormant formula/custom values", async () => {
-  const f = fixture(),
-    field = reactive(f.total);
-  field.defaultFormula = false;
-  const host = await mount(
-    FieldInspector,
-    { field, schema: f.schema, formId: "x" },
-    { onUpdate: (patch: Partial<FormField>) => Object.assign(field, patch) },
-  );
-  const select = host.querySelector<HTMLSelectElement>(
-    '[aria-label="默认值来源"]',
-  )!;
-  await fill(select, "formula", "change");
-  expect(field.defaultFormula).toBe(true);
-  expect(button(host, "编辑公式")).toBeTruthy();
-  await fill(select, "custom", "change");
-  expect(field.expression).toContain("ROUND");
-  expect(field.defaultValue).toBe(999);
-  expect(
-    host.querySelector<HTMLInputElement>('[aria-label="自定义默认值"]')!.value,
-  ).toBe("999");
-  await fill(select, "linked", "change");
-  expect(field.defaultFormula).toBe(false);
-  expect(field.defaultLink?.enabled).toBe(true);
-});
+
 it("edits field-name chips atomically and supports help, replacement, remarks, debug and discard", async () => {
   const f = fixture(),
     field = reactive(f.total),

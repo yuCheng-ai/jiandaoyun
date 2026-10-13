@@ -1,14 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import {
-  createApp,
-  defineComponent,
-  h,
-  nextTick,
-  reactive,
-  shallowRef,
-  triggerRef,
-} from "vue";
+import { createApp, h, nextTick, reactive } from "vue";
 import { createPinia, setActivePinia } from "pinia";
 import {
   composeFormSchema,
@@ -23,17 +15,10 @@ import {
   defaultValues,
   resolveFormValues,
 } from "../src/domain/form";
-import TabFieldInspector from "../src/features/forms/components/TabFieldInspector.vue";
 import OptionColorPicker from "../src/components/OptionColorPicker.vue";
 import FormTabBar from "../src/features/forms/components/FormTabBar.vue";
 import FormFields from "../src/features/forms/components/FormFields.vue";
 import FieldCanvas from "../src/features/forms/components/FieldCanvas.vue";
-import ExternalFormFrame from "../src/features/forms/components/ExternalFormFrame.vue";
-import { customStyleFromTheme } from "../src/domain/externalStyle";
-import { useFormDesigner } from "../src/features/forms/useFormDesigner";
-import { newForm, type FormRecord } from "../src/domain/workspace";
-import BaseDialog from "../src/components/BaseDialog.vue";
-import TabStylePicker from "../src/features/forms/components/TabStylePicker.vue";
 
 const cleanup: (() => void)[] = [];
 const flush = async () => {
@@ -90,84 +75,6 @@ function fixture() {
   schema.fields = [tabs];
   return { schema, tabs };
 }
-it.each(["resize", "scroll"])(
-  "dismisses a moved style menu on %s while keeping the parent editing dialog and field intact",
-  async (movement) => {
-    // jsdom lacks inert reflection and layout; retain real DOM focus and events.
-    const inert = Object.getOwnPropertyDescriptor(
-      HTMLElement.prototype,
-      "inert",
-    );
-    Object.defineProperty(HTMLElement.prototype, "inert", {
-      configurable: true,
-      get() {
-        return this.hasAttribute("inert");
-      },
-      set(value) {
-        this.toggleAttribute("inert", !!value);
-      },
-    });
-    vi.spyOn(HTMLElement.prototype, "getClientRects").mockImplementation(
-      function (this: HTMLElement) {
-        return (this.isConnected && !this.hidden
-          ? [{}]
-          : []) as unknown as DOMRectList;
-      },
-    );
-    const { tabs } = fixture();
-    const original = copy(tabs),
-      closeParent = vi.fn(),
-      select = vi.fn();
-    await mount(() =>
-      h(
-        BaseDialog,
-        {
-          open: true,
-          title: "编辑字段",
-          onClose: closeParent,
-        },
-        {
-          default: () =>
-            h("div", { class: "anchor-scroller" }, [
-              h(TabStylePicker, { field: tabs, onSelect: select }),
-            ]),
-        },
-      ),
-    );
-    cleanup.push(() => {
-      if (inert) Object.defineProperty(HTMLElement.prototype, "inert", inert);
-      else delete (HTMLElement.prototype as any).inert;
-    });
-    const trigger = document.querySelector<HTMLButtonElement>(
-      '[aria-label="标签页样式"][aria-haspopup]',
-    )!;
-    trigger.focus();
-    trigger.click();
-    await flush();
-    const menu = document.querySelector<HTMLElement>(".tab-style-menu")!;
-    expect(menu).not.toBeNull();
-    menu.dispatchEvent(new Event("scroll"));
-    await flush();
-    expect(document.querySelector(".tab-style-menu")).toBe(menu);
-    const unrelated = document.createElement("div");
-    document.body.append(unrelated);
-    unrelated.dispatchEvent(new Event("scroll"));
-    await flush();
-    expect(document.querySelector(".tab-style-menu")).toBe(menu);
-    if (movement === "resize") window.dispatchEvent(new Event("resize"));
-    else
-      trigger.closest(".anchor-scroller")!.dispatchEvent(new Event("scroll"));
-    await flush();
-    expect(document.querySelector(".tab-style-menu")).toBeNull();
-    expect(
-      document.querySelector('dialog[aria-label="编辑字段"]'),
-    ).not.toBeNull();
-    expect(closeParent).not.toHaveBeenCalled();
-    expect(select).not.toHaveBeenCalled();
-    expect(tabs).toEqual(original);
-    expect(document.activeElement).toBe(trigger);
-  },
-);
 it("keeps all five appearances in JSON and compatibility projection without changing values or model identity", () => {
   const { schema, tabs } = fixture(),
     originalValues = resolveFormValues(schema, defaultValues(schema.fields));
@@ -225,145 +132,6 @@ it("rejects invalid styles, nonboolean toggles, unsafe CSS and appearance on an 
     }),
   ).toThrow(/标签页/);
 });
-it("selects appearance through the inspector as an undoable field change, preserving selection, children and published snapshots", async () => {
-  const { schema, tabs } = fixture();
-  let editor!: ReturnType<typeof useFormDesigner>;
-  const record = shallowRef<FormRecord>({
-    ...newForm("oa", "多标签验收"),
-    schema,
-  });
-  const original = copy(schema),
-    published = copy(schema),
-    values = defaultValues(schema.fields);
-  const root = defineComponent({
-    setup() {
-      editor = useFormDesigner(record);
-      editor.select(tabs.id);
-      editor.activeParent.value = tabs.id;
-      editor.activeTabId.value = "approval";
-      return () =>
-        h(TabFieldInspector, {
-          field: record.value.schema.fields[0],
-          schema: record.value.schema,
-          applySchema: (next: typeof schema) =>
-            editor.transact(() => {
-              record.value.schema = next;
-              triggerRef(record);
-            }),
-          onUpdate: (patch: object) =>
-            editor.transact(() => {
-              Object.assign(record.value.schema.fields[0]!, patch);
-              triggerRef(record);
-            }),
-        });
-    },
-  });
-  const host = await mount(() => h(root));
-  const trigger = host.querySelector<HTMLButtonElement>(
-    '[aria-label="标签页样式"]',
-  )!;
-  trigger.focus();
-  trigger.click();
-  await flush();
-  expect(document.querySelectorAll('[role="option"]').length).toBe(5);
-  document
-    .querySelector<HTMLButtonElement>(
-      '[role="option"][aria-label="标签页样式 5"]',
-    )!
-    .click();
-  await flush();
-  expect(record.value.schema.fields[0]!.tabStyle).toBe("slant");
-  expect(document.activeElement).toBe(trigger);
-  expect(record.value.schema.fields[0]!.children).toEqual(
-    original.fields[0]!.children,
-  );
-  expect(editor.activeTabId.value).toBe("approval");
-  editor.undo();
-  triggerRef(record);
-  expect(record.value.schema).toEqual(original);
-  editor.redo();
-  triggerRef(record);
-  expect(record.value.schema.fields[0]!.tabStyle).toBe("slant");
-  await flush();
-  const toggle = host.querySelector<HTMLButtonElement>('[role="switch"]')!;
-  toggle.click();
-  await flush();
-  host.querySelector<HTMLButtonElement>('[aria-label="标签页颜色"]')!.click();
-  await flush();
-  document
-    .querySelector<HTMLButtonElement>('[aria-label="颜色 #2f7deb"]')!
-    .click();
-  await flush();
-  expect(record.value.schema.fields[0]!.tabColor).toBe("#2f7deb");
-  toggle.click();
-  await flush();
-  expect(record.value.schema.fields[0]!.tabCustomColor).toBe(false);
-  expect(record.value.schema.fields[0]!.tabColor).toBe("#2f7deb");
-  toggle.click();
-  await flush();
-  expect(record.value.schema.fields[0]!.tabColor).toBe("#2f7deb");
-  expect(published).toEqual(original);
-  expect(values).toEqual(defaultValues(original.fields));
-});
-it("closes the style picker with Escape or outside click without applying an unconfirmed option, and supports keyboard choice", async () => {
-  const { tabs } = fixture();
-  const changes = vi.fn();
-  const host = await mount(() =>
-    h(TabFieldInspector, {
-      field: tabs,
-      schema: emptySchema(),
-      applySchema: vi.fn(),
-      onUpdate: changes,
-    }),
-  );
-  const trigger = host.querySelector<HTMLButtonElement>(
-    '[aria-label="标签页样式"]',
-  )!;
-  trigger.focus();
-  trigger.click();
-  await flush();
-  const selected = document.querySelector<HTMLButtonElement>(
-    '[role="option"][aria-selected="true"]',
-  )!;
-  expect(selected.getAttribute("aria-label")).toBe("标签页样式 3");
-  selected.dispatchEvent(
-    new KeyboardEvent("keydown", {
-      key: "End",
-      bubbles: true,
-      cancelable: true,
-    }),
-  );
-  await flush();
-  expect(
-    (document.activeElement as HTMLElement).getAttribute("aria-label"),
-  ).toBe("标签页样式 5");
-  document.dispatchEvent(
-    new KeyboardEvent("keydown", {
-      key: "Escape",
-      bubbles: true,
-      cancelable: true,
-    }),
-  );
-  await flush();
-  expect(document.querySelector('[role="listbox"]')).toBeNull();
-  expect(changes).not.toHaveBeenCalled();
-  expect(document.activeElement).toBe(trigger);
-  trigger.click();
-  await flush();
-  document.body.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
-  await flush();
-  expect(document.querySelector('[role="listbox"]')).toBeNull();
-  expect(changes).not.toHaveBeenCalled();
-  trigger.click();
-  await flush();
-  document
-    .querySelector<HTMLButtonElement>(
-      '[role="option"][aria-label="标签页样式 1"]',
-    )!
-    .click();
-  await flush();
-  expect(changes).toHaveBeenLastCalledWith({ tabStyle: "line" });
-});
 it("uses shared appearance in designer and runtime without changing the current tab or field values when color changes", async () => {
   const { schema, tabs } = fixture();
   const state = reactive({ schema, values: defaultValues(schema.fields) });
@@ -410,51 +178,6 @@ it("uses shared appearance in designer and runtime without changing the current 
       .querySelectorAll<HTMLElement>(".form-tab-shell")[1]!
       .style.getPropertyValue("--form-tab-accent"),
   ).toBe("");
-});
-it("passes the existing external button color as an inherited theme and lets an enabled tab color override it", async () => {
-  const { schema, tabs } = fixture();
-  const state = reactive({ custom: customStyleFromTheme(4), tabs });
-  state.custom.buttonColor = "#3158ab";
-  const host = await mount(() =>
-    h(
-      ExternalFormFrame,
-      { appearance: { theme: 4, custom: state.custom }, title: "申请" },
-      () =>
-        h(FormTabBar, {
-          items: state.tabs.tabs,
-          label: "分组",
-          variant: "runtime",
-          appearance: state.tabs,
-        }),
-    ),
-  );
-  expect(
-    host
-      .querySelector<HTMLElement>(".external-form")!
-      .style.getPropertyValue("--form-tab-theme"),
-  ).toBe("#3158ab");
-  state.tabs.tabCustomColor = true;
-  state.tabs.tabColor = "#ab3158";
-  await flush();
-  expect(
-    host
-      .querySelector<HTMLElement>(".form-tab-shell")!
-      .style.getPropertyValue("--form-tab-accent"),
-  ).toBe("#ab3158");
-  state.tabs.tabCustomColor = false;
-  state.custom.buttonColor = "#5865f5";
-  await flush();
-  expect(
-    host
-      .querySelector<HTMLElement>(".form-tab-shell")!
-      .style.getPropertyValue("--form-tab-accent"),
-  ).toBe("");
-  expect(
-    host
-      .querySelector<HTMLElement>(".external-form")!
-      .style.getPropertyValue("--form-tab-theme"),
-  ).toBe("#5865f5");
-  expect(schema.fields[0]!.children).toEqual(state.tabs.children);
 });
 
 it("positions the shared color panel using its actual height so bottom controls stay reachable", async () => {

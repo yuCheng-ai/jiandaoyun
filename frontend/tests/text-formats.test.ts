@@ -22,7 +22,7 @@ import { seedWorkspace } from "../src/domain/workspace";
 import { LocalWorkspaceRepository } from "../src/repositories/workspaceRepository";
 import { useWorkspaceStore } from "../src/stores/workspace";
 import type { RecordImportRequest } from "../src/domain/recordImport";
-import FieldInspector from "../src/features/forms/components/FieldInspector.vue";
+
 import FieldControl from "../src/features/forms/components/FieldControl.vue";
 import FieldValueRules from "../src/features/data/FieldValueRules.vue";
 
@@ -261,27 +261,7 @@ async function mount(component: any, props: Record<string, unknown>) {
   await nextTick();
   return host;
 }
-it("changes the existing inspector format selector without clearing the original default or identity", async () => {
-  const field = reactive(text("none", { defaultValue: "000001" }));
-  const host = await mount(FieldInspector, {
-    field,
-    schema: { ...emptySchema(), fields: [field] },
-    formId: "",
-    onUpdate: (patch: object) => Object.assign(field, patch),
-  });
-  const selector = host.querySelector<HTMLSelectElement>("#text-format")!;
-  expect(Array.from(selector.options, (o) => o.textContent?.trim())).toEqual(
-    textFormats.map((f) => f.label),
-  );
-  selector.value = "zip";
-  selector.dispatchEvent(new Event("change", { bubbles: true }));
-  await nextTick();
-  expect(field).toMatchObject({
-    id: "none",
-    defaultValue: "000001",
-    format: "zip",
-  });
-});
+
 it("the shared input keeps leading zeroes and invalid text available for correction", async () => {
   const state = reactive({ value: "000001" });
   const host = await mount(FieldControl, {

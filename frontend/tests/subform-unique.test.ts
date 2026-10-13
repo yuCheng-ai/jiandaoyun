@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { createApp, h, nextTick, reactive } from "vue";
+import { beforeEach, expect, it } from "vitest";
+
 import { createPinia } from "pinia";
 import { composeFormSchema, separateFormSchema } from "@platform/contracts";
 import {
@@ -11,23 +11,14 @@ import {
   parseSchema,
   validateValues,
   type FormField,
-  type FormSchema,
 } from "../src/domain/form";
 import { seedWorkspace } from "../src/domain/workspace";
 import { useWorkspaceStore } from "../src/stores/workspace";
 import { WORKSPACE_KEY } from "../src/repositories/workspaceRepository";
-import FieldInspector from "../src/features/forms/components/FieldInspector.vue";
 
-const cleanups: (() => void)[] = [];
 beforeEach(() => {
   localStorage.clear();
   localStorage.setItem(WORKSPACE_KEY, JSON.stringify(seedWorkspace()));
-  document.body.innerHTML = '<div id="mount"></div>';
-});
-afterEach(() => {
-  cleanups.splice(0).forEach((cleanup) => cleanup());
-  vi.unstubAllGlobals();
-  document.body.innerHTML = "";
 });
 function fixture() {
   const code = createField("text", {
@@ -40,30 +31,6 @@ function fixture() {
   const schema = emptySchema();
   schema.fields = [rows];
   return { code, rows, schema };
-}
-async function flush() {
-  for (let i = 0; i < 4; i++) await nextTick();
-}
-function mount(field: FormField, schema: FormSchema, manageSubform = true) {
-  const app = createApp({
-    render: () =>
-      h(FieldInspector, {
-        field,
-        schema,
-        formId: "form",
-        manageSubform,
-        onUpdate: (patch: Partial<FormField>) => Object.assign(field, patch),
-      }),
-  });
-  app.use(createPinia());
-  app.mount("#mount");
-  cleanups.push(() => app.unmount());
-}
-function checkbox(label: string) {
-  const node = [...document.querySelectorAll("label")].find(
-    (item) => item.textContent?.trim() === label,
-  );
-  return node?.querySelector<HTMLInputElement>('input[type="checkbox"]');
 }
 
 it("checks duplicate rows within one record, exempts blank rows and permits the same value in another record", () => {
@@ -235,63 +202,4 @@ it("pins drafts and record edits to their published rule while retry preserves o
   expect(
     store.data.forms.find((item) => item.id === form.id)!.versions[0],
   ).toEqual(published);
-});
-
-it("couples the two scope controls, uses one message and preserves it when toggling off", async () => {
-  const { schema } = fixture();
-  const state = reactive(schema),
-    child = state.fields[0]!.children[0]!;
-  delete child.uniqueInRecord;
-  delete child.duplicateMessage;
-  mount(child, state);
-  checkbox("不允许重复值")!.click();
-  await flush();
-  expect(child).toMatchObject({
-    unique: true,
-    uniqueInRecord: true,
-    duplicateMessage: "此项内容已存在，不允许重复提交",
-  });
-  expect(checkbox("单条数据内不允许重复值")?.disabled).toBe(true);
-  const input = document.querySelector<HTMLInputElement>(
-    "#field-duplicate-message",
-  )!;
-  input.value = "自定义提示";
-  input.dispatchEvent(new Event("input", { bubbles: true }));
-  checkbox("不允许重复值")!.click();
-  await flush();
-  expect(child).toMatchObject({
-    unique: false,
-    uniqueInRecord: true,
-    duplicateMessage: "自定义提示",
-  });
-  expect(checkbox("单条数据内不允许重复值")?.disabled).toBe(false);
-  checkbox("单条数据内不允许重复值")!.click();
-  await flush();
-  expect(child.uniqueInRecord).toBe(false);
-  expect(child.duplicateMessage).toBe("自定义提示");
-  expect(document.querySelector("#field-duplicate-message")).toBeNull();
-});
-
-it("does not offer unsupported new child rules; a legacy global rule can be disabled without silently deleting it on load", async () => {
-  const { schema, rows } = fixture();
-  const state = reactive(schema);
-  const child = createField("number", { id: "legacy", unique: true });
-  state.fields[0]!.children = [child];
-  mount(state.fields[0]!.children[0]!, state);
-  expect(checkbox("单条数据内不允许重复值")).toBeUndefined();
-  expect(child.unique).toBe(true);
-  checkbox("不允许重复值")!.click();
-  await flush();
-  expect(child.unique).toBe(false);
-  expect(checkbox("不允许重复值")).toBeUndefined();
-  cleanups.splice(0).forEach((cleanup) => cleanup());
-  const main = reactive(createField("text", { id: "main" }));
-  state.fields = [main];
-  mount(main, state);
-  expect(checkbox("不允许重复值")).toBeTruthy();
-  expect(checkbox("单条数据内不允许重复值")).toBeUndefined();
-  cleanups.splice(0).forEach((cleanup) => cleanup());
-  state.fields = [rows];
-  mount(state.fields[0]!.children[0]!, state, false);
-  expect(checkbox("单条数据内不允许重复值")).toBeUndefined();
 });

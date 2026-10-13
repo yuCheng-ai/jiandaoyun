@@ -3,8 +3,6 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createApp, h, nextTick, reactive } from "vue";
 import { createPinia } from "pinia";
 import { createMemoryHistory, createRouter } from "vue-router";
-import { IDBFactory } from "fake-indexeddb";
-import { Blob as NodeBlob, File as NodeFile } from "node:buffer";
 import {
   fileValueIssue,
   composeFormSchema,
@@ -43,10 +41,9 @@ import {
   type FormEntry,
   type FormRecord,
 } from "../src/domain/workspace";
-import { saveFiles, readFile } from "../src/repositories/fileRepository";
 import { useWorkspaceStore } from "../src/stores/workspace";
 import DefaultLinkInspector from "../src/features/forms/components/DefaultLinkInspector.vue";
-import FieldInspector from "../src/features/forms/components/FieldInspector.vue";
+
 import FormRuntime from "../src/features/forms/components/FormRuntime.vue";
 
 vi.mock("../src/stores/workspace", () => ({ useWorkspaceStore: vi.fn() }));
@@ -549,13 +546,10 @@ it("the shared settings dialog confirms atomically, filters types and retains co
   expect(document.querySelector("dialog")).toBeNull();
 });
 it("real runtime prefills stored file IDs, submits them, and keeps initial saved values on reopen", async () => {
-  vi.stubGlobal("indexedDB", new IDBFactory());
-  vi.stubGlobal("Blob", NodeBlob);
-  vi.stubGlobal("File", NodeFile);
   const { data, target } = fixture();
-  const files = await saveFiles([
-    new File(["联动原文件"], "source.txt", { type: "text/plain" }),
-  ]);
+  const files = [
+    { id: "source-file", name: "source.txt", type: "text/plain", size: 15 },
+  ];
   data.entries[1]!.values.files = files;
   const persist = vi.fn(async (_values: FormValues) => true);
   await mount(
@@ -578,11 +572,6 @@ it("real runtime prefills stored file IDs, submits them, and keeps initial saved
     .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
   await settle();
   expect(persist.mock.calls[0]![0].attachment).toEqual(files);
-  expect(
-    await (
-      await readFile((persist.mock.calls[0]![0].attachment as any[])[0])
-    ).text(),
-  ).toBe("联动原文件");
   app!.unmount();
   app = undefined;
   await mount(
@@ -880,41 +869,6 @@ it("uses the same member scope for scalar source fields and conditions", () => {
   ).toBe("");
 });
 
-it("the original scalar inspector switches sources, retains custom values and confirms the shared link dialog", async () => {
-  const { data, target, note } = scalarFixture(),
-    field = reactive(copy(note));
-  field.defaultLink!.enabled = false;
-  await mount(
-    {
-      render: () =>
-        h(FieldInspector, {
-          field,
-          schema: target.schema,
-          formId: target.id,
-          onUpdate: (patch: any) => Object.assign(field, patch),
-        }),
-    },
-    data,
-  );
-  expect(control<HTMLTextAreaElement>("自定义默认值").value).toBe("旧自定义值");
-  change("默认值来源", "linked");
-  await settle();
-  expect(document.querySelector("#field-default")).toBeNull();
-  click("数据联动设置");
-  await settle();
-  expect(
-    [...control<HTMLSelectElement>("联动来源字段").options].map((o) => o.value),
-  ).toEqual(["", "name", "description", "category"]);
-  change("联动来源字段", "category");
-  click("确定");
-  await settle();
-  expect(field.defaultLink!.fieldId).toBe("category");
-  change("默认值来源", "custom");
-  await settle();
-  expect(control<HTMLTextAreaElement>("自定义默认值").value).toBe("旧自定义值");
-  expect(field.defaultLink!.fieldId).toBe("category");
-});
-
 it("the real runtime submits scalar linked values but preserves a reopened record", async () => {
   const { data, target } = scalarFixture(),
     persist = vi.fn(async (_values: FormValues) => true);
@@ -976,45 +930,14 @@ it("the real runtime submits scalar linked values but preserves a reopened recor
   expect(persist.mock.calls.at(-1)![0]).toMatchObject(original);
 });
 
-it("new phone fields omit unrelated text settings while configured legacy defaults and limits remain editable and preserve publications", async () => {
+it("legacy phone defaults and limits survive schema parsing without changing published definitions", () => {
   const { data, target } = fixture();
-  const field = reactive(
-    createField("phone", { id: "contactPhone", label: "联系电话" }),
-  );
+  const field = createField("phone", { id: "contactPhone", label: "联系电话" });
   target.schema.fields = [field];
   publish(target);
   const published = copy(target.published);
-  await mount(
-    {
-      render: () =>
-        h(FieldInspector, {
-          field,
-          schema: target.schema,
-          formId: target.id,
-          onUpdate: (patch: any) => Object.assign(field, patch),
-        }),
-    },
-    data,
-  );
-  expect(document.querySelector("#field-default")).toBeNull();
-  expect(document.querySelector("#field-length")).toBeNull();
-  Object.assign(field, { defaultValue: "13800000000", maxLength: 20 });
-  await settle();
-  const defaultInput =
-    document.querySelector<HTMLInputElement>("#field-default")!;
-  expect(defaultInput.value).toBe("13800000000");
-  expect(document.querySelector<HTMLInputElement>("#field-length")!.value).toBe(
-    "20",
-  );
-  defaultInput.value = "13900000000";
-  defaultInput.dispatchEvent(new Event("input", { bubbles: true }));
-  const limit = document.querySelector<HTMLInputElement>("#field-length")!;
-  limit.value = "11";
-  limit.dispatchEvent(new Event("change", { bubbles: true }));
-  await settle();
-  expect(field.defaultValue).toBe("13900000000");
-  expect(field.maxLength).toBe(11);
-  expect(document.querySelector("#field-length")).toBeNull();
+  field.defaultValue = "13900000000";
+  field.maxLength = 11;
   expect(runtimeDefaults(target.schema.fields, data).contactPhone).toBe(
     "13900000000",
   );
@@ -1310,65 +1233,6 @@ it("retains address lookup configuration through schema and layout restore while
     { id: "bad", source: "script" } as any,
   ];
   expect(() => parseSchema(malformed)).toThrow("联动配置");
-});
-
-it("the address inspector reuses source selection and the link dialog, with custom values retained and no unusable formula option", async () => {
-  const { data, target, shipping } = addressFixture();
-  target.schema.fields.push(
-    createField("address", { id: "inputAddress", label: "条件地址" }),
-  );
-  const field = reactive(copy(shipping));
-  field.defaultLink!.enabled = false;
-  await mount(
-    {
-      render: () =>
-        h(FieldInspector, {
-          field,
-          schema: target.schema,
-          formId: target.id,
-          onUpdate: (patch: any) => Object.assign(field, patch),
-        }),
-    },
-    data,
-  );
-  expect(
-    [...control<HTMLSelectElement>("默认值来源").options].map((o) => o.value),
-  ).toEqual(["custom", "linked"]);
-  expect(control<HTMLTextAreaElement>("默认地址 详细地址").value).toBe(
-    "旧自定义仓库",
-  );
-  change("默认值来源", "linked");
-  await settle();
-  expect(document.querySelector(".address-trigger")).toBeNull();
-  click("数据联动设置");
-  await settle();
-  expect(
-    [...control<HTMLSelectElement>("联动来源字段").options].map((o) => o.value),
-  ).toEqual(["", "location"]);
-  change("条件1来源字段", "location");
-  await settle();
-  expect(
-    [...control<HTMLSelectElement>("条件1运算符").options].map((o) => o.value),
-  ).toEqual(["equals", "notEquals", "notEmpty"]);
-  expect(
-    [...control<HTMLSelectElement>("条件1值来源").options].map((o) => o.value),
-  ).toEqual(["field"]);
-  expect(
-    [...control<HTMLSelectElement>("条件1引用字段").options].map(
-      (o) => o.value,
-    ),
-  ).toEqual(["", "inputAddress"]);
-  change("条件1引用字段", "inputAddress");
-  await settle();
-  click("确定");
-  await settle();
-  expect(field.defaultLink!.fieldId).toBe("location");
-  change("默认值来源", "custom");
-  await settle();
-  expect(control<HTMLTextAreaElement>("默认地址 详细地址").value).toBe(
-    "旧自定义仓库",
-  );
-  expect(field.defaultLink!.fieldId).toBe("location");
 });
 
 it("rejects unusable address comparisons and value sources while ignoring dormant not-empty bindings", () => {

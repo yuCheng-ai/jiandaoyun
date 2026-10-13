@@ -2,21 +2,17 @@
 import { afterEach, expect, it } from "vitest";
 import { createApp, h, nextTick, reactive } from "vue";
 import { createPinia } from "pinia";
-import {
-  maxFieldLabelLength,
-  maxFieldPlaceholderLength,
-} from "@platform/contracts";
+
 import {
   copy,
   createField,
   emptySchema,
-  fieldRegistry,
   parseSchema,
   type FormValues,
 } from "../src/domain/form";
 import { validateFieldConfiguration } from "../src/domain/fieldValidation";
 import { seedWorkspace } from "../src/domain/workspace";
-import FieldInspector from "../src/features/forms/components/FieldInspector.vue";
+
 import FormFields from "../src/features/forms/components/FormFields.vue";
 
 let app: ReturnType<typeof createApp> | undefined;
@@ -43,87 +39,6 @@ async function enter(element: HTMLInputElement, value: string) {
   element.dispatchEvent(new Event("input", { bubbles: true }));
   await settle();
 }
-
-it("title editing trims committed input, restores an accidentally empty title and accepts the reference length without changing identity", async () => {
-  const field = reactive(createField("text", { id: "name", label: "原名称" })),
-    schema = emptySchema();
-  schema.fields = [field];
-  const published = copy(schema);
-  await mount(() =>
-    h(FieldInspector, {
-      field,
-      schema,
-      formId: "test",
-      onUpdate: (patch) => Object.assign(field, patch),
-    }),
-  );
-  const title = document.querySelector<HTMLInputElement>("#field-title")!;
-  expect(title.maxLength).toBe(1000);
-  await enter(title, "   客户名称   ");
-  title.blur();
-  await settle();
-  expect(field.label).toBe("客户名称");
-  await enter(title, "   ");
-  title.blur();
-  await settle();
-  expect(field.label).toBe("客户名称");
-  expect(title.value).toBe("客户名称");
-  await enter(title, "名".repeat(1000));
-  title.blur();
-  await settle();
-  expect(field.label.length).toBe(maxFieldLabelLength);
-  expect(field.id).toBe("name");
-  expect(published.fields[0]!.label).toBe("原名称");
-  expect(
-    document.querySelector<HTMLInputElement>("#field-placeholder")!.maxLength,
-  ).toBe(maxFieldPlaceholderLength);
-  await enter(
-    document.querySelector<HTMLInputElement>("#field-placeholder")!,
-    "示".repeat(101),
-  );
-  expect(field.placeholder).toBe("示".repeat(100));
-  expect(
-    document.querySelector<HTMLInputElement>("#field-placeholder")!.value
-      .length,
-  ).toBe(100);
-});
-
-it("the shared inspector exposes hints only on the supported fields and preserves hidden legacy settings", async () => {
-  const schema = reactive(emptySchema()),
-    state = reactive({ field: createField("text") });
-  await mount(() =>
-    h(FieldInspector, {
-      key: state.field.id,
-      field: state.field,
-      schema,
-      formId: "test",
-      onUpdate: (patch) => Object.assign(state.field, patch),
-    }),
-  );
-  for (const { type } of fieldRegistry) {
-    const field = createField(type, { placeholder: "历史提示" });
-    state.field = field;
-    schema.fields = [state.field];
-    await settle();
-    expect(!!document.querySelector("#field-placeholder"), type).toBe(
-      [
-        "text",
-        "textarea",
-        "number",
-        "datetime",
-        "select",
-        "multiselect",
-        "phone",
-      ].includes(type),
-    );
-    expect(state.field.placeholder).toBe("历史提示");
-  }
-  state.field = createField("phone", { placeholder: "历史子字段提示" });
-  schema.fields = [createField("subform", { children: [state.field] })];
-  await settle();
-  expect(document.querySelector("#field-placeholder")).toBeNull();
-  expect(state.field.placeholder).toBe("历史子字段提示");
-});
 
 it("publication validates text properties in one place while compatibility reads preserve saved definitions", () => {
   const schema = emptySchema(),

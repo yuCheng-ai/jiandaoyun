@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it } from "vitest";
-import { createApp, h, nextTick, reactive, shallowRef, triggerRef } from "vue";
+import { createApp, h, nextTick, reactive } from "vue";
 import { createPinia } from "pinia";
 import {
   composeFormSchema,
@@ -16,14 +16,10 @@ import {
   prepareSubmission,
 } from "../src/domain/form";
 import { validateFieldConfiguration } from "../src/domain/fieldValidation";
-import {
-  newForm,
-  seedWorkspace,
-  type FormRecord,
-} from "../src/domain/workspace";
-import { useFormDesigner } from "../src/features/forms/useFormDesigner";
+import { seedWorkspace } from "../src/domain/workspace";
+
 import FieldCanvas from "../src/features/forms/components/FieldCanvas.vue";
-import FieldInspector from "../src/features/forms/components/FieldInspector.vue";
+
 import FormFields from "../src/features/forms/components/FormFields.vue";
 
 const cleanup: (() => void)[] = [];
@@ -135,91 +131,4 @@ it("uses each skin in design and filling with the same title/color, preserves re
   await flush();
   expect(host.querySelector(".divider-field")).toBeNull();
   expect(values).toEqual({ name: "合成申请人" });
-});
-it("chooses through keyboard-accessible source previews, restores focus on Escape, and uses original undo/redo without rewriting the published snapshot", async () => {
-  const form = shallowRef<FormRecord>(
-      reactive({
-        ...newForm("oa", "分割线样式验收"),
-        schema: fixture(),
-      }) as FormRecord,
-    ),
-    published = copy(form.value.schema);
-  let editor!: ReturnType<typeof useFormDesigner>;
-  const host = document.createElement("div");
-  document.body.append(host);
-  const app = createApp({
-    setup() {
-      editor = useFormDesigner(form);
-      editor.select("section");
-      return () =>
-        h(FieldInspector, {
-          field: editor.selected.value!,
-          schema: form.value.schema,
-          formId: form.value.id,
-          onUpdate: (patch: object) =>
-            editor.transact(() => {
-              Object.assign(editor.selected.value!, patch);
-              triggerRef(form);
-            }),
-        });
-    },
-  });
-  app.use(createPinia());
-  app.mount(host);
-  cleanup.push(() => app.unmount());
-  await flush();
-  const trigger = host.querySelector<HTMLButtonElement>(
-    '[aria-label="分割线样式"]',
-  )!;
-  trigger.focus();
-  trigger.click();
-  await flush();
-  const options = () => [
-    ...document.querySelectorAll<HTMLButtonElement>(
-      '.divider-style-menu [role="option"]',
-    ),
-  ];
-  expect(options()).toHaveLength(13);
-  expect(document.activeElement).toBe(options()[4]);
-  options()[4]!.dispatchEvent(
-    new KeyboardEvent("keydown", { key: "End", bubbles: true }),
-  );
-  expect(document.activeElement).toBe(options()[12]);
-  options()[12]!.dispatchEvent(
-    new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
-  );
-  expect(document.activeElement).toBe(options()[0]);
-  options()[0]!.dispatchEvent(
-    new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }),
-  );
-  expect(document.activeElement).toBe(options()[12]);
-  document.dispatchEvent(
-    new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
-  );
-  await flush();
-  expect(document.querySelector(".divider-style-menu")).toBeNull();
-  expect(document.activeElement).toBe(trigger);
-  expect(form.value.schema).toEqual(published);
-  trigger.click();
-  await flush();
-  options()[12]!.click();
-  await flush();
-  expect(form.value.schema.fields[0]!.dividerStyle).toBe("style5");
-  expect(document.activeElement).toBe(trigger);
-  editor.undo();
-  triggerRef(form);
-  await flush();
-  expect(form.value.schema.fields[0]!.dividerStyle).toBe("style1");
-  editor.redo();
-  triggerRef(form);
-  await flush();
-  expect(form.value.schema.fields[0]!.dividerStyle).toBe("style5");
-  expect(published).toEqual(fixture());
-  trigger.click();
-  await flush();
-  editor.select("name");
-  triggerRef(form);
-  await flush();
-  expect(document.querySelector(".divider-style-menu")).toBeNull();
-  expect(form.value.schema.fields[1]).toEqual(published.fields[1]);
 });

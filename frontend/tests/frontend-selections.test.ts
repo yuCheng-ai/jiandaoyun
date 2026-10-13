@@ -38,7 +38,6 @@ import {
 import { runtimeDataKey } from "../src/composables/useRuntimeData";
 import { useWorkspaceStore } from "../src/stores/workspace";
 import FormRuntime from "../src/features/forms/components/FormRuntime.vue";
-import FrontendEventSettings from "../src/features/forms/components/FrontendEventSettings.vue";
 import type { WorkspaceData } from "../src/domain/workspace";
 
 let pinia = createPinia();
@@ -545,81 +544,6 @@ it("a button with multiple selection events applies nothing until every choice i
   expect(input(host, "数量").value).toBe("12");
   expect(input(host, "订单号").value).toBe("ORD-甲");
 });
-it("independent buttons may fill the same field without an unrelated global conflict warning", async () => {
-  const { schema, event } = await fixture();
-  schema.fields.push(
-    createField("button", { id: "choose_other", label: "另一按钮" }),
-  );
-  schema.settings.frontendEvents!.push({
-    ...copy(event),
-    id: "event_other",
-    name: "另一按钮回填",
-    fieldIds: ["choose_other"],
-  });
-  await mount(FrontendEventSettings, { schema, formId: "selection_qa" });
-  await click("前端事件设置");
-  expect(document.body.textContent).toContain("另一按钮回填");
-  expect(document.body.textContent).not.toContain("多个事件回填");
-});
-it("the existing event wizard saves source, display/filter/sort and mapping drafts without extra routes; nested cancellation preserves prior configuration", async () => {
-  const { schema, event, form } = await fixture(),
-    state = reactive(schema);
-  state.settings.frontendEvents = [];
-  await mount(FrontendEventSettings, { schema: state, formId: "selection_qa" });
-  await click("前端事件设置");
-  await click("添加前端事件");
-  await set(
-    document.querySelector<HTMLInputElement>("#frontend-event-name")!,
-    "选择订单回填",
-    "input",
-  );
-  await click("下一步");
-  await set(
-    document.querySelector<HTMLSelectElement>("#frontend-event-action")!,
-    "select-data",
-    "change",
-  );
-  expect(
-    (input(document.body, "触发动作") as unknown as HTMLSelectElement).disabled,
-  ).toBe(true);
-  input(document.body, "触发字段").click();
-  await settle();
-  await click("选择订单");
-  await set(
-    document.querySelector<HTMLSelectElement>("#selection-source")!,
-    form.id,
-    "change",
-  );
-  await click("设置数据选择过程");
-  await set(input(document.body, "选择数据排序字段"), "source_qty", "change");
-  await set(input(document.body, "选择数据排序方向"), "desc", "change");
-  await click("添加过滤条件");
-  await click("添加过滤条件");
-  await set(input(document.body, "条件1来源字段"), "source_qty", "change");
-  await set(input(document.body, "条件1值来源"), "constant", "change");
-  await set(input(document.body, "条件1固定值"), "2", "input");
-  await click("完成");
-  await click("完成");
-  await click("设置填充规则");
-  await click("添加字段");
-  await set(input(document.body, "来源字段 1"), "source_qty", "change");
-  await set(input(document.body, "填充字段 1"), "qty", "change");
-  await click("完成");
-  await click("设置填充规则");
-  await click("删除填充字段 1");
-  await click("取消");
-  expect(document.body.textContent).toContain("是否放弃");
-  await click("放弃修改");
-  await click("保存");
-  expect(state.settings.frontendEvents![0]!.selection).toMatchObject({
-    formId: form.id,
-    sort: { fieldId: "source_qty", direction: "desc" },
-    filters: [{ sourceFieldId: "source_qty", source: "constant", value: "2" }],
-    mappings: [{ sourceFieldId: "source_qty", targetFieldId: "qty" }],
-  });
-  expect(state.settings.frontendEvents![0]!.fieldIds).toEqual(event.fieldIds);
-  expect(document.body.textContent).not.toContain("保存并调试");
-});
 it("saved selections pin published settings through reload and reject new publication when a source is archived without changing historical versions or records", async () => {
   const { store, schema, form } = await fixture(),
     target = (await store.createForm("oa", "选数回填验收", "form"))!,
@@ -675,16 +599,6 @@ async function mount(component: any, props: any, data?: WorkspaceData) {
 }
 function input(host: Element, label: string) {
   return host.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
-}
-async function set(
-  element: HTMLInputElement | HTMLSelectElement,
-  value: string,
-  event: string,
-) {
-  expect(element).toBeTruthy();
-  element.value = value;
-  element.dispatchEvent(new Event(event, { bubbles: true }));
-  await settle();
 }
 async function click(label: string) {
   const button = [

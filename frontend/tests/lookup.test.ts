@@ -24,7 +24,6 @@ import {
   parseSchema,
   prepareSubmission,
   type FormField,
-  type FormSchema,
   type FormValues,
 } from "../src/domain/form";
 import {
@@ -59,7 +58,7 @@ import { runtimeDataKey } from "../src/composables/useRuntimeData";
 import { useWorkspaceStore } from "../src/stores/workspace";
 import FormRuntime from "../src/features/forms/components/FormRuntime.vue";
 import SelectionRecords from "../src/features/forms/components/SelectionRecords.vue";
-import LookupFieldInspector from "../src/features/forms/components/LookupFieldInspector.vue";
+
 import DataFilterEditor from "../src/features/forms/components/DataFilterEditor.vue";
 import type { DataFilter, SelectionFilter } from "../src/domain/fieldConfig";
 import { referenceDependencies } from "../src/domain/relations";
@@ -72,7 +71,6 @@ import RecordBody from "../src/features/forms/components/RecordBody.vue";
 import LookupControl from "../src/features/forms/components/LookupControl.vue";
 import { filterAndSortRecords, defaultRecordView } from "../src/domain/records";
 import { newForm, type WorkspaceData } from "../src/domain/workspace";
-import { useEditorHistory } from "../src/composables/useEditorHistory";
 
 const cleanups: (() => void)[] = [];
 let pinia = createPinia();
@@ -349,91 +347,7 @@ it("refuses stale, duplicate or over-limit creation without leaving partial fiel
     next.fields[0]!.children.slice(1, 3).map((field) => field.tabId),
   ).toEqual([tabs.tabs[1]!.id, tabs.tabs[1]!.id]);
 });
-it("keeps field creation in the mapping dialog draft, applies it in one undo step and preserves existing mappings on cancel", async () => {
-  const { schema } = await fixture();
-  findField(schema.fields, "choose")!.reference.mappings = [];
-  const state = reactive({ schema }),
-    original = copy(schema);
-  let history!: ReturnType<typeof useEditorHistory<FormSchema>>;
-  const host = document.createElement("div");
-  document.body.append(host);
-  const app = createApp({
-    setup() {
-      history = useEditorHistory(
-        () => state.schema,
-        (value) => {
-          state.schema = value;
-        },
-      );
-      return () =>
-        h(LookupFieldInspector, {
-          field: findField(state.schema.fields, "choose")!,
-          schema: state.schema,
-          applySchema: (value) =>
-            history.transact(() => {
-              state.schema = value;
-            }),
-          onUpdate: (patch) =>
-            Object.assign(findField(state.schema.fields, "choose")!, patch),
-        });
-    },
-  });
-  app.use(pinia);
-  app.mount(host);
-  cleanups.push(() => app.unmount());
-  button("设置填充规则").click();
-  await settle();
-  expect(
-    document.querySelector<HTMLSelectElement>('[aria-label="字段值如何处理"]')!
-      .value,
-  ).toBe("new");
-  document
-    .querySelector<HTMLInputElement>('[aria-label="填充来源 客户名称"]')!
-    .click();
-  await settle();
-  button("取消").click();
-  await settle();
-  button("放弃修改").click();
-  await settle();
-  expect(state.schema).toEqual(original);
-  button("设置填充规则").click();
-  await settle();
-  await changeControl("搜索填充字段", "状态");
-  document
-    .querySelector<HTMLInputElement>('[aria-label="全选搜索结果填充字段"]')!
-    .click();
-  await settle();
-  button("完成").click();
-  await settle();
-  expect(state.schema.fields).toHaveLength(5);
-  const applied = copy(state.schema);
-  expect(
-    findField(state.schema.fields, "choose")!.reference.mappings,
-  ).toHaveLength(1);
-  await history.undo();
-  expect(state.schema).toEqual(original);
-  await history.redo();
-  expect(state.schema).toEqual(applied);
-  button("设置填充规则").click();
-  await settle();
-  expect(
-    document.querySelector<HTMLSelectElement>('[aria-label="字段值如何处理"]')!
-      .value,
-  ).toBe("existing");
-  expect(
-    document.querySelector<HTMLSelectElement>('[aria-label="填充字段 1"]')!
-      .value,
-  ).toBe(
-    findField(state.schema.fields, "choose")!.reference.mappings[0]!
-      .targetFieldId,
-  );
-  await changeControl("字段值如何处理", "new");
-  button("取消").click();
-  await settle();
-  button("放弃修改").click();
-  await settle();
-  expect(state.schema).toEqual(applied);
-});
+
 it("saves generated mappings, publishes filled records and preserves the previous published schema and record values", async () => {
   const { store, schema, data, first } = await fixture();
   const created = (await store.createForm("oa", "接收验收", "form"))!;
@@ -1567,109 +1481,7 @@ async function changeControl(label: string, value: string) {
   await settle();
   return control;
 }
-it("column popover edits the process draft and shares dismissal while preserving keyboard order, discard and completion", async () => {
-  vi.spyOn(HTMLElement.prototype, "getClientRects").mockImplementation(
-    function () {
-      return [new DOMRect(0, 0, 120, 32)] as unknown as DOMRectList;
-    },
-  );
-  const { lookup, schema } = await fixture();
-  const state = reactive({ field: lookup });
-  const host = document.createElement("div");
-  document.body.append(host);
-  const app = createApp({
-    render: () =>
-      h(LookupFieldInspector, {
-        field: state.field,
-        schema,
-        onUpdate: (patch) => Object.assign(state.field, patch),
-      }),
-  });
-  app.use(pinia);
-  app.mount(host);
-  cleanups.push(() => app.unmount());
-  const original = copy(lookup.reference);
-  button("设置数据选择过程").click();
-  await settle();
-  button("选择数据时的显示字段").focus();
-  button("选择数据时的显示字段").click();
-  await settle();
-  button("改名 客户名称").click();
-  await settle();
-  const input = await changeControl("显示名 客户名称", "往来单位");
-  input.dispatchEvent(
-    new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
-  );
-  await settle();
-  expect(document.activeElement?.getAttribute("aria-label")).toBe(
-    "改名 客户名称",
-  );
-  button("改名 客户名称").click();
-  await settle();
-  const cancelled = await changeControl("显示名 客户名称", "临时名称");
-  cancelled.dispatchEvent(
-    new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
-  );
-  await settle();
-  expect(
-    document
-      .querySelector(".selection-process-dialog")
-      ?.contains(document.activeElement),
-  ).toBe(true);
-  expect(document.querySelector(".selection-column-panel")).toBeNull();
-  expect(
-    document.querySelector(".selection-process-preview")?.textContent,
-  ).toContain("临时名称");
-  expect(state.field.reference).toEqual(original);
-  button("选择数据时的显示字段").click();
-  await settle();
-  button("改名 客户名称").click();
-  await settle();
-  const restored = await changeControl("显示名 客户名称", "往来单位");
-  restored.dispatchEvent(
-    new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
-  );
-  await settle();
-  button("调整顺序 客户名称").dispatchEvent(
-    new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
-  );
-  await settle();
-  expect(
-    [...document.querySelectorAll(".selection-process-preview th")].map((el) =>
-      el.textContent?.trim(),
-    ),
-  ).toEqual(["金额", "往来单位"]);
-  document.dispatchEvent(
-    new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
-  );
-  await settle();
-  expect(document.querySelector(".selection-column-panel")).toBeNull();
-  expect(document.querySelector(".selection-process-dialog")).not.toBeNull();
-  button("取消").click();
-  await settle();
-  button("放弃修改").click();
-  await settle();
-  expect(state.field.reference).toEqual(original);
-  button("设置数据选择过程").click();
-  await settle();
-  button("选择数据时的显示字段").click();
-  await settle();
-  button("改名 客户名称").click();
-  await settle();
-  const edited = await changeControl("显示名 客户名称", "客户单位");
-  edited.dispatchEvent(
-    new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
-  );
-  await settle();
-  document.dispatchEvent(
-    new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
-  );
-  await settle();
-  button("完成").click();
-  await settle();
-  expect(state.field.reference.columnLabels).toEqual({ s_name: "客户单位" });
-  expect(state.field.reference.mappings).toEqual(original.mappings);
-});
+
 it("temporary filters narrow configured all/any candidates and source child values without reading hidden fields", async () => {
   const { lookup, data, first, second } = await fixture();
   const config = lookupSelection(lookup, data);

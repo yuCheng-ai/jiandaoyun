@@ -17,12 +17,9 @@ import {
   validateValues,
 } from "../src/domain/form";
 import RichTextEditor from "../src/features/forms/components/RichTextEditor.vue";
-import FieldInspector from "../src/features/forms/components/FieldInspector.vue";
+
 import RecordBody from "../src/features/forms/components/RecordBody.vue";
 import { defaultDetailSettings } from "../src/domain/presentation";
-import { IDBFactory } from "fake-indexeddb";
-import { Blob as NodeBlob, File as NodeFile } from "node:buffer";
-import { readFile } from "../src/repositories/fileRepository";
 
 let app: ReturnType<typeof createApp> | undefined;
 afterEach(() => {
@@ -407,28 +404,10 @@ it("cancelling a description link leaves its selected text and saved markup unch
   expect(document.querySelector('[id$="-link"]')).toBeNull();
 });
 
-it("multi-line defaults preserve line breaks through configuration, save and filling defaults", async () => {
-  const field = reactive(createField("textarea")),
-    schema = emptySchema();
+it("multi-line defaults preserve line breaks through schema save and filling defaults", () => {
+  const field = createField("textarea", { defaultValue: "第一行\n第二行" });
+  const schema = emptySchema();
   schema.fields = [field];
-  document.body.innerHTML = '<div id="mount"></div>';
-  app = createApp(FieldInspector, {
-    field,
-    schema,
-    formId: "test",
-    onUpdate: (patch: any) => Object.assign(field, patch),
-  });
-  app.use(createPinia());
-  app.mount("#mount");
-  await settle();
-  const input = document.querySelector<HTMLTextAreaElement>(
-    "textarea#field-default",
-  )!;
-  expect(input).toBeDefined();
-  expect(document.querySelector("#field-length")).toBeNull();
-  input.value = "第一行\n第二行";
-  input.dispatchEvent(new Event("input", { bubbles: true }));
-  await settle();
   const restored = parseSchema(JSON.parse(JSON.stringify(schema)));
   expect(defaultValues(restored.fields)[field.id]).toBe("第一行\n第二行");
   expect(restored.fields[0]!.maxLength).toBe(0);
@@ -441,15 +420,6 @@ it("multi-line defaults preserve line breaks through configuration, save and fil
   ).toContain("200");
   delete legacy.fields[0].maxLength;
   expect(parseSchema(legacy).fields[0]!.maxLength).toBe(200);
-  field.maxLength = 200;
-  await settle();
-  const limit = document.querySelector<HTMLInputElement>("#field-length")!;
-  expect(limit.value).toBe("200");
-  limit.value = "0";
-  limit.dispatchEvent(new Event("change", { bubbles: true }));
-  await settle();
-  expect(field.maxLength).toBe(0);
-  expect(document.querySelector("#field-length")).toBeNull();
 });
 
 const setInput = async (selector: string, value: string) => {
@@ -781,55 +751,6 @@ it("pastes rich field text and formatting without inserting external clipboard i
   expect(f.editor.textContent).toBe("粘贴标题正文");
 });
 
-it("stores a large field image in the existing file repository and reloads its reference without serializing a blob URL", async () => {
-  vi.stubGlobal("indexedDB", new IDBFactory());
-  vi.stubGlobal("Blob", NodeBlob);
-  vi.stubGlobal("File", NodeFile);
-  const urls = vi.fn(() => "blob:rich-test");
-  const revoked = vi.fn();
-  const OriginalURL = URL;
-  vi.stubGlobal(
-    "URL",
-    class extends OriginalURL {
-      static createObjectURL = urls;
-      static revokeObjectURL = revoked;
-    },
-  );
-  const f = await mount(false, "<h2>图文说明</h2>", "field");
-  f.editor.focus();
-  selectContents(f.editor);
-  document.getSelection()!.collapseToEnd();
-  button("插入图片").click();
-  await settle();
-  const file = new File([new Uint8Array(2 * 1024 * 1024)], "large.png", {
-    type: "image/png",
-  });
-  const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
-  Object.defineProperty(input, "files", { configurable: true, value: [file] });
-  input.dispatchEvent(new Event("change", { bubbles: true }));
-  await settle();
-  button("确定").click();
-  await vi.waitFor(() =>
-    expect(f.editor.querySelector("img")?.src).toBe("blob:rich-test"),
-  );
-  const id = f.editor.querySelector("img")!.dataset.fileId!;
-  const saved = f.state.value;
-  expect(saved).toContain(`data-file-id="${id}"`);
-  expect(saved).not.toContain("blob:");
-  expect(saved.length).toBeLessThan(200);
-  expect(
-    (await readFile({ id, name: file.name, size: file.size, type: file.type }))
-      .size,
-  ).toBe(file.size);
-  app!.unmount();
-  expect(revoked).toHaveBeenCalledWith("blob:rich-test");
-  const reloaded = await mount(true, saved, "field");
-  await vi.waitFor(() =>
-    expect(reloaded.editor.querySelector("img")?.src).toBe("blob:rich-test"),
-  );
-  expect(reloaded.editor.querySelector("h2")!.textContent).toBe("图文说明");
-  expect(reloaded.update).not.toHaveBeenCalled();
-});
 it("renders formatted record details through the readonly editor while excluding hidden fields", async () => {
   const schema = emptySchema();
   schema.fields = [

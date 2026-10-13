@@ -5,10 +5,12 @@ import { uuid } from "../../core/database/schema";
 
 /** 递归将对象属性按字典序排列，用于生成稳定的请求负载摘要 */
 function canonical(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonical);
+  if (Array.isArray(value)) {
+    return value.map(canonical);
+  }
   if (value && typeof value === "object") {
     const sortedEntries = Object.entries(value)
-      .sort(([a], [b]) => a.localeCompare(b))
+      .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
       .map(([key, item]) => [key, canonical(item)]);
     return Object.fromEntries(sortedEntries);
   }
@@ -27,31 +29,39 @@ export async function once(
   requestId: unknown,
   payload: unknown,
   execute: () => Promise<string>,
-) {
+): Promise<string> {
   uuid(requestId);
-  await tx.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`${actor.id}:${requestId}`]);
+  await tx.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
+    `${actor.id}:${requestId}`,
+  ]);
 
-  const hash = `v2:${tokenHash(JSON.stringify(canonical(payload)))}`;
-  const { rows } = await tx.query(
-    "SELECT * FROM commands WHERE actor_id=$1 AND request_id=$2",
+  const requestHash = `v2:${tokenHash(JSON.stringify(canonical(payload)))}`;
+  const { rows } = await tx.query<{
+    request_hash: string;
+    resource_id: string;
+  }>(
+    "SELECT request_hash, resource_id FROM commands WHERE actor_id = $1 AND request_id = $2",
     [actor.id, requestId],
   );
   const prior = rows[0];
 
   if (prior) {
-    const expected = prior.request_hash.startsWith("v2:")
-      ? hash
-      : tokenHash(JSON.stringify(payload));
-    if (prior.request_hash !== expected) {
+    // 已入库的旧摘要按原算法校验，避免升级后把相同内容的重试误判为冲突。
+    let expectedHash = requestHash;
+    if (!prior.request_hash.startsWith("v2:")) {
+      expectedHash = tokenHash(JSON.stringify(payload));
+    }
+    if (prior.request_hash !== expectedHash) {
       throw new ConflictException("同一提交标识不能用于不同内容");
     }
-    return prior.resource_id as string;
+    return prior.resource_id;
   }
 
-  const id = await execute();
+  const resourceId = await execute();
   await tx.query(
-    "INSERT INTO commands(actor_id,request_id,request_hash,resource_id) VALUES($1,$2,$3,$4)",
-    [actor.id, requestId, hash, id],
+    `INSERT INTO commands (actor_id, request_id, request_hash, resource_id)
+     VALUES ($1, $2, $3, $4)`,
+    [actor.id, requestId, requestHash, resourceId],
   );
-  return id;
+  return resourceId;
 }

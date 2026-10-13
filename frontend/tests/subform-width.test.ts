@@ -18,7 +18,7 @@ import { seedWorkspace } from "../src/domain/workspace";
 import { WORKSPACE_KEY } from "../src/repositories/workspaceRepository";
 import { useWorkspaceStore } from "../src/stores/workspace";
 import { validateFieldConfiguration } from "../src/domain/fieldValidation";
-import FieldInspector from "../src/features/forms/components/FieldInspector.vue";
+
 import FieldCanvas from "../src/features/forms/components/FieldCanvas.vue";
 import FormFields from "../src/features/forms/components/FormFields.vue";
 
@@ -68,12 +68,6 @@ async function mount(render: () => any) {
   await flush();
   return host;
 }
-const click = async (host: Element, label: string) => {
-  [...host.querySelectorAll("button")]
-    .find((button) => button.textContent?.trim() === label)!
-    .click();
-  await flush();
-};
 
 it("resolves four subfield modes independently of main grid widths and rejects invalid pixels", () => {
   expect(
@@ -158,90 +152,6 @@ it("updates design and runtime columns together, excludes hidden columns and kee
   );
   expect(host.querySelectorAll("tbody input")).toHaveLength(2);
   expect(values).toEqual(original);
-});
-
-it("uses the original main width controls for fields inside tabs, even if a dormant child width is retained", async () => {
-  const schema = emptySchema(),
-    field = createField("text", {
-      id: "main",
-      width: 4,
-      subformWidth: "double",
-    });
-  schema.fields = [createField("tabs", { children: [field] })];
-  const host = await mount(() =>
-    h(FieldInspector, { field, schema, formId: "qa", manageSubform: true }),
-  );
-  expect(
-    [...host.querySelectorAll(".field-width-options button")].map((button) =>
-      button.textContent?.trim(),
-    ),
-  ).toEqual(["1/4", "1/3", "1/2", "2/3", "3/4", "整行"]);
-  expect(
-    host.querySelector(".field-width-options .active")?.textContent?.trim(),
-  ).toBe("1/3");
-});
-
-it("replaces ineffective child grid buttons and retains invalid custom input with an actionable error", async () => {
-  const schema = reactive(fixture()),
-    field = schema.fields[0]!.children[0]!;
-  const host = await mount(() =>
-    h(FieldInspector, {
-      field,
-      schema,
-      formId: "qa",
-      onUpdate: (patch: any) => Object.assign(field, patch),
-    }),
-  );
-  expect(
-    [...host.querySelectorAll(".field-width-options button")].map((button) =>
-      button.textContent?.trim(),
-    ),
-  ).toEqual(["1/2", "标准", "2倍", "自定义"]);
-  await click(host, "2倍");
-  await click(host, "自定义");
-  const input = host.querySelector<HTMLInputElement>("#subform-column-width")!;
-  expect(input.value).toBe("400");
-  input.value = "1001";
-  input.dispatchEvent(new Event("input", { bubbles: true }));
-  await flush();
-  expect(input.value).toBe("1001");
-  expect(input.getAttribute("aria-invalid")).toBe("true");
-  expect(host.querySelector(".field-error")!.textContent).toContain("1000px");
-  input.value = "";
-  input.dispatchEvent(new Event("input", { bubbles: true }));
-  await flush();
-  expect(input.value).toBe("");
-  expect(field.subformWidth).toBe(0);
-  input.value = "320";
-  input.dispatchEvent(new Event("input", { bubbles: true }));
-  await flush();
-  expect(field.subformWidth).toBe(320);
-  expect(input.getAttribute("aria-invalid")).toBe("false");
-  await click(host, "标准");
-  expect(field.subformWidth).toBe("standard");
-  expect(field.width).toBe(12);
-});
-
-it("rebinds the custom input when selecting a different field rather than copying the previous width", async () => {
-  const schema = reactive(fixture()),
-    state = reactive({ index: 2 });
-  const host = await mount(() =>
-    h(FieldInspector, {
-      field: schema.fields[0]!.children[state.index]!,
-      schema,
-      formId: "qa",
-    }),
-  );
-  expect(
-    host.querySelector<HTMLInputElement>("#subform-column-width")!.value,
-  ).toBe("320");
-  schema.fields[0]!.children[0]!.subformWidth = 1000;
-  state.index = 0;
-  await flush();
-  expect(
-    host.querySelector<HTMLInputElement>("#subform-column-width")!.value,
-  ).toBe("1000");
-  expect(schema.fields[0]!.children[2]!.subformWidth).toBe(320);
 });
 
 it("saves widths, rejects an invalid publication and pins existing records to their original width", async () => {

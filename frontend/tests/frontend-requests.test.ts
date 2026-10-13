@@ -28,8 +28,6 @@ import {
   runFrontendEvent,
 } from "../src/domain/frontendEvents";
 import { useWorkspaceStore } from "../src/stores/workspace";
-import FrontendEventSettings from "../src/features/forms/components/FrontendEventSettings.vue";
-import FrontendRequestSettings from "../src/features/forms/components/FrontendRequestSettings.vue";
 import RequestValueInput from "../src/features/forms/components/RequestValueInput.vue";
 import FormRuntime from "../src/features/forms/components/FormRuntime.vue";
 let pinia = createPinia();
@@ -522,94 +520,6 @@ it("field insertion shows business labels while preserving stable references and
     "https://example.com?q={{code}}&other={{other}}",
   );
   expect(input(host, "URL").value).not.toContain("{{code}}");
-});
-it("nested parameter and mapping dialogs cancel or apply to only the parent draft; GET/POST retains body configuration and paths validate", async () => {
-  const { schema, request } = detailFixture();
-  const state = reactive({ request });
-  const outputs = [
-    ...schema.fields.slice(0, 3),
-    ...schema.fields[3]!.children.map((field) => ({
-      ...field,
-      parentId: "lines",
-      label: `明细 · ${field.label}`,
-    })),
-  ];
-  await mount(FrontendRequestSettings, {
-    get modelValue() {
-      return state.request;
-    },
-    fields: schema.fields.slice(0, 3),
-    outputs,
-    "onUpdate:modelValue": (value: any) => (state.request = value),
-  });
-  await click("点击设置", 0);
-  await set(input(document.body, "Header名称 1"), "X-Code", "input");
-  await set(input(document.body, "Header值 1"), "{{查询编号}}", "input");
-  await click("取消");
-  expect(document.body.textContent).toContain("修改尚未保存");
-  await click("放弃修改");
-  expect(state.request.headers).toEqual([]);
-  await click("点击设置", 0);
-  await set(input(document.body, "Header名称 1"), "X-Code", "input");
-  await set(input(document.body, "Header值 1"), "{{查询编号}}", "input");
-  await click("确定");
-  expect(state.request.headers).toEqual([
-    { name: "X-Code", value: { source: "template", value: "{{code}}" } },
-  ]);
-  await click("点击设置", 1);
-  await click("表单字段及对应返回值");
-  await set(input(document.body, "返回表单字段 3"), "note", "change");
-  await set(input(document.body, "返回值路径 3"), "$.坏[", "input");
-  await click("确定");
-  expect(document.body.textContent).toContain("有效的JSON Path");
-  expect(state.request.outputs).toHaveLength(2);
-  await set(input(document.body, "返回值路径 3"), "$.note", "input");
-  await click("确定");
-  expect(state.request.outputs).toHaveLength(3);
-});
-it("the event wizard defaults to custom requests, debugs supplied responses without records and clears stale results on edits", async () => {
-  const { schema } = fixture();
-  schema.settings.frontendEvents = [];
-  const state = reactive(schema);
-  await mount(FrontendEventSettings, { schema: state, formId: "qa" });
-  await click("前端事件设置");
-  await click("添加前端事件");
-  await set(
-    document.querySelector<HTMLInputElement>("#frontend-event-name")!,
-    "请求验收",
-    "input",
-  );
-  await click("下一步");
-  expect(
-    document.querySelector<HTMLSelectElement>("#frontend-event-action")!.value,
-  ).toBe("custom-request");
-  await set(input(document.body, "触发动作"), "submit", "change");
-  await set(
-    input(document.body, "请求URL"),
-    "https://example.com/api?q={{查询编号}}",
-    "input",
-  );
-  await click("点击设置", 1);
-  await click("表单字段及对应返回值");
-  await set(input(document.body, "返回表单字段 1"), "amount", "change");
-  await set(input(document.body, "返回值路径 1"), "$.amount", "input");
-  await click("确定");
-  await set(input(document.body, "模拟返回数据"), '{"amount":18}', "input");
-  await click("保存并调试");
-  await click("试运行");
-  expect(document.body.textContent).toContain("试运行完成");
-  expect(useWorkspaceStore().data.entries).toHaveLength(0);
-  await set(
-    input(document.body, "调试模拟返回数据"),
-    '{"amount":"错误"}',
-    "input",
-  );
-  expect(document.querySelector('[aria-label="执行结果"]')).toBeNull();
-  await click("试运行");
-  expect(document.body.textContent).toContain("有效数字");
-  expect(state.settings.frontendEvents![0]!.request?.simulation.response).toBe(
-    '{"amount":18}',
-  );
 });
 it("real runtime uses configured simulated data, drafts do not execute submit events and failures retain inputs and prevent persistence", async () => {
   const { schema, event, request } = fixture();

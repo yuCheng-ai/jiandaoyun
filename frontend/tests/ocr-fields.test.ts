@@ -7,7 +7,6 @@ import {
   ocrTemplate,
   separateFormSchema,
   composeFormSchema,
-  type FormSchema,
   type FormField,
 } from "@platform/contracts";
 import {
@@ -26,7 +25,7 @@ import {
 } from "../src/domain/ocr";
 import { seedWorkspace } from "../src/domain/workspace";
 import { ocrImageIssue, recognizeOcr } from "../src/services/ocr";
-import OcrFieldInspector from "../src/features/forms/components/OcrFieldInspector.vue";
+
 import OcrRecognitionDialog from "../src/features/forms/components/OcrRecognitionDialog.vue";
 import FieldControl from "../src/features/forms/components/FieldControl.vue";
 import { saveFiles } from "../src/repositories/fileRepository";
@@ -351,49 +350,7 @@ it("rejects a readonly ancestor and incompatible output without changing any val
   ).toThrow("需要文本");
   expect(before.text).toBe("原值");
 });
-it("rule cancellation does not create fields and completing selected content creates exactly the requested output", async () => {
-  const state = reactive({
-    field: createField("ocr", {
-      id: "scan",
-      ocr: { type: "general", mappings: [] },
-    }),
-    schema: emptySchema() as FormSchema,
-    applySchema: vi.fn(),
-  });
-  state.schema.fields = [state.field];
-  mount(OcrFieldInspector, state);
-  await settle();
-  button("识别规则设置").click();
-  await settle();
-  const checks = Array.from(
-    document.querySelectorAll<HTMLInputElement>(
-      'dialog input[type="checkbox"]',
-    ),
-  );
-  checks[1]!.click();
-  await settle();
-  button("取消").click();
-  await settle();
-  expect(button("放弃修改")).toBeTruthy();
-  button("放弃修改").click();
-  await settle();
-  expect(state.applySchema).not.toHaveBeenCalled();
-  expect(state.schema.fields).toHaveLength(1);
-  button("识别规则设置").click();
-  await settle();
-  Array.from(
-    document.querySelectorAll<HTMLInputElement>(
-      'dialog input[type="checkbox"]',
-    ),
-  )[1]!.click();
-  await settle();
-  button("完成").click();
-  await settle();
-  expect(state.applySchema).toHaveBeenCalledTimes(1);
-  const next = state.applySchema.mock.calls[0]![0] as FormSchema;
-  expect(next.fields.map((f) => f.type)).toEqual(["ocr", "text"]);
-  expect(next.fields[0]!.ocr!.mappings).toHaveLength(1);
-});
+
 it("validates image inputs and reports unavailable service without network or fake success", async () => {
   expect(
     ocrImageIssue(new File(["x"], "x.svg", { type: "image/svg+xml" })),

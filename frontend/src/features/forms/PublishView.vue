@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted } from "vue";
+import { computed, ref, onMounted, onBeforeUnmount } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import DesignerHeader from "../../components/shared/DesignerHeader.vue";
 import RecordGroupDialog from "../collaboration/RecordGroupDialog.vue";
@@ -8,10 +8,8 @@ import AppIcon from "../../components/AppIcon.vue";
 import BaseDialog from "../../components/BaseDialog.vue";
 import { useNotices } from "../../stores/notices";
 import { usePageDesignerStore } from "../../stores/pageDesigner";
-import { platformApi } from "../../repositories/platformApi";
 import {
   composeFormSchema,
-  type PageEditorData,
   type FormSchema,
   type ServerDefinition,
 } from "@platform/contracts";
@@ -24,15 +22,14 @@ const router = useRouter();
 const store = useNotices();
 const designerStore = usePageDesignerStore();
 
-const appId = computed(
-  () => String(route.params.applicationId || route.params.appId || ""),
-);
-const pageId = computed(
-  () => String(route.params.pageId || route.params.formId || ""),
-);
+const appId = computed(() => String(route.params.applicationId || ""));
+const pageId = computed(() => String(route.params.pageId || ""));
 
 const section = ref<"publish" | "access" | "collection" | "versions">("publish");
-const pageData = ref<PageEditorData>();
+const pageData = computed(() => {
+  const current = designerStore.data;
+  return current?.draft.id === pageId.value ? current : undefined;
+});
 const accessEditor = ref<InstanceType<typeof RecordGroupDialog>>();
 const collectionEditor = ref<InstanceType<typeof CollectionDialog>>();
 async function selectSection(next: typeof section.value) {
@@ -48,6 +45,10 @@ const error = ref("");
 const helpOpen = ref(false);
 const qrOpen = ref(false);
 const copied = ref(false);
+let active = true;
+onBeforeUnmount(() => {
+  active = false;
+});
 
 const fillUrl = computed(
   () =>
@@ -83,19 +84,13 @@ const serverDefinition = computed<ServerDefinition>(() => ({
 }));
 
 async function loadPage() {
-  if (!pageId.value) return;
+  if (!active || !pageId.value) return;
   busy.value = true;
   error.value = "";
   try {
-    const data = await platformApi<PageEditorData>(
-      `/pages/${pageId.value}/editor`,
-    );
-    if (data) {
-      pageData.value = data;
-    }
+    // 发布和设计共用同一份草稿，避免重复读取及旧页面延迟发起二次加载。
     await designerStore.load(pageId.value);
-  } catch (cause: any) {
-    error.value = cause.message || "加载页面信息失败";
+    if (active) error.value = designerStore.error;
   } finally {
     busy.value = false;
   }
@@ -107,20 +102,21 @@ async function handlePublish() {
   feedback.value = "";
   try {
     const impact = await designerStore.preparePublication();
+    if (!active) return;
     if (!impact) {
       error.value = designerStore.error || "发布校验未通过，请检查表单设计";
       return;
     }
     const ok = await designerStore.publish(impact);
+    if (!active) return;
     if (ok) {
-      await loadPage();
       feedback.value = `表单已成功发布新版本 V${latestVersion.value}！`;
       store.notify(`表单已发布 V${latestVersion.value}`);
     } else {
       error.value = designerStore.error || "发布失败，请重试";
     }
-  } catch (cause: any) {
-    error.value = cause.message || "发布失败";
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : "发布失败";
   } finally {
     publishing.value = false;
   }
@@ -162,6 +158,7 @@ onMounted(() => {
       :app-id="appId"
       :form-id="pageId"
       active="publish"
+      readonly-title
       @help="helpOpen = true"
     />
     <main class="publish-shell">

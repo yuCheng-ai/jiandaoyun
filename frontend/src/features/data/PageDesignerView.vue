@@ -1,25 +1,21 @@
 <script setup lang="ts">
-import { onMounted, watch } from "vue";
+import { onMounted } from "vue";
 import { useRoute } from "vue-router";
 import { usePageDesignerStore } from "../../stores/pageDesigner";
 import { usePlatformSession } from "../../stores/platformSession";
 import PageEditor from "./PageEditor.vue";
 import PlatformLogin from "../session/PlatformLogin.vue";
 import "../collaboration/collaboration.css";
-const route = useRoute(),
-  store = usePageDesignerStore(),
-  session = usePlatformSession();
-async function load() {
-  try {
-    await session.restore();
-    if (session.user?.role === "admin")
-      await store.load(String(route.params.pageId));
-  } catch (cause) {
-    store.error = (cause as Error).message;
-  }
+const route = useRoute();
+const store = usePageDesignerStore();
+const session = usePlatformSession();
+const pageId = String(route.params.pageId);
+
+function load() {
+  // 路由守卫已恢复登录态，RouterView 切换页面时会重新挂载，直接读取本页即可。
+  if (session.user?.role === "admin") return store.load(pageId);
 }
 onMounted(load);
-watch(() => route.params.pageId, load);
 </script>
 <template>
   <PageEditor

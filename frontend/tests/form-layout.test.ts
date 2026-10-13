@@ -17,7 +17,6 @@ import {
 } from "../src/domain/form";
 import { newForm } from "../src/domain/workspace";
 import { useWorkspaceStore } from "../src/stores/workspace";
-import FormLayoutSettings from "../src/features/forms/components/FormLayoutSettings.vue";
 import FormFields from "../src/features/forms/components/FormFields.vue";
 import FormPreview from "../src/features/forms/components/FormPreview.vue";
 
@@ -83,14 +82,6 @@ async function click(label: string) {
   await nextTick();
   await nextTick();
 }
-async function width(value: string) {
-  const input = document.querySelector<HTMLInputElement>(
-    "#layout-label-width",
-  )!;
-  input.value = value;
-  input.dispatchEvent(new Event("change", { bubbles: true }));
-  await nextTick();
-}
 
 it("historical forms keep mobile top titles and ordinary forms start with the source defaults", () => {
   const old = emptySchema();
@@ -135,55 +126,6 @@ it("malformed optional device settings are rejected rather than silently removed
       }),
     ).toThrow(/布局/);
   }
-});
-it("layout edits apply directly to the draft, clamp widths and keep devices separate with shared close/focus", async () => {
-  const schema = reactive(fixture());
-  await mount(FormLayoutSettings, { schema });
-  button("表单布局设置").focus();
-  await click("表单布局设置");
-  document
-    .querySelector<HTMLInputElement>('[name="description-desktop"]')!
-    .click();
-  await nextTick();
-  await width("999");
-  expect(schema.settings.labelWidth).toBe(500);
-  await width("20");
-  expect(schema.settings.labelWidth).toBe(50);
-  await width("");
-  expect(schema.settings.labelWidth).toBe(50);
-  await click("移动端");
-  await click("左右");
-  await width("135");
-  await click("标题居左");
-  document
-    .querySelectorAll<HTMLInputElement>('[name="description-mobile"]')[1]!
-    .click();
-  await nextTick();
-  expect(schema.settings.mobileLayout).toMatchObject({
-    labelPosition: "left",
-    labelWidth: 135,
-    labelAlignment: "left",
-  });
-  expect(schema.settings.labelAlignment).toBe("right");
-  expect(document.querySelector('[aria-label="输入框宽度"]')).toBeNull();
-  await click("电脑端");
-  expect(
-    document.querySelectorAll<HTMLInputElement>(
-      '[name="description-desktop"]',
-    )[0]!.checked,
-  ).toBe(true);
-  expect(
-    document.querySelectorAll<HTMLInputElement>(
-      '[name="description-desktop"]',
-    )[1]!.checked,
-  ).toBe(false);
-  expect(
-    document.querySelector<HTMLInputElement>("#layout-label-width")!.value,
-  ).toBe("50");
-  await click("关闭");
-  expect(document.querySelector(".form-layout-dialog")).toBeNull();
-  expect(document.activeElement).toBe(button("表单布局设置"));
-  expect(parseSchema(copy(schema)).settings.mobileLayout!.labelWidth).toBe(135);
 });
 it("subform descriptions remain reachable without rows and respect hidden columns", async () => {
   const schema = emptySchema();

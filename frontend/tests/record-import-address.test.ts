@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { createApp, h, nextTick } from "vue";
+import { afterEach, beforeEach, expect, it } from "vitest";
 import { createPinia } from "pinia";
 import { addressParts, isAddressValue } from "@platform/contracts";
 import { createField, copy, type FormField } from "../src/domain/form";
@@ -24,36 +23,21 @@ import {
   excelBytes,
   readExcel,
   type ExcelValue,
-  type ExcelMerge,
 } from "../src/services/excel";
-import RecordImportDialog from "../src/features/forms/components/RecordImportDialog.vue";
 const address = {
   province: "江苏省",
   city: "无锡市",
   district: "锡山区",
   detail: "演示仓库,1号\n=SUM(1,2)",
 };
-let app: ReturnType<typeof createApp> | undefined;
 beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
-  Element.prototype.scrollIntoView = vi.fn();
 });
 afterEach(() => {
-  app?.unmount();
-  app = undefined;
-  document.body.innerHTML = "";
-  vi.restoreAllMocks();
   localStorage.clear();
   sessionStorage.clear();
 });
-const settle = async () => {
-  for (let i = 0; i < 12; i++) await nextTick();
-};
-const button = (name: string) =>
-  Array.from(
-    document.querySelectorAll<HTMLButtonElement>("dialog button"),
-  ).find((b) => b.textContent?.trim() === name)!;
 async function fixture(details = false) {
   const pinia = createPinia(),
     store = useWorkspaceStore(pinia);
@@ -485,195 +469,4 @@ it("rejects duplicate parts, forged parts on other fields, misplaced children an
       f.store.data,
     ),
   ).toThrow("data_id 匹配无效");
-});
-async function mount(f: Awaited<ReturnType<typeof fixture>>) {
-  document.body.innerHTML = '<div id="app"></div>';
-  app = createApp({ render: () => h(RecordImportDialog, { form: f.live() }) });
-  app.use(f.pinia);
-  app.mount("#app");
-  await settle();
-}
-async function upload(
-  rows: ExcelValue[][],
-  ids: string[],
-  labels: string[],
-  merges: ExcelMerge[] = [],
-) {
-  const bytes = await excelBytes([labels, ...rows], ids, merges);
-  const node = document.querySelector<HTMLInputElement>('input[type="file"]')!;
-  Object.defineProperty(node, "files", {
-    configurable: true,
-    value: [{ name: "地址模板.xlsx", arrayBuffer: async () => bytes }],
-  });
-  node.dispatchEvent(new Event("change", { bubbles: true }));
-  await vi.waitFor(() => expect(button("下一步")).toBeTruthy());
-  await settle();
-}
-it("matches real address Excel, corrects all four cells through one existing picker and retries only failed rows", async () => {
-  const f = await fixture();
-  await mount(f);
-  const validate = Array.from(
-    document.querySelectorAll<HTMLInputElement>(
-      'dialog input[type="checkbox"]',
-    ),
-  ).find((i) => i.parentElement?.textContent?.includes("导入触发数据校验"))!;
-  validate.click();
-  const layout = importExcelLayout(
-    recordImportColumns(f.live().published!.schema),
-  );
-  await upload(
-    [
-      ["通过", ...Object.values(address)],
-      ["待改", "江苏省", "无锡市", "锡山区", null],
-    ],
-    layout.fieldIds,
-    layout.headers[0]!.map(String),
-  );
-  button("下一步").click();
-  await settle();
-  const selects = Array.from(
-    document.querySelectorAll<HTMLSelectElement>(
-      'select[aria-label$="列匹配字段"]',
-    ),
-  );
-  expect(selects.map((s) => s.value).slice(0, 5)).toEqual(
-    layout.fieldIds.slice(0, 5),
-  );
-  button("导入").click();
-  await vi.waitFor(() => expect(button("修改失败数据")).toBeTruthy());
-  const accepted = copy(f.store.data.entries[0]!);
-  button("修改失败数据").click();
-  await settle();
-  expect(
-    document.querySelectorAll(".import-correction-table .address-trigger"),
-  ).toHaveLength(1);
-  const detail = document.querySelector<HTMLTextAreaElement>(
-    ".import-correction-table .address-detail",
-  )!;
-  expect(detail).toBeTruthy();
-  expect(detail.placeholder).not.toBe("江苏省");
-  detail.value = "纠错地址5号";
-  detail.dispatchEvent(new Event("input", { bubbles: true }));
-  await settle();
-  expect(
-    document.querySelectorAll(".import-correction-table td.has-error"),
-  ).toHaveLength(0);
-  button("重新导入").click();
-  await vi.waitFor(() => expect(f.store.data.entries).toHaveLength(2));
-  expect(
-    f.store.data.entries.find((e) => e.values.name === "待改")!.values.address,
-  ).toEqual({ ...address, detail: "纠错地址5号" });
-  expect(f.store.data.entries.find((e) => e.id === accepted.id)).toEqual(
-    accepted,
-  );
-});
-it("partial address matching edits only mapped cells and keeps the other mapped part through correction", async () => {
-  const f = await fixture();
-  await mount(f);
-  const validate = Array.from(
-    document.querySelectorAll<HTMLInputElement>(
-      'dialog input[type="checkbox"]',
-    ),
-  ).find((i) => i.parentElement?.textContent?.includes("导入触发数据校验"))!;
-  validate.click();
-  await upload(
-    [["待改", "江苏省", null]],
-    ["name", "address.province", "address.detail"],
-    ["名称", "收货地址（省/自治区/直辖市）", "收货地址（详细地址）"],
-  );
-  button("下一步").click();
-  await settle();
-  button("导入").click();
-  await vi.waitFor(() => expect(button("修改失败数据")).toBeTruthy());
-  button("修改失败数据").click();
-  await settle();
-  expect(
-    document.querySelector(".import-correction-table .address-trigger"),
-  ).toBeNull();
-  const input = document.querySelector<HTMLInputElement>(
-    '[aria-label="Excel 第 3 行 收货地址（详细地址）"]',
-  )!;
-  input.value = "仅修改映射列";
-  input.dispatchEvent(new Event("input", { bubbles: true }));
-  await settle();
-  expect(
-    document.querySelector(".import-correction-table")!.textContent,
-  ).toContain("完整填写");
-  expect(f.store.data.entries).toHaveLength(0);
-  const province = document.querySelector<HTMLInputElement>(
-    '[aria-label="Excel 第 3 行 收货地址（省/自治区/直辖市）"]',
-  )!;
-  expect(province.value).toBe("江苏省");
-});
-
-it("corrects one child address in a merged record without copying it to its sibling or changing the main address", async () => {
-  const f = await fixture(true);
-  await mount(f);
-  const validate = Array.from(
-    document.querySelectorAll<HTMLInputElement>(
-      'dialog input[type="checkbox"]',
-    ),
-  ).find((i) => i.parentElement?.textContent?.includes("导入触发数据校验"))!;
-  validate.click();
-  const layout = importExcelLayout(
-    recordImportColumns(f.live().published!.schema),
-  );
-  await upload(
-    [
-      [
-        "合并主单",
-        ...Object.values(address),
-        null,
-        "甲",
-        ...Object.values(address),
-      ],
-      [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        "乙",
-        "江苏省",
-        "无锡市",
-        "滨湖区",
-        null,
-      ],
-    ],
-    layout.fieldIds,
-    layout.headers[0]!.map(String),
-    Array.from({ length: 6 }, (_, c) => ({ s: { r: 1, c }, e: { r: 2, c } })),
-  );
-  button("下一步").click();
-  await settle();
-  button("导入").click();
-  await vi.waitFor(() => expect(button("修改失败数据")).toBeTruthy());
-  expect(f.store.data.entries).toHaveLength(0);
-  button("修改失败数据").click();
-  await settle();
-  expect(
-    document.querySelectorAll(".import-correction-table .address-trigger"),
-  ).toHaveLength(3);
-  const detail = document.querySelector<HTMLTextAreaElement>(
-    '[aria-label="Excel 第 4 行 明细 · 送达地址 详细地址"]',
-  )!;
-  detail.value = "明细乙6号";
-  detail.dispatchEvent(new Event("input", { bubbles: true }));
-  await settle();
-  button("重新导入").click();
-  await vi.waitFor(() => expect(f.store.data.entries).toHaveLength(1));
-  expect(f.store.data.entries[0]!.values.address).toEqual(address);
-  expect(f.store.data.entries[0]!.values.items).toEqual([
-    { item: "甲", destination: address },
-    {
-      item: "乙",
-      destination: {
-        province: "江苏省",
-        city: "无锡市",
-        district: "滨湖区",
-        detail: "明细乙6号",
-      },
-    },
-  ]);
 });

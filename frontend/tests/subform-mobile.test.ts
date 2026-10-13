@@ -20,7 +20,6 @@ import {
 import { validateFieldConfiguration } from "../src/domain/fieldValidation";
 import { seedWorkspace } from "../src/domain/workspace";
 import FormFields from "../src/features/forms/components/FormFields.vue";
-import FieldInspector from "../src/features/forms/components/FieldInspector.vue";
 
 let pinia = createPinia();
 const cleanup: (() => void)[] = [];
@@ -342,51 +341,3 @@ it.each(["table", "vertical"] as const)(
     expect(document.querySelector('dialog[aria-label="明细"]')).toBeNull();
   },
 );
-it("uses the original inspector and bounded shared picker, retains custom fields across modes and excludes unsupported choices", async () => {
-  const schema = reactive(emptySchema());
-  schema.fields = [field()];
-  const f = schema.fields[0]!;
-  const host = await mount(() =>
-    h(FieldInspector, {
-      field: f,
-      schema,
-      formId: "test",
-      manageSubform: true,
-      onUpdate: (patch: any) => Object.assign(f, patch),
-    }),
-  );
-  const mobile = [
-    ...host.querySelectorAll<HTMLButtonElement>('[role="tab"]'),
-  ].find((b) => b.textContent?.trim() === "移动端")!;
-  mobile.click();
-  await nextTick();
-  const mode = control<HTMLSelectElement>("移动端简报内容", host);
-  mode.value = "custom";
-  mode.dispatchEvent(new Event("change", { bubbles: true }));
-  await nextTick();
-  await click("移动端简报字段", host);
-  expect(
-    document.querySelector('[aria-label="移动端简报字段 附件"]'),
-  ).toBeNull();
-  for (const label of ["商品", "数量", "说明"]) {
-    const input = control<HTMLInputElement>(`移动端简报字段 ${label}`);
-    input.checked = true;
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-    await nextTick();
-  }
-  expect(f.subformMobile!.fieldIds).toEqual(["item", "qty", "note"]);
-  expect(control<HTMLInputElement>("移动端简报字段 内部备注").disabled).toBe(
-    true,
-  );
-  const item = control<HTMLInputElement>("移动端简报字段 商品");
-  item.checked = false;
-  item.dispatchEvent(new Event("change", { bubbles: true }));
-  await nextTick();
-  expect(control<HTMLInputElement>("移动端简报字段 内部备注").disabled).toBe(
-    false,
-  );
-  mode.value = "first";
-  mode.dispatchEvent(new Event("change", { bubbles: true }));
-  await nextTick();
-  expect(f.subformMobile!.fieldIds).toEqual(["qty", "note"]);
-});

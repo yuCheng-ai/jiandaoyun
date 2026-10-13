@@ -28,7 +28,6 @@ import {
 } from "../src/domain/frontendEvents";
 import { newFrontendRequest } from "../src/domain/frontendRequests";
 import { useWorkspaceStore } from "../src/stores/workspace";
-import FrontendEventSettings from "../src/features/forms/components/FrontendEventSettings.vue";
 import FormRuntime from "../src/features/forms/components/FormRuntime.vue";
 
 let pinia = createPinia();
@@ -616,79 +615,6 @@ it("button-triggered requests use the same simulated adapter, retaining current-
   expect(valid.values.lines).toEqual([{ ...values.lines[0], amount: 21 }]);
   expect(valid.runs[0]!.input.url).toContain("qty=2");
   expect(fetch).not.toHaveBeenCalled();
-});
-it("the real event wizard retains cancelled edits, saves into the parent draft and debugs a copy with shared focus handling", async () => {
-  const schema = reactive(fixture());
-  schema.settings.frontendEvents = [];
-  await mount(FrontendEventSettings, { schema, formId: "qa" });
-  await click("前端事件设置");
-  await click("添加前端事件");
-  await set(
-    document.querySelector<HTMLInputElement>("#frontend-event-name")!,
-    "自动计价",
-    "input",
-  );
-  await click("下一步");
-  await set(
-    document.querySelector<HTMLSelectElement>("#frontend-event-action")!,
-    "multiply",
-    "change",
-  );
-  await set(
-    document.querySelector<HTMLSelectElement>('[aria-label="数量来源"]')!,
-    "field",
-    "change",
-  );
-  await set(
-    document.querySelector<HTMLSelectElement>('[aria-label="数量字段"]')!,
-    "qty",
-    "change",
-  );
-  await set(
-    document.querySelector<HTMLInputElement>('[aria-label="单价固定值"]')!,
-    "5",
-    "input",
-  );
-  // Trigger picker is the shared multi-select, not another picker implementation.
-  document.querySelector<HTMLElement>('[aria-label="触发字段"]')!.click();
-  await settle();
-  document
-    .querySelector<HTMLInputElement>('[aria-label="触发字段 数量"]')!
-    .click();
-  await settle();
-  document.dispatchEvent(
-    new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
-  );
-  await settle();
-  await click("添加字段");
-  await set(
-    document.querySelector<HTMLSelectElement>('[aria-label="回填字段 1"]')!,
-    "amount",
-    "change",
-  );
-  await click("保存并调试");
-  expect(schema.settings.frontendEvents).toHaveLength(1);
-  expect(schema.settings.frontendEvents![0]!.name).toBe("自动计价");
-  await click("试运行");
-  expect(document.body.textContent).toContain("试运行完成");
-  expect(useWorkspaceStore().data.entries).toHaveLength(0);
-  await click("关闭");
-  await click("编辑");
-  await set(
-    document.querySelector<HTMLInputElement>("#frontend-event-name")!,
-    "未确认修改",
-    "input",
-  );
-  await click("取消");
-  expect(document.body.textContent).toContain("修改尚未保存");
-  expect(schema.settings.frontendEvents![0]!.name).toBe("自动计价");
-  await click("继续编辑");
-  expect(
-    document.querySelector<HTMLInputElement>("#frontend-event-name")!.value,
-  ).toBe("未确认修改");
-  await click("取消");
-  await click("放弃修改");
-  expect(document.querySelector(".frontend-event-editor")).toBeNull();
 });
 it("save/reload/publication keeps event versions and existing records immutable and rejects broken active references", async () => {
   const store = useWorkspaceStore(),

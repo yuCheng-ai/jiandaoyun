@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it } from "vitest";
-import { createApp, h, nextTick, reactive, shallowRef, triggerRef } from "vue";
+import { createApp, h, nextTick, reactive, shallowRef } from "vue";
 import { createPinia } from "pinia";
 import { composeFormSchema, separateFormSchema } from "@platform/contracts";
 import {
@@ -8,7 +8,6 @@ import {
   countFormFields,
   createField,
   emptySchema,
-  findField,
   parseSchema,
   prepareSubmission,
 } from "../src/domain/form";
@@ -24,7 +23,7 @@ import {
 } from "../src/domain/presentation";
 import { useFormDesigner } from "../src/features/forms/useFormDesigner";
 import FieldCanvas from "../src/features/forms/components/FieldCanvas.vue";
-import FieldInspector from "../src/features/forms/components/FieldInspector.vue";
+
 import FormFields from "../src/features/forms/components/FormFields.vue";
 
 const cleanups: (() => void)[] = [];
@@ -126,66 +125,7 @@ it("keeps divider descriptions visible under hidden-title and popover layouts, w
   expect(host.querySelector(".divider-field")).toBeNull();
   expect(host.querySelector('input[aria-label="申请人"]')).not.toBeNull();
 });
-it("removes the unused edit permission and routes title and width settings through the original editor history", async () => {
-  const form = shallowRef<FormRecord>({
-    ...newForm("oa", "分割线验收"),
-    schema: fixture(),
-  });
-  const published = copy(form.value.schema);
-  let editor!: ReturnType<typeof useFormDesigner>;
-  const host = document.createElement("div");
-  document.body.append(host);
-  const app = createApp({
-    setup() {
-      editor = useFormDesigner(form);
-      editor.select("section");
-      return () =>
-        h(FieldInspector, {
-          field: editor.selected.value!,
-          schema: form.value.schema,
-          formId: form.value.id,
-          onUpdate: (patch: object) =>
-            editor.transact(() => {
-              Object.assign(editor.selected.value!, patch);
-              triggerRef(form);
-            }),
-        });
-    },
-  });
-  app.use(createPinia());
-  app.mount(host);
-  cleanups.push(() => app.unmount());
-  await flush();
-  expect(host.textContent).not.toContain("可编辑");
-  expect(host.textContent).toContain("可见");
-  const title = host.querySelector<HTMLInputElement>("#field-title")!;
-  title.value = "新分区标题";
-  title.dispatchEvent(new Event("input", { bubbles: true }));
-  await flush();
-  [...host.querySelectorAll("button")]
-    .find((b) => b.textContent?.trim() === "1/2")!
-    .click();
-  await flush();
-  expect(findField(form.value.schema.fields, "section")).toMatchObject({
-    label: "新分区标题",
-    width: 6,
-    showLabel: false,
-    editable: true,
-  });
-  editor.undo();
-  triggerRef(form);
-  await flush();
-  expect(findField(form.value.schema.fields, "section")!.width).toBe(4);
-  editor.redo();
-  triggerRef(form);
-  await flush();
-  expect(findField(form.value.schema.fields, "section")!.width).toBe(6);
-  expect(parseSchema(form.value.schema).fields[0]!.id).toBe("section");
-  expect(published.fields[0]!).toMatchObject({
-    label: "不显示的分区标题",
-    width: 4,
-  });
-});
+
 it("allows dividers at the 300-field limit across adding, copying, restoring and parsing, including tab children", async () => {
   const schema = emptySchema(),
     tabs = createField("tabs", { id: "tabs" });

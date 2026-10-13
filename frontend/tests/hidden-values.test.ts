@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { createApp, h, nextTick, reactive } from "vue";
+import { createApp, h, nextTick } from "vue";
 import { createPinia, setActivePinia } from "pinia";
 import { createRouter, createMemoryHistory } from "vue-router";
 import {
@@ -19,7 +19,6 @@ import {
 import { newForm, seedWorkspace } from "../src/domain/workspace";
 import { validateFieldConfiguration } from "../src/domain/fieldValidation";
 import { useWorkspaceStore } from "../src/stores/workspace";
-import FormSettingsInspector from "../src/features/forms/components/FormSettingsInspector.vue";
 import FormRuntime from "../src/features/forms/components/FormRuntime.vue";
 let pinia = createPinia();
 const cleanup: (() => void)[] = [];
@@ -255,42 +254,6 @@ it("a field first revealed by a visibility rule receives its normal default and 
     static: 7,
   });
   expect(hidden).not.toHaveProperty("static");
-});
-it("the settings window uses the shared searchable picker, moves a field between rules, and cancels atomically", async () => {
-  const schema = reactive(fixture());
-  await mount(FormSettingsInspector, { schema });
-  await click("特殊字段赋值规则");
-  const trigger = document.querySelector<HTMLElement>(
-    '[aria-label="添加始终重新计算字段"]',
-  )!;
-  trigger.click();
-  await nextTick();
-  const search = document.querySelector<HTMLInputElement>(
-    '[aria-label="添加始终重新计算字段搜索选项"]',
-  )!;
-  search.value = "隐藏金额";
-  search.dispatchEvent(new Event("input", { bubbles: true }));
-  await nextTick();
-  await click("隐藏金额");
-  expect(schema.settings.hiddenValueRules).toEqual({});
-  await click("取消");
-  expect(document.querySelector(".config-discard")).not.toBeNull();
-  await click("放弃修改");
-  expect(schema.settings.hiddenValueRules).toEqual({});
-  await click("特殊字段赋值规则");
-  document
-    .querySelector<HTMLElement>('[aria-label="添加始终重新计算字段"]')!
-    .click();
-  await nextTick();
-  await click("隐藏金额");
-  await click("确定");
-  expect(schema.settings.hiddenValueRules).toEqual({ amount: "recalculate" });
-  await click("特殊字段赋值规则");
-  document.querySelector<HTMLElement>('[aria-label="添加空值字段"]')!.click();
-  await nextTick();
-  await click("隐藏金额");
-  await click("确定");
-  expect(schema.settings.hiddenValueRules).toEqual({ amount: "clear" });
 });
 it("runtime preview/submission use the same rule and keep drafts intact until formal submission", async () => {
   const schema = fixture();

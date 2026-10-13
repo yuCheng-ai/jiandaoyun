@@ -317,10 +317,12 @@ function select(id: string) {
   );
 }
 function show(next: typeof view.value) {
-  afterLeave(() => {
+  afterLeave(async () => {
     notice.value = "";
     detail.value = undefined;
     view.value = next;
+    // 填写成功后保留回执；进入数据管理时再刷新列表和访问权限。
+    if (next === "records") await run(() => loadForm(false));
   });
 }
 function design() {
@@ -339,11 +341,16 @@ async function logout() {
     });
   });
 }
-async function saved(result: RecordDetail) {
+async function saved(result: RecordDetail, fromFilling = false) {
   detail.value = undefined;
   const nextState = result.record.state || "active";
   if (recordState.value !== nextState) recordPage.value = 1;
   recordState.value = nextState;
+  if (fromFilling && nextState === "active") {
+    // 回执保留本次填写内容，点击继续填写后才重新加载默认值并创建下一条。
+    notice.value = recordSavedNotice(result);
+    return;
+  }
   editorKey.value++;
   await run(() => loadForm(false));
   notice.value = recordSavedNotice(result);
@@ -504,7 +511,8 @@ async function permissions() {
           :key="`${selected.id}-${editorKey}`"
           embedded
           :published="form"
-          @saved="saved"
+          @saved="saved($event, true)"
+          @continue="run(loadForm)"
         />
         <section v-else class="server-record-list">
           <div class="record-management-toolbar">

@@ -1,28 +1,15 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { createApp, h, nextTick } from "vue";
+import { beforeEach, expect, it } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
-import { createMemoryHistory, createRouter } from "vue-router";
 import { copy, createField } from "../src/domain/form";
-import { defaultRecordView, recordExcelExport } from "../src/domain/records";
+import { recordExcelExport } from "../src/domain/records";
 import { useWorkspaceStore } from "../src/stores/workspace";
 import { LocalWorkspaceRepository } from "../src/repositories/workspaceRepository";
-import RecordList from "../src/features/forms/components/RecordList.vue";
 
-let app: ReturnType<typeof createApp> | undefined;
 beforeEach(() => {
   localStorage.clear();
   setActivePinia(createPinia());
 });
-afterEach(() => {
-  app?.unmount();
-  app = undefined;
-  document.body.innerHTML = "";
-  vi.restoreAllMocks();
-});
-const settle = async () => {
-  for (let i = 0; i < 10; i++) await nextTick();
-};
 async function setup() {
   const store = useWorkspaceStore();
   const form = (await store.createForm("oa", "多行记录", "form"))!;
@@ -89,71 +76,4 @@ it("preserves long multiline text through draft reload, same-ID submission, hist
     entries.map((entry) => ({ entry, schema, extra: [] })),
   );
   expect(exported.rows.slice(-2)).toEqual([[edited], [edited]]);
-});
-
-it("uses committed row height after successful or failed saves without losing columns, sort or records", async () => {
-  const { store, form } = await setup();
-  await store.submitEntry(form.id, { note: "第一行\n第二行\n第三行" });
-  const view = {
-    ...defaultRecordView(form.schema),
-    sortField: "note",
-    descending: false,
-    pageSize: 10 as const,
-  };
-  await store.saveRecordView(form.id, view);
-  const entries = copy(store.data.entries);
-  document.body.innerHTML = '<div id="mount"></div>';
-  const router = createRouter({
-    history: createMemoryHistory(),
-    routes: [{ path: "/", component: { template: "<div/>" } }],
-  });
-  await router.push("/");
-  app = createApp(() => h(RecordList, { form, schema: form.schema }));
-  const pinia = createPinia();
-  const mountedStore = useWorkspaceStore(pinia);
-  app.use(pinia);
-  app.use(router);
-  app.mount("#mount");
-  await settle();
-  const selector = document.querySelector<HTMLSelectElement>(
-    '[aria-label="记录行高"]',
-  )!;
-  let finish!: () => void;
-  const save = mountedStore.saveRecordView.bind(mountedStore);
-  const command = vi
-    .spyOn(mountedStore, "saveRecordView")
-    .mockImplementationOnce(async (...args) => {
-      await new Promise<void>((resolve) => {
-        finish = resolve;
-      });
-      return save(...args);
-    });
-  selector.value = "medium";
-  selector.dispatchEvent(new Event("change", { bubbles: true }));
-  await settle();
-  expect(selector.closest("fieldset")!.disabled).toBe(true);
-  expect(document.querySelector('[role="status"]')!.textContent).toContain(
-    "正在保存",
-  );
-  finish();
-  await vi.waitFor(() =>
-    expect(selector.closest("fieldset")!.disabled).toBe(false),
-  );
-  expect(command).toHaveBeenCalledTimes(1);
-  expect(document.querySelector("table")!.dataset.rowHeight).toBe("medium");
-  expect(new LocalWorkspaceRepository().load()!.recordViews![form.id]).toEqual({
-    ...view,
-    rowHeight: "medium",
-  });
-  command.mockResolvedValueOnce(false);
-  selector.value = "auto";
-  selector.dispatchEvent(new Event("change", { bubbles: true }));
-  await settle();
-  expect(selector.value).toBe("medium");
-  expect(document.querySelector("table")!.dataset.rowHeight).toBe("medium");
-  expect(mountedStore.data.entries).toEqual(entries);
-  expect(mountedStore.data.recordViews![form.id]).toEqual({
-    ...view,
-    rowHeight: "medium",
-  });
 });

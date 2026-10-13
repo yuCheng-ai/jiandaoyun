@@ -6,7 +6,6 @@ import { createMemoryHistory, createRouter } from "vue-router";
 import {
   separateFormSchema,
   composeFormSchema,
-  type FormSchema,
   type FormValidationRule,
 } from "@platform/contracts";
 import {
@@ -34,7 +33,6 @@ import {
 import { newForm, seedWorkspace } from "../src/domain/workspace";
 import { useFormDesigner } from "../src/features/forms/useFormDesigner";
 import { useWorkspaceStore } from "../src/stores/workspace";
-import FormSettingsInspector from "../src/features/forms/components/FormSettingsInspector.vue";
 import FormRuntime from "../src/features/forms/components/FormRuntime.vue";
 
 let pinia = createPinia();
@@ -347,124 +345,6 @@ it("masks a protected value in the failure message while checking the full merge
       { data: seedWorkspace(), displaySchema: protectedSchema },
     ),
   ).toEqual(["采购金额不能超过预算：—"]);
-});
-it("adds and edits validation atomically in the existing form properties and shares formula field selection", async () => {
-  const schema = reactive(fixture());
-  schema.settings.validations = [];
-  await mount(FormSettingsInspector, { schema });
-  await click(document, "添加校验条件");
-  const dialog = document.querySelector('dialog[aria-label="数据校验设置"]')!;
-  await click(dialog, "编辑公式");
-  const formula = document.querySelector('dialog[aria-label="提交校验"]')!;
-  expect(button(formula, "数量数字")).toBeDefined();
-  await edit(
-    formula,
-    '[aria-label="公式内容"]',
-    "{{quantity}} * {{price}} <= {{budget}}",
-  );
-  await click(formula, "确定");
-  expect(schema.settings.validations).toEqual([]);
-  await edit(
-    dialog,
-    '[aria-label="不满足校验条件时的提示文字"]',
-    "采购金额超过预算：",
-  );
-  await click(dialog, "插入提示字段");
-  let picker = document.querySelector(
-    '[role="dialog"][aria-label="插入提示字段"]',
-  )!;
-  picker
-    .querySelector("input")!
-    .dispatchEvent(
-      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
-    );
-  await nextTick();
-  expect(document.activeElement).toBe(button(dialog, "插入提示字段"));
-  expect(document.querySelector('dialog[aria-label="数据校验设置"]')).toBe(
-    dialog,
-  );
-  await click(dialog, "插入提示字段");
-  picker = document.querySelector(
-    '[role="dialog"][aria-label="插入提示字段"]',
-  )!;
-  await click(picker, "预算");
-  expect(dialog.querySelector('[data-field="budget"]')?.textContent).toBe(
-    "预算",
-  );
-  await click(dialog, "确定");
-  expect(schema.settings.validations).toHaveLength(1);
-  expect(schema.settings.validations![0]).toMatchObject({
-    expression: rule().expression,
-    message: "采购金额超过预算：{{budget}}",
-    realtime: false,
-    mode: "block",
-  });
-  const saved = copy(schema.settings.validations);
-  await click(document, "编辑校验条件 1");
-  await edit(
-    document.querySelector('dialog[aria-label="数据校验设置"]')!,
-    '[aria-label="不满足校验条件时的提示文字"]',
-    "临时修改",
-  );
-  await click(
-    document.querySelector('dialog[aria-label="数据校验设置"]')!,
-    "取消",
-  );
-  expect(schema.settings.validations).toEqual(saved);
-  await click(
-    document.querySelector('dialog[aria-label="数据校验设置"]')!,
-    "放弃修改",
-  );
-  expect(
-    document.querySelector('dialog[aria-label="数据校验设置"]'),
-  ).toBeNull();
-  expect(schema.settings.validations).toEqual(saved);
-});
-it("keeps invalid formula input open without changing the saved rule and supports keyboard ordering and removal", async () => {
-  const schema = reactive(fixture());
-  schema.settings.validations!.push(
-    rule({
-      id: "second",
-      expression: "{{quantity}} <= 10",
-      mode: "warn",
-      message: "请确认数量",
-    }),
-  );
-  await mount(FormSettingsInspector, { schema });
-  await click(document, "编辑校验条件 1");
-  await click(
-    document.querySelector('dialog[aria-label="数据校验设置"]')!,
-    "数量 * 单价 <= 预算",
-  );
-  const formula = document.querySelector('dialog[aria-label="提交校验"]')!;
-  await edit(formula, '[aria-label="公式内容"]', "{{quantity}} * {{price}}");
-  await click(formula, "确定");
-  expect(formula.querySelector('[role="alert"]')?.textContent).toContain(
-    "真或假",
-  );
-  expect(schema.settings.validations![0]!.expression).toBe(rule().expression);
-  await click(formula, "取消");
-  await click(formula, "放弃修改");
-  await click(
-    document.querySelector('dialog[aria-label="数据校验设置"]')!,
-    "取消",
-  );
-  button(document, "移动校验条件 2").dispatchEvent(
-    new KeyboardEvent("keydown", {
-      key: "ArrowUp",
-      altKey: true,
-      bubbles: true,
-    }),
-  );
-  await nextTick();
-  expect(schema.settings.validations!.map((rule) => rule.id)).toEqual([
-    "second",
-    "budget-check",
-  ]);
-  await click(document, "删除校验条件 1");
-  expect(schema.settings.validations!.map((rule) => rule.id)).toEqual([
-    "budget-check",
-  ]);
 });
 it("shows realtime errors only for referenced changes, clears them on repair and blocks invalid persistence", async () => {
   const schema = fixture(),

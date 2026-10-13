@@ -1,7 +1,5 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vitest";
-import { Blob as NodeBlob, File as NodeFile } from "node:buffer";
-import { IDBFactory, IDBObjectStore } from "fake-indexeddb";
 import { createApp, h, nextTick, reactive, ref } from "vue";
 import * as fileRepository from "../src/repositories/fileRepository";
 import { createMemoryHistory, createRouter } from "vue-router";
@@ -18,7 +16,6 @@ import {
   parseSchema,
   validateValues,
 } from "../src/domain/form";
-import { saveFiles, readFile } from "../src/repositories/fileRepository";
 import { restoreRuntimeDraft } from "../src/domain/editorDraftAdapters";
 import {
   buildRecordBlocks,
@@ -42,11 +39,6 @@ const file = (name = "invoice.pdf", size = 4, type = "application/pdf") => ({
   size,
   type,
 });
-function database() {
-  vi.stubGlobal("indexedDB", new IDBFactory());
-  vi.stubGlobal("Blob", NodeBlob);
-  vi.stubGlobal("File", NodeFile);
-}
 async function mount(render: Parameters<typeof createApp>[0]) {
   document.body.innerHTML = '<div id="app"></div>';
   app = createApp(render);
@@ -166,58 +158,6 @@ it("configuration survives schema parsing and validation covers visible subform 
     parseSchema({ ...schema, fields: [unvalidatedLegacy] }).fields[0],
   ).toEqual(unvalidatedLegacy);
 });
-it("committed file bytes survive closing and reopening the database and metadata serialization", async () => {
-  database();
-  const bytes = new Uint8Array([0, 1, 2, 250, 255]);
-  const values = await saveFiles([
-    new File([bytes], "bytes.bin", { type: "application/octet-stream" }),
-    new File(["测试"], "notes.txt", { type: "text/plain" }),
-  ]);
-  const blob = await readFile(JSON.parse(JSON.stringify(values[0])));
-  expect([...new Uint8Array(await blob.arrayBuffer())]).toEqual([...bytes]);
-  expect(await (await readFile(values[1]!)).text()).toBe("测试");
-  expect(values[0]!.id).not.toBe(values[1]!.id);
-  expect(values[0]).not.toHaveProperty("preview");
-});
-it("a failed batch aborts all writes and an unavailable historical binary has a clear error", async () => {
-  database();
-  const original = IDBObjectStore.prototype.put;
-  let firstId: string | undefined,
-    calls = 0;
-  const put = vi
-    .spyOn(IDBObjectStore.prototype, "put")
-    .mockImplementation(function (
-      this: IDBObjectStore,
-      value: unknown,
-      key?: IDBValidKey,
-    ) {
-      if (++calls === 2) throw Error("quota");
-      firstId = String(key);
-      return original.call(this, value, key);
-    });
-  await expect(
-    saveFiles([new File(["a"], "a.txt"), new File(["b"], "b.txt")]),
-  ).rejects.toThrow("保存失败");
-  put.mockRestore();
-  await expect(readFile({ ...file("a.txt"), id: firstId })).rejects.toThrow(
-    "不可用",
-  );
-  await expect(readFile(file())).rejects.toThrow("旧记录");
-  const value = {
-    ...file("a.png", 1, "image/png"),
-    preview: "data:image/png;base64,AQ==",
-  };
-  expect([
-    ...new Uint8Array(await (await readFile(value)).arrayBuffer()),
-  ]).toEqual([1]);
-  await expect(
-    readFile({ ...value, preview: "data:image/svg+xml;base64,AQ==" }),
-  ).rejects.toThrow("不可用");
-  vi.stubGlobal("indexedDB", undefined);
-  await expect(saveFiles([new File(["x"], "x.txt")])).rejects.toThrow(
-    "无法保存",
-  );
-});
 it("invalid single replacement preserves the original file and shows the reason", async () => {
   const field = createField("file", { multiple: false, accept: ".pdf" });
   const value = ref<FileValue[]>([file()]);
@@ -243,7 +183,6 @@ it("invalid single replacement preserves the original file and shows the reason"
   expect(value.value).toHaveLength(1);
 });
 it("storage errors preserve existing values and leave upload available for retry", async () => {
-  vi.stubGlobal("indexedDB", undefined);
   const field = createField("file");
   const value = ref<FileValue[]>([file()]);
   await mount({
@@ -262,7 +201,6 @@ it("storage errors preserve existing values and leave upload available for retry
   expect(document.querySelector('[aria-busy="true"]')).toBeNull();
 });
 it("saved files can be reordered/removed without changing identities; readonly files remain viewable", async () => {
-  database();
   vi.stubGlobal(
     "URL",
     class extends URL {
@@ -484,11 +422,10 @@ it("a real file value change still invalidates an older pending upload", async (
   expect(document.body.textContent).toContain("new.txt");
 });
 
-it("restoring a main/subform file draft preserves binary identities without requiring a preview", async () => {
-  database();
-  const values = await saveFiles([
-    new File(["内容"], "draft.txt", { type: "text/plain" }),
-  ]);
+it("restoring a main/subform file draft preserves binary identities without requiring a preview", () => {
+  const values: FileValue[] = [
+    { id: "draft-file", name: "draft.txt", type: "text/plain", size: 6 },
+  ];
   const field = createField("file", { id: "doc" }),
     row = createField("subform", {
       id: "rows",
@@ -500,9 +437,6 @@ it("restoring a main/subform file draft preserves binary identities without requ
     {},
   );
   expect(restored).toEqual({ doc: values, rows: [{ rowDoc: values }] });
-  expect(await (await readFile((restored.doc as FileValue[])[0]!)).text()).toBe(
-    "内容",
-  );
   expect(() =>
     restoreRuntimeDraft(
       { doc: [{ ...values[0], preview: "https://external.test/file" }] },

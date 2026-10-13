@@ -1,4 +1,3 @@
-import { requireActiveRecord } from "../records/record-state";
 import {
   BadRequestException,
   ForbiddenException,
@@ -12,6 +11,7 @@ import type {
   TaskSpec,
 } from "@platform/contracts";
 import { recordCreator } from "../directory/organization-fields";
+import { requireActiveRecord } from "../records/record-state";
 import type { Actor } from "../../core/auth/auth.service";
 import type { Transaction } from "../../core/database/database";
 import { PageService } from "../pages/pages.service";
@@ -51,7 +51,9 @@ export class TaskContextService {
     tx?: Transaction,
     allowArchived = true,
   ): Promise<RecordPageScope | undefined> {
-    if (!task.pageId) return undefined;
+    if (!task.pageId) {
+      return undefined;
+    }
 
     const scope = await this.pages.recordScope(
       actor,
@@ -63,21 +65,20 @@ export class TaskContextService {
     scope.taskId = task.id;
     scope.schema = structuredClone(scope.schema);
 
-    const required = new Set(task.requiredFields || []);
+    const requiredFieldIds = new Set(task.requiredFields || []);
     const allSchemaFields = allFields(scope.schema);
-    if ([...required].some((id) => !allSchemaFields.some((f) => f.id === id))) {
-      throw new BadRequestException("任务要求的字段不在处理页面中");
-    }
-
-    for (const field of scope.schema.fields) {
-      if (required.has(field.id)) field.required = true;
-      for (const child of field.children) {
-        if (required.has(child.id)) child.required = true;
+    for (const fieldId of requiredFieldIds) {
+      if (!allSchemaFields.some((field) => field.id === fieldId)) {
+        throw new BadRequestException("任务要求的字段不在处理页面中");
       }
     }
 
     // 节点权限只收紧表单权限，不能借流程提高成员原有的数据权限。
     for (const field of allSchemaFields) {
+      if (requiredFieldIds.has(field.id)) {
+        field.required = true;
+      }
+
       const nodePermission = task.fieldPermissions?.[field.id];
       const parent = scope.schema.fields.find((item) =>
         item.children.some((child) => child.id === field.id),
@@ -95,7 +96,8 @@ export class TaskContextService {
 
     if (task.subformId) {
       const hasVisibleSubform = scope.schema.fields.some(
-        (f) => f.id === task.subformId && f.type === "subform" && f.visible,
+        (field) =>
+          field.id === task.subformId && field.type === "subform" && field.visible,
       );
       if (!task.rowId || !hasVisibleSubform) {
         throw new BadRequestException("处理页面不包含任务明细");
@@ -103,11 +105,11 @@ export class TaskContextService {
 
       scope.row = { subformId: task.subformId, rowId: task.rowId };
       scope.schema.fields = scope.schema.fields
-        .filter((f) => f.type !== "subform" || f.id === task.subformId)
-        .map((f) =>
-          f.id === task.subformId
-            ? f
-            : { ...f, editable: false, required: false },
+        .filter((field) => field.type !== "subform" || field.id === task.subformId)
+        .map((field) =>
+          field.id === task.subformId
+            ? field
+            : { ...field, editable: false, required: false },
         );
     }
 
@@ -123,8 +125,9 @@ export class TaskContextService {
     allowArchived = true,
   ) {
     const source = await this.platform.loadRecord(tx, actor, recordId);
-    if (!source.access.read)
+    if (!source.access.read) {
       throw new ForbiddenException("当前成员没有任务记录的查看权限");
+    }
     const scope = await this.scope(actor, task, tx, allowArchived);
     requireActiveRecord(source.row);
 
@@ -138,26 +141,27 @@ export class TaskContextService {
     const schema = scope?.schema || (source.version.schema as FormSchema);
 
     if (task.subformId) {
-      const field = schema.fields.find((f) => f.id === task.subformId);
+      const field = schema.fields.find((field) => field.id === task.subformId);
       if (!field || permission(access, field) === "hidden") {
         throw new ForbiddenException("当前成员没有任务明细的访问权限");
       }
-      const rows = source.row.values[task.subformId] as
-        FormValues[] | undefined;
+      const rows = source.row.values[task.subformId] as FormValues[] | undefined;
       if (!rows?.some((row) => row._rowId === task.rowId)) {
         throw new BadRequestException("任务绑定的明细行已不存在");
       }
     }
 
-    const assertRequired = (field: FormField, parent?: FormField) => {
+    const assertRequiredFieldVisible = (field: FormField, parent?: FormField) => {
       if (field.required && permission(access, field, parent) === "hidden") {
         throw new ForbiddenException("当前成员无法查看任务要求填写的字段");
       }
     };
 
     for (const field of schema.fields) {
-      assertRequired(field);
-      field.children.forEach((child) => assertRequired(child, field));
+      assertRequiredFieldVisible(field);
+      for (const child of field.children) {
+        assertRequiredFieldVisible(child, field);
+      }
     }
 
     return { ...source, scope, access, schema };
@@ -169,21 +173,23 @@ export class TaskContextService {
     actor: Actor,
     recordId: string,
     task: TaskSpec,
-    allowArchived = true,
   ) {
     const source = await this.load(tx, actor, recordId, task);
     validatePageSubmission(source.scope, source.row.values, source.access);
 
-    if (!source.scope) {
-      for (const id of task.requiredFields || []) {
-        const field = source.schema.fields.find(
-          (f) => f.id === id && f.type !== "subform",
-        );
-        if (!field || permission(source.access, field) === "hidden") {
-          throw new ForbiddenException("无法检查任务要求的字段");
-        }
-        scalar({ ...field, required: true }, source.row.values[id]);
+    if (source.scope) {
+      return;
+    }
+
+    // 未绑定处理页面的任务，仍需按记录原始字段校验节点必填要求。
+    for (const fieldId of task.requiredFields || []) {
+      const field = source.schema.fields.find(
+        (field) => field.id === fieldId && field.type !== "subform",
+      );
+      if (!field || permission(source.access, field) === "hidden") {
+        throw new ForbiddenException("无法检查任务要求的字段");
       }
+      scalar({ ...field, required: true }, source.row.values[fieldId]);
     }
   }
 
@@ -192,9 +198,14 @@ export class TaskContextService {
     tx: Transaction,
     actor: Actor,
     processId: string,
-    task: any,
+    task: {
+      id: string;
+      record_id: string;
+      status: string;
+      spec: TaskSpec;
+    },
   ): Promise<RecordDetail> {
-    const spec = task.spec as TaskSpec;
+    const spec = task.spec;
     const source = await this.load(tx, actor, task.record_id, spec);
 
     const writable = task.status === "ready" && spec.kind !== "copy";
@@ -222,11 +233,19 @@ export class TaskContextService {
       source.row.cell_revisions,
       access,
     );
-    const rawRowActions = rowActions(
+    const allowedRowActions = rowActions(
       source.version.schema,
       access,
       source.scope?.schema,
     );
+    // 明细任务只处理绑定行，不能通过行操作新增或移除其他业务明细。
+    if (spec.rowId) {
+      for (const actions of Object.values(allowedRowActions)) {
+        actions.add = false;
+        actions.insert = false;
+        actions.remove = false;
+      }
+    }
 
     return {
       task: {
@@ -241,7 +260,7 @@ export class TaskContextService {
             page: {
               id: source.scope.id,
               version: source.scope.version,
-              title: (source.scope as any).title,
+              title: source.scope.title,
             },
           }
         : {}),
@@ -254,14 +273,7 @@ export class TaskContextService {
       ),
       definition: { ...definitionDto(source.version), schema: visible.schema },
       access,
-      rowActions: Object.fromEntries(
-        Object.entries(rawRowActions).map(([id, actions]) => [
-          id,
-          spec.rowId
-            ? { ...actions, add: false, insert: false, remove: false }
-            : actions,
-        ]),
-      ),
+      rowActions: allowedRowActions,
       record: {
         ...recordDto(source.row),
         values: visible.values,

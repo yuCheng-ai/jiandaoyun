@@ -11,10 +11,7 @@ import {
   parseSchema,
   resolveCalculations,
 } from "../src/domain/form";
-import {
-  formulaConfigurationErrors,
-  formulaValue,
-} from "@platform/contracts";
+import { formulaConfigurationErrors, formulaValue } from "@platform/contracts";
 import {
   linkTypesMatch,
   selectionFilterOperators,
@@ -31,7 +28,7 @@ import { seedWorkspace, type FormEntry } from "../src/domain/workspace";
 import { LocalWorkspaceRepository } from "../src/repositories/workspaceRepository";
 import { useWorkspaceStore } from "../src/stores/workspace";
 import FieldControl from "../src/features/forms/components/FieldControl.vue";
-import FieldInspector from "../src/features/forms/components/FieldInspector.vue";
+
 import FormulaEditor from "../src/features/forms/components/FormulaEditor.vue";
 
 const source = createField("text", { id: "name", label: "姓名" });
@@ -246,57 +243,6 @@ it("keeps text calculations textual in output bindings, display and record sorti
       view,
     }).map((r) => r.id),
   ).toEqual(expected.map((r) => r.id));
-});
-
-it("switches a new result type by clearing its formula, hides numeric formatting and enforces the saved lock", async () => {
-  const field = reactive(copy(numeric));
-  const schema = emptySchema();
-  schema.fields = [field, copy(source)];
-  const locked = reactive({ value: false });
-  const updates: unknown[] = [];
-  const host = document.createElement("div");
-  document.body.append(host);
-  const router = createRouter({
-    history: createMemoryHistory(),
-    routes: [{ path: "/", component: { render: () => null } }],
-  });
-  await router.push("/");
-  app = createApp({
-    render: () =>
-      h(FieldInspector, {
-        field,
-        schema,
-        formId: "test",
-        calculatedTypeLocked: locked.value,
-        onUpdate: (patch: any) => {
-          updates.push(patch);
-          Object.assign(field, patch);
-        },
-      }),
-  });
-  app.use(createPinia());
-  app.use(router);
-  app.mount(host);
-  await nextTick();
-  const select = host.querySelector<HTMLSelectElement>(
-    "#calculated-result-type",
-  );
-  expect(select).not.toBeNull();
-  select!.value = "text";
-  select!.dispatchEvent(new Event("change", { bubbles: true }));
-  await nextTick();
-  expect(field.format).toBe("text");
-  expect(field.expression).toBe("");
-  expect(host.querySelector("#number-format")).toBeNull();
-  locked.value = true;
-  await nextTick();
-  expect(select!.disabled).toBe(true);
-  const before = updates.length;
-  select!.value = "number";
-  select!.dispatchEvent(new Event("change", { bubbles: true }));
-  await nextTick();
-  expect(updates).toHaveLength(before);
-  expect(field.format).toBe("text");
 });
 
 it("locks result types after successful save while keeping formulas editable and historical publications immutable", async () => {

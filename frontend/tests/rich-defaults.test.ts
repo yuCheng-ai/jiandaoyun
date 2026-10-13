@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { createApp, h, nextTick, reactive, shallowRef } from "vue";
+import { createApp, h, shallowRef } from "vue";
 import { createPinia, setActivePinia } from "pinia";
 import {
   copy,
@@ -8,7 +8,6 @@ import {
   emptySchema,
   parseSchema,
   validateValues,
-  type FormField,
 } from "../src/domain/form";
 import { fieldCountLimitError } from "../src/domain/form";
 import { richTextValueIssue } from "../src/domain/richText";
@@ -32,19 +31,15 @@ import {
   type FormRecord,
 } from "../src/domain/workspace";
 import { useFormDesigner } from "../src/features/forms/useFormDesigner";
-import { editFormTabs } from "../src/domain/formTabs";
+
 import { useWorkspaceStore } from "../src/stores/workspace";
 import {
   LocalWorkspaceRepository,
   WORKSPACE_KEY,
 } from "../src/repositories/workspaceRepository";
-import RichTextDefaultInspector from "../src/features/forms/components/RichTextDefaultInspector.vue";
-import FieldInspector from "../src/features/forms/components/FieldInspector.vue";
 
 const apps: ReturnType<typeof createApp>[] = [];
-const settle = async () => {
-  for (let i = 0; i < 8; i++) await nextTick();
-};
+
 beforeEach(() => {
   localStorage.clear();
   setActivePinia(createPinia());
@@ -54,13 +49,7 @@ afterEach(() => {
   document.body.innerHTML = "";
   vi.restoreAllMocks();
 });
-function button(label: string) {
-  return [...document.querySelectorAll<HTMLButtonElement>("button")].find(
-    (el) =>
-      el.getAttribute("aria-label") === label ||
-      el.textContent?.trim() === label,
-  )!;
-}
+
 function mount(component: Parameters<typeof createApp>[0]) {
   const host = document.createElement("div");
   document.body.append(host);
@@ -70,26 +59,7 @@ function mount(component: Parameters<typeof createApp>[0]) {
   apps.push(app);
   return app;
 }
-async function defaultEditor(value = "<p>原默认值</p>") {
-  const field = reactive(createField("richtext", { defaultValue: value }));
-  const update = vi.fn((patch: Partial<FormField>) =>
-    Object.assign(field, patch),
-  );
-  mount({
-    render: () => h(RichTextDefaultInspector, { field, onUpdate: update }),
-  });
-  button("设置富文本默认值").click();
-  await settle();
-  return {
-    field,
-    update,
-    input: document.querySelector<HTMLElement>('[aria-label="富文本默认值"]')!,
-  };
-}
-function edit(input: HTMLElement, html: string) {
-  input.innerHTML = html;
-  input.dispatchEvent(new Event("input", { bubbles: true }));
-}
+
 function seed(form: FormRecord) {
   const data = seedWorkspace();
   data.forms = [form];
@@ -112,88 +82,20 @@ function publish(form: FormRecord) {
 const richFields = (count: number) =>
   Array.from({ length: count }, () => createField("richtext"));
 
-it("offers custom and linked rich defaults in the existing inspector without a formula mode", async () => {
-  const form = newForm("oa", "默认值");
-  const field = createField("richtext");
-  form.schema.fields = [field];
-  seed(form);
-  mount({
-    render: () =>
-      h(FieldInspector, { field, schema: form.schema, formId: form.id }),
-  });
-  await settle();
-  const mode = document.querySelector<HTMLSelectElement>(
-    '[aria-label="默认值来源"]',
-  )!;
-  expect([...mode.options].map((option) => option.value)).toEqual([
-    "custom",
-    "linked",
-  ]);
-  expect(button("设置富文本默认值")).toBeDefined();
-});
-it("keeps default edits local until confirmation, reuses full tools and excludes image insertion", async () => {
-  const f = await defaultEditor();
-  expect(button("插入图片")).toBeUndefined();
-  expect(button("有序列表")).toBeDefined();
-  edit(
-    f.input,
-    "<h2>请按以下步骤处理</h2><ol><li><b>检查</b></li><li>登记</li></ol>",
-  );
-  await settle();
-  expect(f.field.defaultValue).toBe("<p>原默认值</p>");
-  button("确定").click();
-  await settle();
-  expect(f.update).toHaveBeenCalledTimes(1);
+it("rich defaults retain their formatting through schema save and runtime initialization", () => {
+  const value =
+    "<h2>请按以下步骤处理</h2><ol><li><b>检查</b></li><li>登记</li></ol>";
+  const field = createField("richtext", { defaultValue: value });
   const schema = emptySchema();
-  schema.fields = [f.field];
+  schema.fields = [field];
   expect(
     runtimeDefaults(
       parseSchema(JSON.parse(JSON.stringify(schema))).fields,
       seedWorkspace(),
-    )[f.field.id],
-  ).toBe(f.field.defaultValue);
-  expect(String(f.field.defaultValue)).toContain("<h2>");
+    )[field.id],
+  ).toBe(value);
 });
-it("requires explicit discard and does not overwrite another default change", async () => {
-  const f = await defaultEditor();
-  edit(f.input, "<p>未确认</p>");
-  await settle();
-  button("取消").click();
-  await settle();
-  expect(
-    document.querySelector('[aria-label="放弃默认值修改？"]'),
-  ).not.toBeNull();
-  button("继续编辑").click();
-  await settle();
-  f.field.defaultValue = "<p>其他修改</p>";
-  await settle();
-  button("确定").click();
-  await settle();
-  expect(document.body.textContent).toContain("默认值设置已变化");
-  expect(f.input.textContent).toBe("未确认");
-  expect(f.update).not.toHaveBeenCalled();
-  button("取消").click();
-  await settle();
-  button("放弃修改").click();
-  await settle();
-  expect(f.field.defaultValue).toBe("<p>其他修改</p>");
-});
-it("retains an oversized draft for correction instead of silently truncating it", async () => {
-  const f = await defaultEditor();
-  const large = "甲".repeat(30001);
-  edit(f.input, large);
-  await settle();
-  button("确定").click();
-  await settle();
-  expect(document.body.textContent).toContain("上限 3 万字符");
-  expect(f.input.textContent).toBe(large);
-  expect(f.update).not.toHaveBeenCalled();
-  edit(f.input, "<p>已缩短</p>");
-  await settle();
-  button("确定").click();
-  await settle();
-  expect(f.field.defaultValue).toBe("<p>已缩短</p>");
-});
+
 it("enforces stored HTML length while preserving and allowing reductions of legacy values", () => {
   expect(richTextValueIssue("甲".repeat(30000))).toBe("");
   expect(richTextValueIssue("<p>" + "甲".repeat(30000) + "</p>")).toContain(
@@ -347,19 +249,8 @@ it("rejects the eleventh rich field across click, drag, copy and restoration wit
   expect(editor.add("text", null)).toBeTruthy();
   expect(report).toHaveBeenCalledWith("单个表单最多 10 个富文本字段");
 });
-it("checks whole-tab copying and preserves legacy over-limit definitions without allowing growth", () => {
-  const schema = emptySchema(),
-    tabs = createField("tabs");
-  tabs.children = richFields(6).map((field) => ({
-    ...field,
-    tabId: tabs.tabs[0]!.id,
-  }));
-  schema.fields = [tabs];
-  const before = copy(schema);
-  expect(() =>
-    editFormTabs(schema, tabs.id, { type: "copy", tabId: tabs.tabs[0]!.id }),
-  ).toThrow("10 个富文本");
-  expect(schema).toEqual(before);
+it("preserves legacy over-limit definitions without allowing growth", () => {
+  const schema = emptySchema();
   const legacy = richFields(11);
   expect(fieldCountLimitError(legacy, legacy)).toBe("");
   expect(

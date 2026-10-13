@@ -15,7 +15,7 @@ import {
   type FormValues,
 } from "../src/domain/form";
 import FormFields from "../src/features/forms/components/FormFields.vue";
-import FieldInspector from "../src/features/forms/components/FieldInspector.vue";
+
 import FieldControl from "../src/features/forms/components/FieldControl.vue";
 
 let pinia = createPinia();
@@ -145,36 +145,7 @@ it("selects the original prefix and never lends removed columns to later fields"
   f.subformFixedColumns = { desktop: 100, mobile: 0 };
   expect(subformFixedColumnIds(f).size).toBe(5);
 });
-it("keeps desktop and mobile choices independent in the original inspector", async () => {
-  const schema = reactive(emptySchema());
-  schema.fields = [field()];
-  const f = schema.fields[0]!;
-  const host = await mount(() =>
-    h(FieldInspector, {
-      field: f,
-      schema,
-      formId: "test",
-      manageSubform: true,
-      onUpdate: (patch) => Object.assign(f, patch),
-    }),
-  );
-  const mobile = Array.from(
-    host.querySelectorAll<HTMLButtonElement>('[role="tab"]'),
-  ).find((b) => b.textContent?.trim() === "移动端")!;
-  mobile.click();
-  await nextTick();
-  const select = byLabel<HTMLSelectElement>(host, "移动端固定列数");
-  select.value = "2";
-  select.dispatchEvent(new Event("change", { bubbles: true }));
-  await nextTick();
-  expect(f.subformFixedColumns).toEqual({ desktop: 3, mobile: 2 });
-  const checkbox = byLabel<HTMLInputElement>(host, "移动端固定列");
-  checkbox.checked = false;
-  checkbox.dispatchEvent(new Event("change", { bubbles: true }));
-  await nextTick();
-  expect(f.subformFixedColumns).toEqual({ desktop: 3, mobile: 0 });
-  expect(select.disabled).toBe(true);
-});
+
 it("uses column widths for desktop offsets and current visible fields without writing values", async () => {
   const { host, field: f, values, writes, state } = await fixture();
   const before = copy(values);

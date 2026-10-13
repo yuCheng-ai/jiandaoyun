@@ -2,6 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRouter } from "vue-router";
 import RecordEditorSurface from "./RecordEditorSurface.vue";
+import SubmissionReceipt from "../../components/shared/SubmissionReceipt.vue";
 import type {
   FormField,
   FormValues,
@@ -47,7 +48,16 @@ const props = defineProps<{
   detail?: RecordDetail;
   embedded?: boolean;
 }>();
-const emit = defineEmits<{ close: []; saved: [record: RecordDetail] }>();
+const emit = defineEmits<{
+  close: [];
+  saved: [record: RecordDetail];
+  continue: [];
+}>();
+const submission = ref<{
+  message: string;
+  mode: "inline" | "page";
+  canContinue: boolean;
+}>();
 const current = ref(props.detail);
 const collection = ref<CollectionStatus | undefined>(
   props.detail?.collection || props.published.collection,
@@ -468,7 +478,7 @@ async function save(
   mode: "active" | "draft" | "submit" = "active",
   ignoredFingerprint?: string,
 ) {
-  if (busy.value || uploading.value) return;
+  if (busy.value || uploading.value || submission.value) return;
   const validate =
     mode !== "draft" &&
     (mode === "submit" || current.value?.record.state !== "draft") &&
@@ -540,6 +550,13 @@ async function save(
       pendingKey = crypto.randomUUID();
       pendingPayload = fingerprint;
     }
+    // 无查看权限时服务端只返回收据，成功提示应沿用本次提交的已发布配置。
+    const settings = active.value.definition.schema.settings;
+    const receipt = {
+      message: settings.successMessage,
+      mode: settings.successMode,
+      canContinue: settings.allowAnotherSubmission,
+    };
     const result = await platformApi<RecordDetail>(
       current.value
         ? `${currentPath()}${submitting ? "/submit" : ""}`
@@ -556,6 +573,9 @@ async function save(
       },
     );
     markSaved();
+    if (props.embedded && !current.value && mode !== "draft") {
+      submission.value = receipt;
+    }
     emit("saved", result);
   } catch (cause) {
     error.value = (cause as Error).message;
@@ -612,269 +632,287 @@ function relationUpdated(result: RecordDetail) {
     :busy="busy"
     @close="requestClose"
   >
-    <p v-if="current?.task" class="collab-notice">
-      {{
-        current.task.rowId
-          ? "本任务仅处理指定明细行，其他行不显示。"
-          : "本页展示任务关联的业务数据。"
-      }}{{
-        current.task.writable
-          ? "可以先保存，必填内容在完成任务时检查。"
-          : "任务当前只可查看。"
-      }}
-    </p>
-    <p v-if="current?.processId && !current.task && !current.access.edit" class="collab-notice">
-      此记录已进入流程。请在工作台查看流程进度，由当前待办的处理人办理。
-    </p>
-    <p v-if="!embedded" class="collab-help">
-      {{
-        active.page
-          ? `当前页面 V${active.page.version}，数据版本 V${active.definition.version}。`
-          : `按数据版本 V${active.definition.version} 填写。`
-      }}{{
-        current
-          ? "字段与明细修改在保存时一起提交。"
-          : "提交后由系统保存记录和明细身份。"
-      }}
-    </p>
-    <p v-if="active.access.create && !active.access.read" class="collab-help">
-      可以保存自己的草稿，提交后由有查看权限的成员处理。
-    </p>
-    <p v-if="current?.record.state === 'draft'" class="collab-notice">
-      这是尚未提交的草稿，提交后才进入正式记录及业务协作。可以先保存未填完的内容。
-    </p>
-    <p
-      v-if="collecting && collection && !collection.accepting"
-      class="collab-notice"
-      role="status"
-    >
-      {{ collection.reason }}。可以先保存草稿，开放收集后再提交。<button
-        class="text-button"
-        :disabled="busy"
-        @click="checkCollection"
-      >
-        重新检查收集状态
-      </button>
-    </p>
-    <p v-if="current?.creator" class="collab-help">
-      创建人：{{ organizationIdentityLabel(current.creator) }}
-    </p>
-    <div v-if="error" class="collab-error" role="alert">
-      {{ error
-      }}<button
-        v-if="conflict"
-        class="text-button"
-        @click="reloadPrompt = true"
-      >
-        重新读取
-      </button>
-    </div>
-    <p
-      v-for="issue in defaultIssues"
-      :key="issue"
-      class="collab-error"
-      role="alert"
-    >
-      {{ issue }}
-    </p>
-    <p v-if="uploading" class="collab-notice" role="status">
-      附件上传中，请稍候再保存。
-    </p>
-    <p
-      v-for="issue in formIssues"
-      :key="issue.ruleId"
-      :class="issue.mode === 'block' ? 'collab-error' : 'collab-notice'"
-      :role="issue.mode === 'block' ? 'alert' : 'status'"
-    >
-      {{ issue.message }}
-    </p>
-    <div v-if="removedRows.length" class="collab-notice" role="status">
-      待删除
-      {{ removedRows.length }} 行，保存时统一检查引用和其他成员的修改。<button
-        class="text-button"
-        @click="undoRemove"
-      >
-        撤销上一次删除
-      </button>
-    </div>
-    <p v-if="notice" class="collab-success" role="status">{{ notice }}</p>
-    <div v-if="reloadPrompt" class="collab-notice">
-      重新读取会放弃当前输入。<button
-        class="button"
-        @click="reloadPrompt = false"
-      >
-        保留输入</button
-      ><button class="button" @click="reload">放弃修改并读取最新记录</button>
-    </div>
-    <div
-      v-if="confirmDiscard"
-      class="config-discard collab-notice"
-      tabindex="-1"
-    >
-      有尚未保存的修改。<button
-        class="button"
-        @click="
-          confirmDiscard = false;
-          leaveAction = undefined;
-        "
-      >
-        继续编辑</button
-      ><button class="button" @click="discard">放弃修改</button>
-    </div>
-    <div class="collab-fields">
-      <div
-        v-for="field in active.definition.schema.fields"
-        :key="field.id"
-        class="collab-field"
-        v-show="visible(field)"
-      >
-        <template v-if="field.type !== 'subform'">
-          <label :for="`value-${field.id}`"
-            >{{ field.label
-            }}<span v-if="field.required" class="required"> *</span
-            ><small v-if="!editable(field)"> 只读</small></label
-          >
-          <ServerFieldControl
-            :values="values"
-            :field="field"
-            :organization-request="organizationRequest(field)"
-            :identities="active.identities"
-            v-model="values[field.id]"
-            :input-id="`value-${field.id}`"
-            :label="field.label"
-            :disabled="!editable(field)"
-          />
-        </template>
-        <template v-else>
-          <div class="collab-toolbar">
-            <strong>{{ field.label }}</strong
-            ><button
-              v-if="current && !current.task && canRemoveRow(field)"
-              class="text-button"
-              :disabled="hasChanges"
-              :title="hasChanges ? '保存当前修改后可恢复已删除明细' : ''"
-              @click="openDeleted(field)"
-            >
-              已删除明细</button
-            ><button
-              v-if="canAddRow(field)"
-              class="button"
-              :disabled="rows(field.id).length >= maxSubformRows"
-              @click="addRow(field)"
-            >
-              添加明细
-            </button>
-          </div>
-          <div class="collab-table-wrap">
-            <table class="collab-table">
-              <thead>
-                <tr>
-                  <th>序号</th>
-                  <th v-for="child in field.children" :key="child.id">
-                    {{ child.label
-                    }}<small v-if="!editable(child, field)"> · 只读</small>
-                  </th>
-                  <th v-if="canRemoveRow(field) || canInsertRow(field)">
-                    操作
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="(row, index) in rows(field.id)"
-                  :key="String(row._rowId || index)"
-                >
-                  <td>{{ index + 1 }}</td>
-                  <td v-for="child in field.children" :key="child.id">
-                    <ServerFieldControl
-                      v-if="visible(child, row)"
-                      :values="row"
-                      :field="child"
-                      :organization-request="
-                        organizationRequest(child, field, row)
-                      "
-                      :identities="active.identities"
-                      v-model="row[child.id]"
-                      :input-id="`value-${field.id}-${row._rowId || index}-${child.id}`"
-                      :label="`${child.label}，第 ${index + 1} 行`"
-                      :disabled="!editable(child, field, row)"
-                    />
-                  </td>
-                  <td v-if="canRemoveRow(field) || canInsertRow(field)">
-                    <button
-                      v-if="canInsertRow(field)"
-                      class="text-button"
-                      :aria-label="`在${field.label}第 ${index + 1} 行前插入`"
-                      :disabled="rows(field.id).length >= maxSubformRows"
-                      @click="addRow(field, index)"
-                    >
-                      插入
-                    </button>
-                    <button
-                      v-if="canRemoveRow(field, row)"
-                      class="text-button"
-                      :aria-label="`删除${field.label}第 ${index + 1} 行`"
-                      @click="
-                        current && !String(row._rowId).startsWith('draft:')
-                          ? (removing = { field, index })
-                          : removeRow(field, index)
-                      "
-                    >
-                      删除
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <p v-if="!rows(field.id).length" class="collab-help">暂无明细</p>
-          <button
-            v-if="canInsertRow(field) && !canAddRow(field)"
-            class="text-button"
-            :disabled="rows(field.id).length >= maxSubformRows"
-            @click="addRow(field, rows(field.id).length)"
-          >
-            在末尾插入
-          </button>
-        </template>
-      </div>
-    </div>
-    <RecordRelations
-      v-if="current && !current.task && current.record.state !== 'draft'"
-      :detail="current"
-      :unsaved="hasChanges"
-      @updated="relationUpdated"
-      @busy="busy = $event"
+    <SubmissionReceipt
+      v-if="submission?.mode === 'page'"
+      :message="submission.message"
+      :can-continue="submission.canContinue"
+      mode="page"
+      @continue="emit('continue')"
     />
-    <template #footer
-      ><button v-if="!embedded" class="button" @click="requestClose">
-        关闭</button
-      ><button
-        v-if="
-          !current
-            ? active.access.create
-            : current.record.state === 'draft' && active.access.edit
-        "
-        class="button"
-        :disabled="busy || uploading"
-        @click="save('draft')"
-      >
-        保存草稿</button
-      ><button
-        v-if="current ? active.access.edit : active.access.create"
-        class="button primary"
-        :disabled="busy || uploading"
-        @click="save(current?.record.state === 'draft' ? 'submit' : 'active')"
-      >
+    <div v-else :inert="!!submission || undefined">
+      <p v-if="current?.task" class="collab-notice">
         {{
-          current && current.record.state !== "draft"
-            ? "保存修改"
-            : embedded
-              ? "提交"
-              : "提交记录"
+          current.task.rowId
+            ? "本任务仅处理指定明细行，其他行不显示。"
+            : "本页展示任务关联的业务数据。"
+        }}{{
+          current.task.writable
+            ? "可以先保存，必填内容在完成任务时检查。"
+            : "任务当前只可查看。"
         }}
-      </button></template
-    >
+      </p>
+      <p v-if="current?.processId && !current.task && !current.access.edit" class="collab-notice">
+        此记录已进入流程。请在工作台查看流程进度，由当前待办的处理人办理。
+      </p>
+      <p v-if="!embedded" class="collab-help">
+        {{
+          active.page
+            ? `当前页面 V${active.page.version}，数据版本 V${active.definition.version}。`
+            : `按数据版本 V${active.definition.version} 填写。`
+        }}{{
+          current
+            ? "字段与明细修改在保存时一起提交。"
+            : "提交后由系统保存记录和明细身份。"
+        }}
+      </p>
+      <p v-if="active.access.create && !active.access.read" class="collab-help">
+        可以保存自己的草稿，提交后由有查看权限的成员处理。
+      </p>
+      <p v-if="current?.record.state === 'draft'" class="collab-notice">
+        这是尚未提交的草稿，提交后才进入正式记录及业务协作。可以先保存未填完的内容。
+      </p>
+      <p
+        v-if="collecting && collection && !collection.accepting"
+        class="collab-notice"
+        role="status"
+      >
+        {{ collection.reason }}。可以先保存草稿，开放收集后再提交。<button
+          class="text-button"
+          :disabled="busy"
+          @click="checkCollection"
+        >
+          重新检查收集状态
+        </button>
+      </p>
+      <p v-if="current?.creator" class="collab-help">
+        创建人：{{ organizationIdentityLabel(current.creator) }}
+      </p>
+      <div v-if="error" class="collab-error" role="alert">
+        {{ error
+        }}<button
+          v-if="conflict"
+          class="text-button"
+          @click="reloadPrompt = true"
+        >
+          重新读取
+        </button>
+      </div>
+      <p
+        v-for="issue in defaultIssues"
+        :key="issue"
+        class="collab-error"
+        role="alert"
+      >
+        {{ issue }}
+      </p>
+      <p v-if="uploading" class="collab-notice" role="status">
+        附件上传中，请稍候再保存。
+      </p>
+      <p
+        v-for="issue in formIssues"
+        :key="issue.ruleId"
+        :class="issue.mode === 'block' ? 'collab-error' : 'collab-notice'"
+        :role="issue.mode === 'block' ? 'alert' : 'status'"
+      >
+        {{ issue.message }}
+      </p>
+      <div v-if="removedRows.length" class="collab-notice" role="status">
+        待删除
+        {{ removedRows.length }} 行，保存时统一检查引用和其他成员的修改。<button
+          class="text-button"
+          @click="undoRemove"
+        >
+          撤销上一次删除
+        </button>
+      </div>
+      <p v-if="notice" class="collab-success" role="status">{{ notice }}</p>
+      <div v-if="reloadPrompt" class="collab-notice">
+        重新读取会放弃当前输入。<button
+          class="button"
+          @click="reloadPrompt = false"
+        >
+          保留输入</button
+        ><button class="button" @click="reload">放弃修改并读取最新记录</button>
+      </div>
+      <div
+        v-if="confirmDiscard"
+        class="config-discard collab-notice"
+        tabindex="-1"
+      >
+        有尚未保存的修改。<button
+          class="button"
+          @click="
+            confirmDiscard = false;
+            leaveAction = undefined;
+          "
+        >
+          继续编辑</button
+        ><button class="button" @click="discard">放弃修改</button>
+      </div>
+      <div class="collab-fields">
+        <div
+          v-for="field in active.definition.schema.fields"
+          :key="field.id"
+          class="collab-field"
+          v-show="visible(field)"
+        >
+          <template v-if="field.type !== 'subform'">
+            <label :for="`value-${field.id}`"
+              >{{ field.label
+              }}<span v-if="field.required" class="required"> *</span
+              ><small v-if="!editable(field)"> 只读</small></label
+            >
+            <ServerFieldControl
+              :values="values"
+              :field="field"
+              :organization-request="organizationRequest(field)"
+              :identities="active.identities"
+              v-model="values[field.id]"
+              :input-id="`value-${field.id}`"
+              :label="field.label"
+              :disabled="!editable(field)"
+            />
+          </template>
+          <template v-else>
+            <div class="collab-toolbar">
+              <strong>{{ field.label }}</strong
+              ><button
+                v-if="current && !current.task && canRemoveRow(field)"
+                class="text-button"
+                :disabled="hasChanges"
+                :title="hasChanges ? '保存当前修改后可恢复已删除明细' : ''"
+                @click="openDeleted(field)"
+              >
+                已删除明细</button
+              ><button
+                v-if="canAddRow(field)"
+                class="button"
+                :disabled="rows(field.id).length >= maxSubformRows"
+                @click="addRow(field)"
+              >
+                添加明细
+              </button>
+            </div>
+            <div class="collab-table-wrap">
+              <table class="collab-table">
+                <thead>
+                  <tr>
+                    <th>序号</th>
+                    <th v-for="child in field.children" :key="child.id">
+                      {{ child.label
+                      }}<small v-if="!editable(child, field)"> · 只读</small>
+                    </th>
+                    <th v-if="canRemoveRow(field) || canInsertRow(field)">
+                      操作
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="(row, index) in rows(field.id)"
+                    :key="String(row._rowId || index)"
+                  >
+                    <td>{{ index + 1 }}</td>
+                    <td v-for="child in field.children" :key="child.id">
+                      <ServerFieldControl
+                        v-if="visible(child, row)"
+                        :values="row"
+                        :field="child"
+                        :organization-request="
+                          organizationRequest(child, field, row)
+                        "
+                        :identities="active.identities"
+                        v-model="row[child.id]"
+                        :input-id="`value-${field.id}-${row._rowId || index}-${child.id}`"
+                        :label="`${child.label}，第 ${index + 1} 行`"
+                        :disabled="!editable(child, field, row)"
+                      />
+                    </td>
+                    <td v-if="canRemoveRow(field) || canInsertRow(field)">
+                      <button
+                        v-if="canInsertRow(field)"
+                        class="text-button"
+                        :aria-label="`在${field.label}第 ${index + 1} 行前插入`"
+                        :disabled="rows(field.id).length >= maxSubformRows"
+                        @click="addRow(field, index)"
+                      >
+                        插入
+                      </button>
+                      <button
+                        v-if="canRemoveRow(field, row)"
+                        class="text-button"
+                        :aria-label="`删除${field.label}第 ${index + 1} 行`"
+                        @click="
+                          current && !String(row._rowId).startsWith('draft:')
+                            ? (removing = { field, index })
+                            : removeRow(field, index)
+                        "
+                      >
+                        删除
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p v-if="!rows(field.id).length" class="collab-help">暂无明细</p>
+            <button
+              v-if="canInsertRow(field) && !canAddRow(field)"
+              class="text-button"
+              :disabled="rows(field.id).length >= maxSubformRows"
+              @click="addRow(field, rows(field.id).length)"
+            >
+              在末尾插入
+            </button>
+          </template>
+        </div>
+      </div>
+      <RecordRelations
+        v-if="current && !current.task && current.record.state !== 'draft'"
+        :detail="current"
+        :unsaved="hasChanges"
+        @updated="relationUpdated"
+        @busy="busy = $event"
+      />
+    </div>
+    <template #footer>
+      <SubmissionReceipt
+        v-if="submission?.mode === 'inline'"
+        :message="submission.message"
+        :can-continue="submission.canContinue"
+        mode="inline"
+        @continue="emit('continue')"
+      />
+      <template v-else-if="!submission">
+        <button v-if="!embedded" class="button" @click="requestClose">
+          关闭</button
+        ><button
+          v-if="
+            !current
+              ? active.access.create
+              : current.record.state === 'draft' && active.access.edit
+          "
+          class="button"
+          :disabled="busy || uploading"
+          @click="save('draft')"
+        >
+          保存草稿</button
+        ><button
+          v-if="current ? active.access.edit : active.access.create"
+          class="button primary"
+          :disabled="busy || uploading"
+          @click="save(current?.record.state === 'draft' ? 'submit' : 'active')"
+        >
+          {{
+            current && current.record.state !== "draft"
+              ? "保存修改"
+              : embedded
+                ? "提交"
+                : "提交记录"
+          }}
+        </button>
+      </template>
+    </template>
   </RecordEditorSurface>
   <BaseDialog
     :open="!!warning"

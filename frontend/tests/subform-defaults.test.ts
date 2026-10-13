@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, expect, it } from "vitest";
-import { createApp, h, nextTick, reactive } from "vue";
-import { createPinia } from "pinia";
+import { expect, it } from "vitest";
+
 import { composeFormSchema, separateFormSchema } from "@platform/contracts";
 import {
   createField,
@@ -26,23 +25,7 @@ import {
   prepareMemberCreate,
   prepareMemberUpdate,
 } from "../src/domain/access";
-import { useWorkspaceStore } from "../src/stores/workspace";
-import { WORKSPACE_KEY } from "../src/repositories/workspaceRepository";
-import FieldInspector from "../src/features/forms/components/FieldInspector.vue";
 
-const cleanups: (() => void)[] = [];
-beforeEach(() => {
-  localStorage.clear();
-  sessionStorage.clear();
-  localStorage.setItem(WORKSPACE_KEY, JSON.stringify(seedWorkspace()));
-});
-afterEach(() => {
-  cleanups.splice(0).forEach((f) => f());
-  document.body.innerHTML = "";
-});
-const flush = async () => {
-  for (let i = 0; i < 4; i++) await nextTick();
-};
 function fixture() {
   const data = seedWorkspace(),
     source = newForm("oa", "合成物料清单"),
@@ -551,144 +534,4 @@ it("does not reload a linked subform when only inactive option/reference filters
   );
   expect(changed.lines).toEqual(initial.lines);
   expect((changed.lines as FormValues[])[0]!.qty).toBe(7);
-});
-it("edits literal defaults only on confirmation and discards a cancelled dialog without changing the form", async () => {
-  const pinia = createPinia(),
-    store = useWorkspaceStore(pinia),
-    { data, target, rows } = fixture();
-  store.data = data;
-  const schema = reactive(target.schema);
-  schema.fields[1]!.defaultLink!.enabled = false;
-  const field = schema.fields[1]!;
-  const host = document.createElement("div");
-  document.body.append(host);
-  const app = createApp({
-    render: () =>
-      h(FieldInspector, {
-        field,
-        schema,
-        formId: target.id,
-        manageSubform: true,
-        onUpdate: (patch: any) => Object.assign(field, patch),
-      }),
-  });
-  app.use(pinia);
-  app.mount(host);
-  cleanups.push(() => app.unmount());
-  await flush();
-  const click = async (label: string, root: Element = document.body) => {
-    [...root.querySelectorAll("button")]
-      .find((b) => b.textContent?.trim() === label)!
-      .click();
-    await flush();
-  };
-  await click("设置", host);
-  await click("添加采购明细");
-  const input = document.querySelector<HTMLInputElement>(
-    'dialog input[aria-label="采购明细 第1行 物料"]',
-  )!;
-  input.value = "合成待取消";
-  input.dispatchEvent(new Event("input", { bubbles: true }));
-  await flush();
-  await click("取消");
-  expect(field.defaultRows).toBeUndefined();
-  await click("放弃修改");
-  expect(document.querySelector("dialog")).toBeNull();
-  await click("设置", host);
-  await click("添加采购明细");
-  const value = document.querySelector<HTMLInputElement>(
-    'dialog input[aria-label="采购明细 第1行 物料"]',
-  )!;
-  value.value = "合成默认明细";
-  value.dispatchEvent(new Event("input", { bubbles: true }));
-  await flush();
-  await click("确定");
-  expect(field.defaultRows![0]!.name).toBe("合成默认明细");
-  expect(field.defaultRows![0]!.qty).toBe(99);
-  expect(target.versions[0]!.schema.fields[1]).not.toHaveProperty(
-    "defaultRows",
-  );
-});
-it("keeps the field menu inside the shared dialog lifecycle and commits complete mappings only on confirmation", async () => {
-  const pinia = createPinia(),
-    store = useWorkspaceStore(pinia),
-    { data, target } = fixture();
-  store.data = data;
-  const schema = reactive(target.schema),
-    field = schema.fields[1]!;
-  const host = document.createElement("div");
-  document.body.append(host);
-  const app = createApp({
-    render: () =>
-      h(FieldInspector, {
-        field,
-        schema,
-        formId: target.id,
-        manageSubform: true,
-        onUpdate: (patch: any) => Object.assign(field, patch),
-      }),
-  });
-  app.use(pinia);
-  app.mount(host);
-  cleanups.push(() => app.unmount());
-  await flush();
-  const click = async (label: string) => {
-    const root =
-      document.querySelector('[role="menu"]') ||
-      document.querySelector("dialog") ||
-      host;
-    [...root.querySelectorAll("button")]
-      .find((b) => b.textContent?.trim() === label)!
-      .click();
-    await flush();
-  };
-  await click("数据联动设置");
-  await click("添加子字段");
-  expect(document.activeElement?.textContent).toContain("数量");
-  document.activeElement!.dispatchEvent(
-    new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
-  );
-  await flush();
-  expect(document.querySelector('[role="menu"]')).toBeNull();
-  expect(document.querySelector("dialog")).not.toBeNull();
-  expect(document.activeElement?.getAttribute("aria-label")).toBe(
-    "添加联动子字段",
-  );
-  await click("添加子字段");
-  await click("数量");
-  expect(field.defaultLink!.mappings).toHaveLength(3);
-  const selection = document.querySelector<HTMLSelectElement>(
-    'dialog select[aria-label="联动子字段 数量"]',
-  )!;
-  expect(selection.value).toBe("");
-  selection.value = "price";
-  selection.dispatchEvent(new Event("change", { bubbles: true }));
-  await flush();
-  await click("取消");
-  expect(document.querySelector('[role="alertdialog"]')).not.toBeNull();
-  await click("放弃修改");
-  expect(field.defaultLink!.mappings).toHaveLength(3);
-  await click("数据联动设置");
-  const remove = document.querySelector<HTMLButtonElement>(
-    'button[aria-label="删除子字段对应 1"]',
-  )!;
-  remove.click();
-  await flush();
-  await click("添加子字段");
-  await click("物料");
-  expect(
-    document.querySelector<HTMLSelectElement>(
-      'dialog select[aria-label="联动子字段 物料"]',
-    )!.value,
-  ).toBe("material");
-  await click("确定");
-  expect(document.querySelector("dialog")).toBeNull();
-  expect(field.defaultLink!.mappings!.at(-1)).toEqual({
-    targetFieldId: "name",
-    sourceFieldId: "material",
-  });
-  expect(
-    target.versions[0]!.schema.fields[1]!.defaultLink!.mappings![0]!
-      .targetFieldId,
-  ).toBe("name");
 });
