@@ -16,8 +16,8 @@ let createFingerprint = "", createKey = "";
 const sourceModel = computed(() => models.value[spec.value.sourceDefinitionId]);
 const sourceFields = computed(() => (spec.value.sourceSubformId ? sourceModel.value?.fields.find(f => f.id === spec.value.sourceSubformId)?.children : sourceModel.value?.fields)?.filter(f => f.kind !== "subform") || []);
 const targetFields = computed(() => models.value[spec.value.targetDefinitionId]?.fields.filter(f => f.kind !== "subform") || []);
-const { requestClose, confirmDiscard, discard, markSaved } = useDraftDismiss(() => true, () => spec.value, () => emit("close"));
-onBeforeRouteLeave(() => { requestClose(); return false; });
+const { requestClose, confirmLeave, confirmDiscard, discard, markSaved } = useDraftDismiss(() => true, () => spec.value, () => emit("close"));
+onBeforeRouteLeave(() => !busy.value && confirmLeave());
 async function loadModels() {
   busy.value = true; error.value = "";
   try {

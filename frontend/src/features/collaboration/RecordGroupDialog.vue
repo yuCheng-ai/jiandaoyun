@@ -33,15 +33,12 @@ const selected = ref(""),
 const group = computed(() =>
   state.value.groups.find((g) => g.id === selected.value),
 );
-const { requestClose, confirmDiscard, discard, markSaved } = useDraftDismiss(
+const { requestClose, confirmLeave, confirmDiscard, discard, markSaved } = useDraftDismiss(
   () => true,
   () => state.value,
   () => emit("close"),
 );
-onBeforeRouteLeave(() => {
-  requestClose();
-  return false;
-});
+onBeforeRouteLeave(() => !busy.value && confirmLeave());
 async function load() {
   busy.value = true;
   error.value = "";
@@ -183,6 +180,7 @@ async function save() {
     busy.value = false;
   }
 }
+defineExpose({ confirmLeave: () => !busy.value && confirmLeave() });
 </script>
 <template>
   <component

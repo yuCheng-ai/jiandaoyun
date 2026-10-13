@@ -13,8 +13,11 @@ import {
   numberValueIssue,
   isDateFormat,
   validDateValue,
+  fileSettingsErrors,
+  fileValueIssue,
   normalizeDateValue,
   type FormField,
+  type FileValue,
   type ChoiceValue,
 } from "@platform/contracts";
 import { validateOrganizationRule } from "../directory/organization-fields";
@@ -22,8 +25,6 @@ import { validateOrganizationRule } from "../directory/organization-fields";
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PHONE_REGEX = /^1[3-9]\d{9}$/;
 const STRUCTURED_FIELD_TYPES = [
-  "image",
-  "file",
   "location",
   "address",
   "signature",
@@ -41,6 +42,8 @@ export function validateFieldRules(
   allowIncomplete: boolean,
   identifier: (value: unknown) => void,
 ) {
+  const fileError = fileSettingsErrors(field, true)[0];
+  if (fileError) throw new BadRequestException(`「${field.label}」${fileError}`);
   // 1. 校验数值字段开关配置
   for (const key of ["retainPrecision", "numberGrouping", "limitRange"] as const) {
     if (field[key] !== undefined && typeof field[key] !== "boolean") {
@@ -129,6 +132,22 @@ export function validateFieldRules(
  */
 export function scalar(field: FormField, value: unknown, required = true): any {
   const multiple = isMultipleChoice(field.type) || isMultipleOrganization(field.type);
+
+  // 附件必须是文件列表；空列表遵守必填规则，非空列表还会在保存事务中核验真实内容。
+  if (field.type === "file" || field.type === "image") {
+    const files = value == null || value === "" ? [] : value;
+    const issue = fileValueIssue(field, files);
+    if (issue) throw new BadRequestException(`「${field.label}」${issue}`);
+    if (required && field.required && Array.isArray(files) && !files.length) {
+      throw new BadRequestException(`「${field.label}」不能为空`);
+    }
+    return (files as FileValue[]).map(file => ({
+      id: file.id,
+      name: file.name,
+      size: file.size,
+      type: file.type,
+    }));
+  }
 
   // 1. 空值处理与必填校验
   if (emptyFieldValue(value)) {

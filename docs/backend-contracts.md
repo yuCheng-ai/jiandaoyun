@@ -1,6 +1,6 @@
 # 服务端契约与实现边界
 
-更新：2026-10-09。M1 基线见 backend-m1-qa.md；后续验收见 backend-m2-qa.md、relations-ui-qa.md、process-templates-qa.md、organization-server-qa.md。当前仍是本地开发平台，完整生产流程能力未完成。
+更新：2026-10-13（本次更新表单流程、发起权限、抄送与委托契约）。M1 基线见 backend-m1-qa.md；后续验收见 backend-m2-qa.md、relations-ui-qa.md、process-templates-qa.md、organization-server-qa.md。当前仍是本地开发平台，完整生产流程能力未完成。
 
 ## 工程与选型
 
@@ -8,7 +8,7 @@ frontend/ 保留 Vue 3 + TypeScript、Pinia、领域与 Repository 分层。back
 
 本阶段选择 TypeScript 贯穿前后端，以复用稳定 ID 和定义契约；选择 PostgreSQL 承担事务、版本外键、并发锁、唯一约束与审计写入。可变字段值暂存在 JSONB；任务、记录、版本和成员关系是独立实体。这些能力来自权限和执行模型，不以更换数据库本身作为产品差异。
 
-后端模块文件分别负责认证、数据库、Schema 校验、表单/记录服务和任务服务；尚未拆为分布式服务。原工作台的 localStorage Repository 继续运行，协作入口的请求统一经过 platformApi Repository。原成员切换不会取得后端会话。
+后端模块文件分别负责认证、数据库、Schema 校验、表单/记录服务和任务服务；尚未拆为分布式服务。工作台、表单和流程入口统一经过 platformApi 读取服务端；库内尚存的本地原型依赖见 architecture.md，不作为当前业务的数据来源。
 
 ## 数据模型
 
@@ -113,7 +113,7 @@ POST /api/pages/:id/lifecycle-preview 接收 action（archive 或 restore）和 
 
 测试覆盖「协作核对」的两张表、两个并行任务、汇合及跨表等待，以及「资料交接」的串行交接与接收。业务名称仅出现在配置中，执行器没有按业务名分支。
 
-等待条件在查询、任务写入、完成任务时重新检查，并有每 5 秒一轮、每轮最多 20 个流程的后台检查。任务及检查失败状态在服务重启后继续；没有外部消息推送。任务完成是确认动作，不包含原子修改多记录、自动库存操作或 ERP 集成。现有可视化流程设计器尚未编译到此模型。
+等待条件在查询、任务写入、完成任务时重新检查，并有每 5 秒一轮、每轮最多 20 个流程的后台检查。任务及检查失败状态在服务重启后继续；没有外部消息推送。任务完成是确认动作，不包含原子修改多记录、自动库存操作或 ERP 集成。可视化流程设计器直接编辑服务端模板任务和依赖，画布不另存一份执行图。起止连线由 startTaskIds/endTaskIds 明确记录，缺省或空数组表示未连线，不按任务依赖自动补齐。断线草稿可以保存；发布接口检查所有节点从发起可达且能够到达结束，断线不能启用。已发布版本继续按发布时的任务依赖执行。任务 `position` 与模板 `layout.start/end` 只记录展示位置，由同一保存接口校验并持久化；不参与任务依赖或权限判断。
 
 ## 任务配置与处理接口
 
@@ -131,7 +131,15 @@ POST /api/pages/:id/lifecycle-preview 接收 action（archive 或 restore）和 
 | POST /api/process-templates/:id/versions/:version/start | 使用 bindings、recordRevisions、participantsToken、requestId 原子发起；组取人必须匹配成员预览 |
 | GET/PATCH /api/processes/:id/tasks/:taskId/record | 在处理页面与记录/行范围内读取、保存 |
 
-模板管理和发起暂限管理员，任务处理按实际成员身份授权。配置卡片已接入应用管理，旧流程画布仍未编译到服务端执行。详细限制和实际证据见 process-templates-qa.md。
+模板配置与发布限管理员。成员列表只返回有新增权限的已启用发布模板；读取、预览和发起也执行相同授权。已有独立模板的候选记录限本人创建且当前可读，发起时重新校验归属与权限。
+
+表单流程的 `startPageId` 唯一指定自动发起入口。`POST /api/pages/:id/records` 与 `POST /api/pages/:id/records/:recordId/submit` 在同一事务中保存记录并发起，返回 `RecordDetail.processId`；草稿不发起。已绑定表单的模板不能再通过独立模板接口手动重复发起。
+
+`PUT /api/process-templates/:id/state` 接收 expectedRevision 和 enabled。停用不影响已发任务。任务可配置 kind（approval/copy）、fieldPermissions（edit/read/hidden）及画布 position；节点权限和父子限制在服务端收紧基础授权。流程运行中的自动提交记录，普通成员只能通过任务接口修改。
+
+`GET /api/processes` 的 scope 支持 todo、started、handled、copied、delegation。详情返回 canOpen、canHandle，用于准确显示动作；后端仍逐请求鉴权。发起人可看完整进度，其他成员查看自己负责、已收抄送或曾委托的任务轨迹。
+
+`GET /api/processes/:id/tasks/:taskId/delegate-options` 只返回可接手本任务的成员 ID 和名称。`POST /api/processes/:id/tasks/:taskId/delegate` 接收 assigneeId，锁定任务与流程后重验授权，更新实际处理人和运行定义并写入 delegated 轨迹。原处理人不再有办理权限。抄送送达时写 copied 轨迹，不允许保存或完成抄送任务。
 
 ## 组织与授权接口
 
@@ -152,7 +160,7 @@ subject 为 `{kind: "department" 或 "role", id, includeChildren?}`。部门授�
 ## 当前可用范围与后续工作
 
 - 服务端接受文本、长文本、数字、单层子表；执行必填、长度、数值范围、小数位、字段身份和写权限检查。条件显隐、唯一、公式、动态来源、脱敏规则等未接通的配置会拒绝保存或发布。
-- 当前权限支持指定成员、部门和角色，处理页面与任务行范围进一步收紧。任务可按部门/角色当前在用成员逐人展开；复杂汇报线、任一人领取和运行中改派未接入。管理员可管理当前工作空间全部记录。
+- 当前权限支持指定成员、部门和角色，处理页面与任务行范围进一步收紧。任务可按部门/角色当前在用成员逐人展开；复杂汇报线和任一人领取未接入；当前可办理任务可委托给已有权限的成员。管理员可管理当前工作空间全部记录。
 - 定义、页面和记录采用版本绑定，不自动升级历史记录；管理员可以预览并显式执行兼容新增升级。已发布字段 ID 不能变更类型或所属子表。
 - 迁移版本台账、校验和与重复/并发启动验证已实现。企业 SSO、账号生命周期、密码重置、多实例限流、HTTPS、生产备份演练和监控仍待设计。开发服务仅监听回环地址，账号凭据由 .env 随机生成。
-- M2 已接关系、引用检查、明细操作、任务配置及基础等待/轨迹；部门角色授权与逐人取人已验证，数据对象变更影响、数据与页面草稿恢复及待发布字段汇总已验证，页面归档及恢复已验证，详见 page-lifecycle-qa.md。M3 补完整画布执行、回退/撤回/改派/超时及外部执行重试。原前端 F1–F10 剩余验收继续保留。
+- M2 已接关系、引用检查、明细操作、任务配置及基础等待/轨迹；部门角色授权与逐人取人已验证，数据对象变更影响、数据与页面草稿恢复及待发布字段汇总已验证，页面归档及恢复已验证，详见 page-lifecycle-qa.md。后续继续讨论退回、撤回、按日期代办、超时及外部执行重试。原前端 F1–F10 剩余验收继续保留。

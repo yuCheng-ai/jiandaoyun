@@ -9,6 +9,7 @@ import {
 import ServerOrganizationControl from "./ServerOrganizationControl.vue";
 import ChoiceFieldControl from "../forms/components/ChoiceFieldControl.vue";
 import DateFieldControl from "../forms/components/DateFieldControl.vue";
+import FileFieldControl from "../forms/components/FileFieldControl.vue";
 const props = defineProps<{
   organizationRequest?: { path: string; body: Record<string, unknown> };
   identities?: OrganizationIdentity[];
@@ -29,8 +30,16 @@ function input(event: Event) {
 }
 </script>
 <template>
+  <FileFieldControl
+    v-if="field.type === 'file' || field.type === 'image'"
+    :field="field"
+    :model-value="modelValue"
+    :disabled="disabled"
+    :label="label"
+    @update:model-value="emit('update:modelValue', $event)"
+  />
   <ServerOrganizationControl
-    v-if="isOrganizationField(field.type)"
+    v-else-if="isOrganizationField(field.type)"
     :field="field"
     :model-value="modelValue"
     :disabled="disabled"

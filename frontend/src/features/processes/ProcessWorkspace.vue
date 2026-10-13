@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
+import BaseDialog from "../../components/BaseDialog.vue";
 import type {
   DefinitionSummary,
   PageSummary,
@@ -7,7 +9,6 @@ import type {
 } from "@platform/contracts";
 import { usePlatformSession } from "../../stores/platformSession";
 import { platformApi } from "../../repositories/platformApi";
-import ProcessTemplateEditor from "./ProcessTemplateEditor.vue";
 import ProcessStartDialog from "./ProcessStartDialog.vue";
 import ProcessDetail from "./ProcessDetail.vue";
 import "./processes.css";
@@ -15,7 +16,7 @@ const props = defineProps<{
   applicationId?: string;
   objects?: DefinitionSummary[];
   pages?: PageSummary[];
-  scope?: "todo" | "started" | "handled";
+  scope?: "todo" | "started" | "handled" | "copied" | "delegation";
 }>();
 const session = usePlatformSession(),
   templates = ref<ProcessTemplateDraft[]>([]),
@@ -25,16 +26,45 @@ const session = usePlatformSession(),
 const busy = ref(false),
   error = ref(""),
   editing = ref(false),
-  selected = ref<ProcessTemplateDraft>(),
+  selectedPage = ref(""),
   starting = ref<ProcessTemplateDraft>(),
   processId = ref("");
 const heading = computed(() =>
   props.scope
-    ? { todo: "我的待办", started: "我发起的", handled: "我处理的" }[
-        props.scope
-      ]
+    ? {
+        todo: "我的待办",
+        started: "我发起的",
+        handled: "我处理的",
+        copied: "抄送我的",
+        delegation: "待办委托",
+      }[props.scope]
     : "流程",
 );
+const router = useRouter();
+const availablePages = computed(() =>
+  (props.pages || []).filter((page) => page.latestVersion && !page.archivedAt),
+);
+function configure(template?: ProcessTemplateDraft) {
+  const pageId =
+    template?.startPageId ||
+    template?.spec.tasks[0]?.pageId ||
+    selectedPage.value;
+  if (!pageId || !props.applicationId) return;
+  router.push({
+    path: `/applications/${props.applicationId}/pages/${pageId}/flow`,
+    query: template ? { templateId: template.id } : {},
+  });
+}
+function start(template: ProcessTemplateDraft) {
+  if (template.startPageId) {
+    router.push({
+      path: `/applications/${template.applicationId}`,
+      query: { form: template.startPageId },
+    });
+    return;
+  }
+  starting.value = template;
+}
 async function load() {
   if (busy.value) return;
   busy.value = true;
@@ -66,9 +96,9 @@ onMounted(load);
         <h2>{{ heading }}</h2>
         <p class="collab-help">
           {{
-            applicationId && session.user?.role === "admin"
-              ? "配置处理人、表单和办理顺序，按已发布版本发起。"
-              : "打开流程中的任务，按权限处理关联表单。"
+            scope === "delegation"
+              ? "打开待办，选择有权限的同事接手；已委托的任务可继续查看进度。"
+              : "打开流程查看进度，按权限办理或查看抄送。"
           }}
         </p>
       </div>
@@ -78,7 +108,7 @@ onMounted(load);
         class="button primary"
         :disabled="busy"
         @click="
-          selected = undefined;
+          selectedPage = availablePages[0]?.id || '';
           editing = true;
         "
       >
@@ -115,18 +145,12 @@ onMounted(load);
               </td>
               <td>
                 <div class="process-actions">
-                  <button
-                    class="text-button"
-                    @click="
-                      selected = template;
-                      editing = true;
-                    "
-                  >
+                  <button class="text-button" @click="configure(template)">
                     配置流程</button
                   ><button
-                    v-if="template.latestVersion"
+                    v-if="template.latestVersion && template.enabled"
                     class="text-button"
-                    @click="starting = template"
+                    @click="start(template)"
                   >
                     发起流程
                   </button>
@@ -184,21 +208,30 @@ onMounted(load);
       暂无可查看的流程。
     </p>
   </section>
-  <ProcessTemplateEditor
-    v-if="editing && applicationId"
-    :application-id="applicationId"
-    :objects="objects || []"
-    :pages="pages || []"
-    :template="selected"
-    @close="
-      editing = false;
-      load();
-    "
-    @saved="
-      editing = false;
-      load();
-    "
-  />
+  <BaseDialog
+    :open="editing"
+    title="选择要设置流程的表单"
+    @close="editing = false"
+  >
+    <label class="collab-field"
+      >表单<select v-model="selectedPage">
+        <option v-for="page in availablePages" :key="page.id" :value="page.id">
+          {{ page.title }}
+        </option>
+      </select></label
+    >
+    <p v-if="!availablePages.length" class="collab-help">请先发布一张表单。</p>
+    <template #footer
+      ><button class="button" @click="editing = false">取消</button
+      ><button
+        class="button primary"
+        :disabled="!selectedPage"
+        @click="configure()"
+      >
+        配置流程
+      </button></template
+    >
+  </BaseDialog>
   <ProcessStartDialog
     v-if="starting"
     :template-id="starting.id"

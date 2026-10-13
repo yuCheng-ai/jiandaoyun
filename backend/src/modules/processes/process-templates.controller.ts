@@ -32,6 +32,11 @@ export class ProcessTemplateController {
     return this.templates.publish(r.actor, id, b);
   }
 
+  @Put(":id/state")
+  setEnabled(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Body() b: unknown) {
+    return this.templates.setEnabled(r.actor, id, b);
+  }
+
   /** 获取已发布的任务模板指定版本详情 */
   @Get(":id/versions/:version")
   published(
@@ -73,5 +78,22 @@ export class ProcessTemplateController {
     @Body() b: unknown,
   ) {
     return this.templates.start(r.actor, id, Number(version), b);
+  }
+}
+
+/** 对外保留原表单提交地址，在同一事务内协调记录与流程。 */
+@Controller("api/pages")
+@UseGuards(AuthGuard)
+export class FormSubmissionController {
+  constructor(private readonly templates: ProcessTemplateService) {}
+
+  @Post(":id/records")
+  create(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Body() b: unknown) {
+    return this.templates.submitPage(r.actor, id, b);
+  }
+
+  @Post(":id/records/:recordId/submit")
+  submit(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Param("recordId") recordId: string, @Body() b: unknown) {
+    return this.templates.submitPage(r.actor, id, b, recordId);
   }
 }

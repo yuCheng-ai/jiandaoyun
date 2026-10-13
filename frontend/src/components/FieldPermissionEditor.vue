@@ -1,64 +1,113 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import type { FormField, ProcessTemplateTask } from "@platform/contracts";
 import AppIcon from "./AppIcon.vue";
-import {
-  fields,
-  changeFieldAccess,
-  type NodeData,
-  type PermissionColumn,
-} from "../domain/workflow";
-const props = defineProps<{
-  data: NodeData;
-  formFields?: { id: string; label: string }[];
-}>();
-const emit = defineEmits<{ update: [patch: Partial<NodeData>] }>();
+
+const props = defineProps<{ task: ProcessTemplateTask; fields: FormField[] }>();
 const search = ref("");
-const visibleFields = computed(() =>
-  (props.formFields || fields.map((label) => ({ id: label, label }))).filter(
-    (field) => field.label.includes(search.value.trim()),
-  ),
+const rows = computed(() =>
+  props.fields
+    .flatMap((field) => [
+      { field, label: field.label, parent: undefined as FormField | undefined },
+      ...field.children.map((child) => ({
+        field: child,
+        label: `${field.label} / ${child.label}`,
+        parent: field,
+      })),
+    ])
+    .filter(({ label }) => label.includes(search.value.trim())),
 );
-const columns: { id: PermissionColumn; label: string }[] = [
-  { id: "visible", label: "可见" },
-  { id: "editable", label: "可编辑" },
-  { id: "brief", label: "简报" },
-];
-function checked(field: string, column: PermissionColumn) {
-  return column === "visible"
-    ? props.data.permissions[field] !== "hidden"
-    : column === "editable"
-      ? props.data.permissions[field] === "edit"
-      : props.data.briefFields.includes(field);
-}
-function allChecked(column: PermissionColumn) {
+const columns = computed(() => {
+  if (props.task.kind === "copy")
+    return [{ id: "visible", label: "可见" }] as const;
+  return [
+    { id: "visible", label: "可见" },
+    { id: "editable", label: "可编辑" },
+    { id: "required", label: "必填" },
+  ] as const;
+});
+type Column = "visible" | "editable" | "required";
+type Row = (typeof rows.value)[number];
+function visible(row: Row): boolean {
   return (
-    visibleFields.value.length > 0 &&
-    visibleFields.value.every((field) => checked(field.id, column))
+    row.field.visible &&
+    props.task.fieldPermissions?.[row.field.id] !== "hidden" &&
+    (!row.parent ||
+      (row.parent.visible &&
+        props.task.fieldPermissions?.[row.parent.id] !== "hidden"))
   );
 }
-function mixed(column: PermissionColumn) {
+function checked(row: Row, column: Column): boolean {
+  if (column === "visible") return visible(row);
+  if (column === "required")
+    return props.task.requiredFields.includes(row.field.id);
   return (
-    !allChecked(column) &&
-    visibleFields.value.some((field) => checked(field.id, column))
+    visible(row) &&
+    row.field.editable &&
+    props.task.fieldPermissions?.[row.field.id] !== "read" &&
+    (!row.parent ||
+      (row.parent.editable &&
+        props.task.fieldPermissions?.[row.parent.id] !== "read"))
   );
 }
-function change(selected: string[], column: PermissionColumn, event: Event) {
-  emit(
-    "update",
-    changeFieldAccess(
-      props.data,
-      selected,
-      column,
-      (event.target as HTMLInputElement).checked,
-    ),
+function disabled(row: Row, column: Column): boolean {
+  if (!row.field.visible || (row.parent && !row.parent.visible)) return true;
+  if (row.parent && props.task.fieldPermissions?.[row.parent.id] === "hidden")
+    return true;
+  if (column === "visible") return false;
+  if (!visible(row)) return true;
+  if (column === "required")
+    return (
+      row.field.type === "subform" ||
+      (!!props.task.subformId && row.parent?.id !== props.task.subformId)
+    );
+  return (
+    !row.field.editable ||
+    (!!row.parent &&
+      (!row.parent.editable ||
+        props.task.fieldPermissions?.[row.parent.id] === "read"))
   );
+}
+function change(row: Row, column: Column, enabled: boolean) {
+  if (disabled(row, column)) return;
+  const task = props.task;
+  const id = row.field.id;
+  if (column === "required") {
+    task.requiredFields = task.requiredFields.filter((value) => value !== id);
+    if (enabled) task.requiredFields.push(id);
+    return;
+  }
+  task.fieldPermissions ||= {};
+  if (column === "editable")
+    task.fieldPermissions[id] = enabled ? "edit" : "read";
+  else if (enabled) task.fieldPermissions[id] = "read";
+  else {
+    task.fieldPermissions[id] = "hidden";
+    // 隐藏子表时一并取消子字段必填，避免生成无法完成的节点。
+    const hidden = new Set([
+      id,
+      ...row.field.children.map((child) => child.id),
+    ]);
+    task.requiredFields = task.requiredFields.filter(
+      (value) => !hidden.has(value),
+    );
+  }
+}
+function allChecked(column: Column) {
+  const editableRows = rows.value.filter((row) => !disabled(row, column));
+  return (
+    editableRows.length > 0 && editableRows.every((row) => checked(row, column))
+  );
+}
+function toggleAll(column: Column, enabled: boolean) {
+  rows.value.forEach((row) => change(row, column, enabled));
 }
 </script>
 
 <template>
   <div class="field-search">
     <AppIcon name="search" :size="15" />
-    <input v-model="search" aria-label="搜索字段" placeholder="搜索" />
+    <input v-model="search" aria-label="搜索字段" placeholder="搜索字段" />
     <button
       v-if="search"
       class="icon-button"
@@ -76,37 +125,47 @@ function change(selected: string[], column: PermissionColumn, event: Event) {
       </tr>
     </thead>
     <tbody>
-      <tr v-if="visibleFields.length" class="permission-all">
+      <tr v-if="rows.length" class="permission-all">
         <td>全选</td>
         <td v-for="column in columns" :key="column.id">
           <input
-            v-if="column.id !== 'brief'"
             type="checkbox"
             :aria-label="`全部字段 ${column.label}`"
             :checked="allChecked(column.id)"
-            :indeterminate="mixed(column.id)"
+            :indeterminate="
+              !allChecked(column.id) &&
+              rows.some((row) => checked(row, column.id))
+            "
+            @change="
+              toggleAll(column.id, ($event.target as HTMLInputElement).checked)
+            "
+          />
+        </td>
+      </tr>
+      <tr v-for="row in rows" :key="row.field.id">
+        <td :title="row.label">{{ row.label }}</td>
+        <td v-for="column in columns" :key="column.id">
+          <input
+            type="checkbox"
+            :aria-label="`${row.label} ${column.label}`"
+            :checked="checked(row, column.id)"
+            :disabled="disabled(row, column.id)"
             @change="
               change(
-                visibleFields.map((f) => f.id),
+                row,
                 column.id,
-                $event,
+                ($event.target as HTMLInputElement).checked,
               )
             "
           />
         </td>
       </tr>
-      <tr v-for="field in visibleFields" :key="field.id">
-        <td>{{ field.label }}</td>
-        <td v-for="column in columns" :key="column.id">
-          <input
-            type="checkbox"
-            :aria-label="`${field.label} ${column.label}`"
-            :checked="checked(field.id, column.id)"
-            @change="change([field.id], column.id, $event)"
-          />
-        </td>
-      </tr>
     </tbody>
   </table>
-  <p v-if="!visibleFields.length" class="no-fields">没有匹配的字段</p>
+  <p v-if="!rows.length" class="no-fields">没有匹配的字段</p>
+  <p class="field-hint">
+    节点权限在表单权限范围内生效。{{
+      task.kind === "copy" ? "抄送内容仅可查看。" : "子表可分别设置每列权限。"
+    }}
+  </p>
 </template>

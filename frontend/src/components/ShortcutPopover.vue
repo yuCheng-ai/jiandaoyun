@@ -29,6 +29,13 @@ defineProps<{ modifier: string; left: number; top: number }>();
           >
         </div>
         <div class="shortcut-row">
+          <span>剪切</span
+          ><span class="shortcut-keys"
+            ><kbd>{{ modifier }}</kbd
+            ><kbd>X</kbd></span
+          >
+        </div>
+        <div class="shortcut-row">
           <span>粘贴</span
           ><span class="shortcut-keys"
             ><kbd>{{ modifier }}</kbd

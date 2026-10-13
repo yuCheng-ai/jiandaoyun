@@ -1219,24 +1219,25 @@ export class PageService {
   }
 
   /** 在指定页面版本下提交草稿记录 */
-  async submitRecord(actor: Actor, id: string, recordId: string, body: unknown) {
+  async submitRecord(actor: Actor, id: string, recordId: string, body: unknown, transaction?: Transaction) {
     object(body);
     if (!Number.isInteger(body.pageVersion) || body.pageVersion < 1) {
       throw new BadRequestException("提交时需要明确的页面版本");
     }
-    return this.db.transaction(async (tx) => {
+    const write = async (tx: Transaction) => {
       const { scope } = await this.scope(tx, actor, id, body.pageVersion);
       return this.platform.submitRecord(actor, recordId, body, scope, tx);
-    });
+    };
+    return transaction ? write(transaction) : this.db.transaction(write);
   }
 
   /** 在指定页面版本下新建或修改记录 */
-  async writeRecord(actor: Actor, id: string, body: unknown, recordId?: string) {
+  async writeRecord(actor: Actor, id: string, body: unknown, recordId?: string, transaction?: Transaction) {
     object(body);
     if (!Number.isInteger(body.pageVersion) || body.pageVersion < 1) {
       throw new BadRequestException("提交时需要明确的页面版本");
     }
-    return this.db.transaction(async (tx) => {
+    const write = async (tx: Transaction) => {
       const { scope } = await this.scope(tx, actor, id, body.pageVersion);
       const result = recordId
         ? await this.platform.patchRecord(actor, recordId, body, scope, tx)
@@ -1249,6 +1250,7 @@ export class PageService {
           );
       if (result.accessLost) return result;
       return this.recordIn(tx, actor, id, result.record.id, body.pageVersion);
-    });
+    };
+    return transaction ? write(transaction) : this.db.transaction(write);
   }
 }

@@ -50,7 +50,6 @@ test("template drafts, revision conflicts, admin boundaries and immutable publis
   await h.request(`/process-templates/${blank.id}/publish`, "POST", { expectedRevision: blank.revision }, "admin", 400);
   const draft = await save(spec());
   await h.request(`/process-templates/${draft.id}`, "PUT", { expectedRevision: 0, spec: spec() }, "admin", 409);
-  await h.request(`/process-templates?applicationId=${appId}`, "GET", undefined, "editor", 403);
   published = await h.request(`/process-templates/${draft.id}/publish`, "POST", { expectedRevision: draft.revision }, "admin", 201);
   assert.equal(published.version, 1);
   await assert.rejects(h.db.query("UPDATE process_template_versions SET spec='{}' WHERE template_id=$1", [published.id]), /immutable/);

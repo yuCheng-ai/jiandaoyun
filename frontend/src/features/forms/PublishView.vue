@@ -6,7 +6,7 @@ import RecordGroupDialog from "../collaboration/RecordGroupDialog.vue";
 import CollectionDialog from "../data/CollectionDialog.vue";
 import AppIcon from "../../components/AppIcon.vue";
 import BaseDialog from "../../components/BaseDialog.vue";
-import { useWorkspaceStore } from "../../stores/workspace";
+import { useNotices } from "../../stores/notices";
 import { usePageDesignerStore } from "../../stores/pageDesigner";
 import { platformApi } from "../../repositories/platformApi";
 import {
@@ -21,7 +21,7 @@ import "./publish.css";
 
 const route = useRoute();
 const router = useRouter();
-const store = useWorkspaceStore();
+const store = useNotices();
 const designerStore = usePageDesignerStore();
 
 const appId = computed(
@@ -33,6 +33,14 @@ const pageId = computed(
 
 const section = ref<"publish" | "access" | "collection" | "versions">("publish");
 const pageData = ref<PageEditorData>();
+const accessEditor = ref<InstanceType<typeof RecordGroupDialog>>();
+const collectionEditor = ref<InstanceType<typeof CollectionDialog>>();
+async function selectSection(next: typeof section.value) {
+  if (next === section.value) return;
+  const editor = section.value === "access" ? accessEditor.value : collectionEditor.value;
+  if (editor && !(await editor.confirmLeave())) return;
+  section.value = next;
+}
 const busy = ref(false);
 const publishing = ref(false);
 const feedback = ref("");
@@ -160,25 +168,25 @@ onMounted(() => {
       <aside class="publish-side-nav" aria-label="表单发布导航">
         <button
           :class="{ active: section === 'publish' }"
-          @click="section = 'publish'"
+          @click="selectSection('publish')"
         >
           <AppIcon name="share" />表单发布与分享
         </button>
         <button
           :class="{ active: section === 'access' }"
-          @click="section = 'access'"
+          @click="selectSection('access')"
         >
           <AppIcon name="user" />访问权限设置
         </button>
         <button
           :class="{ active: section === 'collection' }"
-          @click="section = 'collection'"
+          @click="selectSection('collection')"
         >
           <AppIcon name="filter" />数据收集规则
         </button>
         <button
           :class="{ active: section === 'versions' }"
-          @click="section = 'versions'"
+          @click="selectSection('versions')"
         >
           <AppIcon name="time" />版本历史记录
         </button>
@@ -278,6 +286,7 @@ onMounted(() => {
             <p class="subtitle">针对不同部门、成员或角色，设置独立的数据录入与查看权限组</p>
           </div>
           <RecordGroupDialog
+            ref="accessEditor"
             v-if="pageData"
             :definition="serverDefinition"
             inline
@@ -291,6 +300,7 @@ onMounted(() => {
             <p class="subtitle">控制表单收集时间范围、提交频次与数量上限</p>
           </div>
           <CollectionDialog
+            ref="collectionEditor"
             v-if="pageData"
             :definition-id="serverDefinition.id"
             :title="pageTitle"
@@ -336,9 +346,7 @@ onMounted(() => {
     <BaseDialog
       :open="qrOpen"
       title="扫码填写表单"
-      confirm-text="完成"
       @close="qrOpen = false"
-      @confirm="qrOpen = false"
     >
       <div class="qr-code-box">
         <div class="qr-code-placeholder">
@@ -365,20 +373,20 @@ onMounted(() => {
           使用手机微信或移动端浏览器扫码直接打开填报
         </p>
       </div>
+      <template #footer><button class="button primary" @click="qrOpen = false; helpOpen = false">完成</button></template>
     </BaseDialog>
 
     <BaseDialog
       :open="helpOpen"
       title="表单发布帮助"
-      confirm-text="我知道了"
       @close="helpOpen = false"
-      @confirm="helpOpen = false"
     >
       <div style="font-size: 14px; line-height: 1.7; color: #475569;">
         <p><strong>1. 表单发布</strong>：表单设计完成后，点击“立即发布”或“发布新版本”，即可保存为可被填写的稳定版本。</p>
         <p><strong>2. 访问权限</strong>：可针对不同部门或角色创建权限组，设定字段的可编辑、只读或隐藏状态，并控制数据查看范围。</p>
         <p><strong>3. 数据分享</strong>：通过专属链接或二维码在组织内外收集数据，支持一键嵌入企业内网。</p>
       </div>
+      <template #footer><button class="button primary" @click="qrOpen = false; helpOpen = false">完成</button></template>
     </BaseDialog>
   </div>
 </template>

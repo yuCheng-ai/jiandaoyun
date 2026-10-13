@@ -24,6 +24,9 @@ export function fileSettingsErrors(
 ): string[] {
   if (!["file", "image"].includes(field.type)) return [];
   const errors: string[] = [];
+  if (typeof field.accept !== "string" || typeof field.multiple !== "boolean") {
+    return ["文件格式或数量设置无效"];
+  }
   if (
     field.limitFileTypes !== undefined &&
     typeof field.limitFileTypes !== "boolean"
@@ -68,9 +71,11 @@ export function isFileValue(value: unknown): value is FileValue {
   const f = value as FileValue;
   return (
     typeof f.name === "string" &&
-    !!f.name &&
+    !!f.name.trim() &&
+    f.name.length <= 255 &&
+    !/[\u0000-\u001f\u007f/\\]/.test(f.name) &&
     typeof f.size === "number" &&
-    Number.isFinite(f.size) &&
+    Number.isSafeInteger(f.size) &&
     f.size >= 0 &&
     typeof f.type === "string" &&
     (f.id === undefined || typeof f.id === "string")

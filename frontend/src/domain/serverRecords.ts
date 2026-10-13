@@ -155,6 +155,7 @@ export function recordStateForAccess(
   return state === "draft" && !canReadRecordDrafts(access) ? "active" : state;
 }
 export function recordSavedNotice(result: RecordDetail) {
+  if (result.processId) return "提交成功，流程已发起。可在工作台「我发起的」查看进度。";
   if (result.accessLost) return "已保存，当前权限不能查看这条记录。";
   return result.record.state === "draft"
     ? "草稿已保存，可从草稿列表继续填写。"

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -8,11 +9,18 @@ import {
   Put,
   Query,
   Req,
+  Res,
+  StreamableFile,
+  UploadedFile as UploadedFileBody,
   UseGuards,
+  UseInterceptors,
 } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
+import type { Response } from "express";
 import { AuthGuard, AuthenticatedRequest } from "../../core/auth/auth.service";
 import { PlatformService } from "./platform.service";
 import { PageService } from "./pages.service";
+import { FileService, type UploadedFile } from "./files.service";
 
 /**
  * 表单定义与通用记录平台路由控制器
@@ -20,7 +28,40 @@ import { PageService } from "./pages.service";
 @Controller("api")
 @UseGuards(AuthGuard)
 export class PlatformController {
-  constructor(private readonly platform: PlatformService) {}
+  constructor(
+    private readonly platform: PlatformService,
+    private readonly files: FileService,
+  ) {}
+
+  @Post("files")
+  @UseInterceptors(FileInterceptor("file", {
+    defParamCharset: "utf8",
+    limits: { fileSize: 500 * 1024 * 1024, files: 1, fields: 0, parts: 1 },
+  }))
+  uploadFile(@Req() request: AuthenticatedRequest, @UploadedFileBody() file?: UploadedFile) {
+    return this.files.upload(request.actor, file);
+  }
+
+  @Get("files/:id")
+  async downloadFile(
+    @Req() request: AuthenticatedRequest,
+    @Param("id") id: string,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const file = await this.platform.downloadFile(request.actor, id);
+    response.setHeader("Content-Security-Policy", "default-src 'none'; sandbox");
+    return new StreamableFile(file.content, {
+      type: file.type,
+      disposition: `attachment; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+      length: file.content.length,
+    });
+  }
+
+  @Delete("files/:id")
+  async discardFile(@Req() request: AuthenticatedRequest, @Param("id") id: string) {
+    await this.files.discard(request.actor, id);
+    return { discarded: true };
+  }
 
   /** 获取表单组织字段的候选成员/部门列表与默认值 */
   @Post("definitions/:id/organization-options")
@@ -372,23 +413,6 @@ export class PageController {
     @Body() b: unknown,
   ) {
     return this.pages.recordUpgrade(r.actor, id, recordId, b);
-  }
-
-  /** 在指定页面版本下提交草稿记录 */
-  @Post("pages/:id/records/:recordId/submit")
-  submitPageRecord(
-    @Req() r: AuthenticatedRequest,
-    @Param("id") id: string,
-    @Param("recordId") rid: string,
-    @Body() b: unknown,
-  ) {
-    return this.pages.submitRecord(r.actor, id, rid, b);
-  }
-
-  /** 在指定页面版本下新建记录或草稿 */
-  @Post("pages/:id/records")
-  createRecord(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Body() b: unknown) {
-    return this.pages.writeRecord(r.actor, id, b);
   }
 
   /** 在指定页面版本下修改已有记录 */

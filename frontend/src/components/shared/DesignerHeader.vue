@@ -9,6 +9,7 @@ const props = defineProps<{
   formId: string;
   active?: string;
   workflow?: boolean;
+  readonlyTitle?: boolean;
 }>();
 const emit = defineEmits<{ "update:title": [value: string]; help: [] }>();
 const router = useRouter();
@@ -69,6 +70,7 @@ function goBack() {
       ><input
         class="document-title"
         :value="title"
+        :readonly="readonlyTitle"
         maxlength="60"
         aria-label="表单名称"
         @input="emit('update:title', ($event.target as HTMLInputElement).value)"

@@ -1,67 +1,168 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
-import FieldPermissionEditor from "./FieldPermissionEditor.vue";
-import FlowSettingsPanel from "./FlowSettingsPanel.vue";
-import AppIcon from "./AppIcon.vue";
-import { pluginRegistry } from "../domain/extensions";
-import { useWorkspaceStore } from "../stores/workspace";
-import { identityLabel, resolveIdentities } from "../domain/organization";
-const workspace = useWorkspaceStore();
+import { computed, ref } from "vue";
 import {
-  reaches,
-  type FlowNode,
-  type FlowDocument,
-  type NodeData,
-} from "../domain/workflow";
+  isMultipleChoice,
+  organizationSubjectMembers,
+  type FormField,
+  type OrganizationIdentity,
+  type PageSummary,
+  type ProcessTemplateDraft,
+  type ProcessTemplateSpec,
+  type ProcessTemplateTask,
+  type ServerOrganization,
+} from "@platform/contracts";
+import AppIcon from "./AppIcon.vue";
+import BaseDialog from "./BaseDialog.vue";
+import FieldPermissionEditor from "./FieldPermissionEditor.vue";
+import ServerFieldControl from "../features/collaboration/ServerFieldControl.vue";
+
 const props = defineProps<{
-  node?: FlowNode;
-  document: FlowDocument;
+  task?: ProcessTemplateTask;
+  selectedId: string;
+  spec: ProcessTemplateSpec;
+  saved?: ProcessTemplateDraft;
   tab: string;
+  fields: FormField[];
+  pages: PageSummary[];
+  organization?: ServerOrganization;
+  formLinked: boolean;
 }>();
 const emit = defineEmits<{
-  "update:tab": [tab: string];
-  update: [patch: Partial<NodeData>];
-  members: [];
-  timeout: [];
-  export: [];
-  import: [];
-  plugin: [];
+  "update:tab": [value: string];
+  page: [task: ProcessTemplateTask];
+  disable: [];
 }>();
-const detailTab = ref("rules");
-const disconnected = computed(() => {
-  const start = props.document.nodes.find((n) => n.data.kind === "start");
-  const end = props.document.nodes.find((n) => n.data.kind === "end");
-  return (
-    props.node &&
-    start &&
-    end &&
-    (!reaches(start.id, props.node.id, props.document.edges) ||
-      !reaches(props.node.id, end.id, props.document.edges))
-  );
+const terminalDescription = computed(() => {
+  if (props.selectedId === "end") return "所有办理节点完成后，流程结束。";
+  if (props.formLinked) return "成员提交此表单时发起流程，保存草稿不会发起。";
+  return "在工作台选择本人记录发起流程。";
 });
-const actionOptions = computed(() =>
-  props.node?.data.kind === "start"
-    ? ["提交", "保存草稿", "暂存", "提交并打印", "结束流程"]
-    : ["同意", "退回", "转交", "加签", "评论", "暂存", "结束流程"],
-);
+const detailTab = ref("rules");
+const memberOpen = ref(false);
+const memberQuery = ref("");
+const memberKind = ref<"member" | "department" | "role">("member");
+const memberId = ref("");
+const includeChildren = ref(true);
+const memberKinds = [
+  { id: "member", label: "成员" },
+  { id: "department", label: "部门" },
+  { id: "role", label: "角色" },
+] as const;
 const detailTabs = [
   { id: "fields", label: "字段权限" },
   { id: "actions", label: "节点操作" },
   { id: "rules", label: "流转规则" },
 ];
-function value(event: Event) {
-  return (event.target as HTMLInputElement).value;
+const candidates = computed(() => {
+  let values: { id: string; name: string }[];
+  if (memberKind.value === "member")
+    values = props.organization?.users.filter((item) => item.active) || [];
+  else if (memberKind.value === "department")
+    values =
+      props.organization?.spec.departments.filter((item) => !item.archived) ||
+      [];
+  else
+    values =
+      props.organization?.spec.roles.filter((item) => !item.archived) || [];
+  return values.filter((item) => item.name.includes(memberQuery.value.trim()));
+});
+const owner = computed(() => {
+  const task = props.task;
+  if (!task) return "";
+  let values: { id: string; name: string }[] | undefined =
+    props.organization?.users;
+  if (task.assigneeSelector?.kind === "department")
+    values = props.organization?.spec.departments;
+  if (task.assigneeSelector?.kind === "role")
+    values = props.organization?.spec.roles;
+  const id = task.assigneeSelector?.id || task.assigneeId;
+  if (!id) return "";
+  return (
+    values?.find((item) => item.id === id)?.name || "原负责人（请重新选择）"
+  );
+});
+const memberCount = computed(() => {
+  if (!props.task?.assigneeSelector || !props.organization) return 0;
+  const ids = new Set(
+    organizationSubjectMembers(
+      props.organization.spec,
+      props.task.assigneeSelector,
+    ),
+  );
+  return props.organization.users.filter(
+    (user) => user.active && ids.has(user.id),
+  ).length;
+});
+function openMembers() {
+  memberKind.value = props.task?.assigneeSelector?.kind || "member";
+  memberId.value =
+    props.task?.assigneeSelector?.id || props.task?.assigneeId || "";
+  includeChildren.value = props.task?.assigneeSelector?.includeChildren ?? true;
+  memberQuery.value = "";
+  memberOpen.value = true;
 }
-function toggleAction(action: string) {
-  if (!props.node) return;
-  const current = props.node.data.actions;
-  emit("update", {
-    actions: current.includes(action)
-      ? current.filter((a) => a !== action)
-      : [...current, action],
-  });
+function confirmMembers() {
+  if (
+    !props.task ||
+    !candidates.value.some((item) => item.id === memberId.value)
+  )
+    return;
+  if (memberKind.value === "member") {
+    props.task.assigneeId = memberId.value;
+    props.task.assigneeSelector = undefined;
+  } else {
+    props.task.assigneeId = "";
+    props.task.assigneeSelector = {
+      kind: memberKind.value,
+      id: memberId.value,
+      includeChildren: includeChildren.value,
+    };
+  }
+  memberOpen.value = false;
+}
+const waitFields = computed(() =>
+  props.fields.flatMap((field) => {
+    if (field.type !== "subform") return [field];
+    if (field.id === props.task?.subformId) return field.children;
+    return [];
+  }),
+);
+const waitField = computed(() =>
+  waitFields.value.find((field) => field.id === props.task?.waitFor?.fieldId),
+);
+const identities = computed<OrganizationIdentity[]>(() => [
+  ...(props.organization?.users || []).map((user) => ({
+    ...user,
+    kind: "member" as const,
+  })),
+  ...(props.organization?.spec.departments || []).map((dept) => ({
+    ...dept,
+    active: !dept.archived,
+    kind: "department" as const,
+  })),
+]);
+function toggleWait(enabled: boolean) {
+  if (!props.task) return;
+  props.task.waitFor = enabled
+    ? { recordBinding: props.task.recordBinding, fieldId: "", equals: "" }
+    : undefined;
+}
+function changeWaitField() {
+  if (!props.task?.waitFor) return;
+  const field = waitField.value;
+  props.task.waitFor.equals = field?.type === "number" ? 0 : "";
+  if (isMultipleChoice(field?.type || "")) props.task.waitFor.equals = [];
+  props.task.waitFor.subformId = props.fields.find((parent) =>
+    parent.children.some((child) => child.id === field?.id),
+  )?.id;
+}
+function changeScope() {
+  if (!props.task) return;
+  props.task.requiredFields = [];
+  props.task.waitFor = undefined;
 }
 </script>
+
 <template>
   <aside class="property-panel" aria-label="属性配置">
     <div class="property-tabs" role="tablist" aria-label="属性类型">
@@ -79,373 +180,290 @@ function toggleAction(action: string) {
         {{ item.label }}
       </button>
     </div>
-    <div v-if="tab === 'node' && node" class="property-content" :key="node.id">
-      <div v-if="disconnected" class="connection-warning">节点尚未正确连接</div>
-      <div v-if="node.data.kind !== 'end'" class="form-group node-name-group">
+    <div v-if="tab === 'node' && task" :key="task.id" class="property-content">
+      <div class="form-group node-name-group">
         <div class="label-line">
-          <label for="node-name"><span class="required">*</span>节点名称</label
-          ><span class="node-id"
-            >节点ID：{{
-              node.id === "start" ? "0" : node.id === "end" ? "结束" : node.id
-            }}</span
-          >
+          <label for="node-name"><span class="required">*</span>节点名称</label>
         </div>
-        <input
-          id="node-name"
-          :value="node.data.label"
-          maxlength="40"
-          @input="emit('update', { label: value($event) })"
-        />
+        <input id="node-name" v-model="task.title" maxlength="100" />
       </div>
-      <template v-if="['approval', 'copy'].includes(node.data.kind)">
-        <div class="form-group owner-group">
-          <label for="owner-mode"
-            ><span class="required">*</span
-            >{{ node.data.kind === "copy" ? "抄送成员" : "节点负责人" }}
-            <AppIcon
-              name="help"
-              class="muted-icon"
-              :size="14"
-              title="指定负责处理当前节点的成员或部门"
-          /></label>
+      <div class="form-group owner-group">
+        <label
+          ><span class="required">*</span
+          >{{ task.kind === "copy" ? "抄送成员" : "节点负责人" }}</label
+        >
+        <button class="member-picker" @click="openMembers">
+          <span v-if="owner" class="member-chip"
+            ><AppIcon name="approval" :size="12" />{{ owner }}</span
+          >
+          <span v-else>选择成员、部门或角色</span
+          ><AppIcon name="add" :size="16" />
+        </button>
+        <p v-if="task.assigneeSelector" class="field-hint">
+          当前包含 {{ memberCount }} 位启用成员。{{
+            task.kind === "copy"
+              ? "流程到达后逐一抄送。"
+              : "所有负责人完成后进入下一节点。"
+          }}
+        </p>
+      </div>
+      <div class="segmented detail-tabs" role="tablist" aria-label="节点配置">
+        <button
+          v-for="item in detailTabs"
+          :key="item.id"
+          role="tab"
+          :aria-selected="detailTab === item.id"
+          :class="{ active: detailTab === item.id }"
+          @click="detailTab = item.id"
+        >
+          {{ item.label }}
+        </button>
+      </div>
+      <FieldPermissionEditor
+        v-if="detailTab === 'fields'"
+        :task="task"
+        :fields="fields"
+      />
+      <template v-else-if="detailTab === 'rules'">
+        <div class="form-group">
+          <label for="node-page">办理表单</label>
           <div class="select-wrap">
             <select
-              id="owner-mode"
-              :value="node.data.ownerMode"
-              @change="emit('update', { ownerMode: value($event) })"
+              id="node-page"
+              v-model="task.pageId"
+              @change="emit('page', task)"
             >
-              <option value="regular">常规审批</option>
-              <option value="initiator">发起人本人</option>
-              <option value="manager">发起人部门主管</option></select
-            ><AppIcon name="down" />
-          </div>
-          <button
-            v-if="node.data.ownerMode === 'regular'"
-            class="member-picker"
-            @click="emit('members')"
-          >
-            <template v-if="node.data.members.length"
-              ><span
-                v-for="id in node.data.members"
-                :key="id"
-                class="member-chip"
-                ><AppIcon name="approval" :size="12" />{{
-                  identityLabel(workspace.data.organization, id)
-                }}</span
-              ><AppIcon name="add" :size="16" /></template
-            ><template v-else
-              ><AppIcon name="add" :size="17" />选择成员或部门</template
-            >
-          </button>
-          <p
-            v-if="node.data.ownerMode === 'regular' && node.data.members.length"
-            class="field-hint"
-          >
-            当前包含
-            {{
-              resolveIdentities(workspace.data.organization, node.data.members)
-                .length
-            }}
-            位在职成员
-          </p>
-          <p v-if="node.data.ownerMode !== 'regular'" class="field-hint">
-            {{
-              node.data.ownerMode === "initiator"
-                ? "由提交申请的发起人处理"
-                : "由发起人所在部门的主管处理"
-            }}
-          </p>
-          <label v-if="node.data.kind === 'approval'" class="checkbox-line"
-            ><input
-              type="checkbox"
-              :checked="node.data.copyEnabled"
-              @change="
-                emit('update', { copyEnabled: !node.data.copyEnabled })
-              " />启用抄送
-            <AppIcon
-              name="help"
-              class="muted-icon"
-              :size="14"
-              title="完成节点时同时通知所选成员"
-          /></label>
-        </div>
-        <div class="ai-banner">
-          <span
-            ><AppIcon name="ai" :size="18" /> <strong>AI 流程助手</strong
-            ><small>Beta</small></span
-          ><button
-            class="switch"
-            :class="{ on: node.data.aiEnabled }"
-            role="switch"
-            :aria-checked="node.data.aiEnabled"
-            aria-label="AI 流程助手"
-            @click="emit('update', { aiEnabled: !node.data.aiEnabled })"
-          >
-            <span />
-          </button>
-        </div>
-        <div v-if="node.data.aiEnabled" class="helper-note">
-          配置建议：{{
-            !resolveIdentities(workspace.data.organization, node.data.members)
-              .length
-              ? "请先指定负责人，避免流程中断。"
-              : "可开启限时提醒，帮助负责人及时处理。"
-          }}<small>当前为本地规则建议。</small>
-        </div>
-      </template>
-      <template v-if="['approval', 'copy', 'start'].includes(node.data.kind)">
-        <div class="segmented detail-tabs" role="tablist" aria-label="节点配置">
-          <button
-            v-for="item in detailTabs"
-            :key="item.id"
-            role="tab"
-            :aria-selected="detailTab === item.id"
-            :class="{ active: detailTab === item.id }"
-            @click="detailTab = item.id"
-          >
-            {{ item.label }}
-          </button>
-        </div>
-        <template v-if="detailTab === 'rules'">
-          <div class="form-group">
-            <label for="submit-rule">节点提交条件</label>
-            <div class="select-wrap">
-              <select
-                id="submit-rule"
-                :value="node.data.submitRule"
-                @change="emit('update', { submitRule: value($event) })"
-              >
-                <option value="all">所有数据均可提交</option>
-                <option value="required">
-                  必填字段填写完整后可提交
-                </option></select
-              ><AppIcon name="down" />
-            </div>
-          </div>
-          <template v-if="node.data.kind !== 'start'">
-            <div class="form-group">
-              <label for="multi-rule">有多位负责人时</label>
-              <div class="select-wrap">
-                <select
-                  id="multi-rule"
-                  :value="node.data.multiRule"
-                  @change="emit('update', { multiRule: value($event) })"
-                >
-                  <option value="any">任意负责人提交后进入下一节点</option>
-                  <option value="all">所有负责人提交后进入下一节点</option>
-                  <option value="sequential">
-                    按负责人顺序依次审批
-                  </option></select
-                ><AppIcon name="down" />
-              </div>
-            </div>
-            <div class="form-group">
-              <label for="missing-rule">找不到节点负责人时</label>
-              <div class="select-wrap">
-                <select
-                  id="missing-rule"
-                  :value="node.data.missingRule"
-                  @change="emit('update', { missingRule: value($event) })"
-                >
-                  <option value="stop">停止流转并报错</option>
-                  <option value="skip">自动通过，进入下一节点</option>
-                  <option value="admin">转交给流程管理员</option></select
-                ><AppIcon name="down" />
-              </div>
-            </div>
-            <div class="form-group timeout-group">
-              <label
-                >节点限时处理
-                <AppIcon
-                  name="help"
-                  class="muted-icon"
-                  :size="14"
-                  title="设置节点处理时限及超时动作" /></label
-              ><button class="button full-width" @click="emit('timeout')">
-                {{
-                  node.data.timeout
-                    ? `${node.data.timeout} 小时后${node.data.timeoutAction === "remind" ? "提醒负责人" : "自动通过"}`
-                    : "设置限时处理"
-                }}
-              </button>
-            </div>
-          </template>
-        </template>
-        <template v-else-if="detailTab === 'fields'">
-          <FieldPermissionEditor
-            :data="node.data"
-            :form-fields="document.formFields"
-            @update="emit('update', $event)"
-          />
-        </template>
-        <template v-else>
-          <label class="standalone-label">节点操作</label>
-          <div class="node-action-list">
-            <div
-              v-for="action in actionOptions"
-              :key="action"
-              class="node-action-row"
-            >
-              <span>{{ action }}</span
-              ><button
-                class="switch compact-switch"
-                :class="{
-                  on: node.data.actions.includes(action) || action === '提交',
-                }"
-                role="switch"
-                :aria-label="action"
-                :aria-checked="
-                  node.data.actions.includes(action) || action === '提交'
-                "
-                :disabled="action === '提交'"
-                @click="toggleAction(action)"
-              >
-                <span />
-              </button>
-            </div>
-          </div>
-        </template>
-      </template>
-      <template v-else-if="node.data.kind === 'condition'"
-        ><div class="form-group">
-          <label for="condition-field">比较字段</label>
-          <div class="select-wrap">
-            <select
-              id="condition-field"
-              :value="node.data.conditionFieldId"
-              @change="emit('update', { conditionFieldId: value($event) })"
-            >
-              <option value="">申请金额（默认）</option>
-              <option
-                v-for="field in document.formFields"
-                :key="field.id"
-                :value="field.id"
-              >
-                {{ field.label }}
+              <option value="">请选择已发布表单</option>
+              <option v-for="page in pages" :key="page.id" :value="page.id">
+                {{ page.title }}
               </option></select
             ><AppIcon name="down" />
           </div>
-          <label for="condition-value">分支条件</label
-          ><input
-            id="condition-value"
-            :value="node.data.condition"
-            @input="emit('update', { condition: value($event) })"
-          />
-          <p class="field-hint">
-            所选字段按数值比较，例如：申请金额 &gt;
-            5000。满足条件进入第一分支，其他情况进入默认分支。
-          </p>
-        </div></template
-      >
-      <template v-else-if="node.data.kind === 'subflow'"
-        ><div class="form-group">
-          <label for="subflow">选择子流程</label>
+        </div>
+        <div v-if="task.kind !== 'copy'" class="form-group">
+          <label for="node-scope">办理范围</label>
           <div class="select-wrap">
             <select
-              id="subflow"
-              :value="node.data.subflow"
-              @change="emit('update', { subflow: value($event) })"
+              id="node-scope"
+              v-model="task.subformId"
+              @change="changeScope"
             >
-              <option value="">请选择子流程</option>
-              <option value="expense">费用报销流程</option>
-              <option value="purchase">采购申请流程</option>
-              <option value="contract">合同审批流程</option></select
+              <option :value="undefined">整条记录</option>
+              <option
+                v-for="field in fields.filter(
+                  (item) => item.type === 'subform',
+                )"
+                :key="field.id"
+                :value="field.id"
+              >
+                {{ field.label }}逐行办理
+              </option></select
             ><AppIcon name="down" />
           </div>
-          <p class="field-hint">主流程将等待子流程完成后继续。</p>
-        </div></template
-      >
-      <template v-else-if="node.data.kind === 'plugin'"
-        ><div class="form-group">
-          <label>执行动作</label>
-          <div class="plugin-summary">
-            <AppIcon name="plugin" :size="24" /><strong>{{
-              pluginRegistry.find((p) => p.id === node?.data.plugin)?.name ||
-              "尚未选择动作"
-            }}</strong>
-            <p>
-              {{
-                pluginRegistry.find((p) => p.id === node?.data.plugin)
-                  ?.description || "选择动作，绑定输入参数与返回结果。"
-              }}
-            </p>
-            <span
-              >{{
-                node.data.pluginConfig?.outputs.length || 0
-              }}
-              个回填字段</span
-            >
-          </div>
-          <button class="button primary full-width" @click="emit('plugin')">
-            配置与试运行
-          </button>
-          <p class="field-hint">
-            插件成功后继续流转，失败则停留在此节点。外部动作使用本地模拟。
+        </div>
+        <div class="form-group">
+          <label>节点流转条件</label>
+          <p
+            class="field-hint"
+            v-if="
+              !task.dependsOn.length && !spec.startTaskIds?.includes(task.id)
+            "
+          >
+            尚未连接前置节点，连通流程后才能启用。
           </p>
-        </div></template
-      >
-      <template v-else
-        ><div class="terminal-info">
-          <AppIcon
-            :name="node.data.kind"
-            :size="32"
-            :class="node.data.kind"
-          /><strong>{{
-            node.data.kind === "start" ? "流程从这里开始" : "流程在这里结束"
-          }}</strong>
-          <p>
+          <p class="field-hint" v-else-if="!task.dependsOn.length">
+            提交表单后进入此节点。
+          </p>
+          <p class="field-hint" v-else>
+            等待
             {{
-              node.data.kind === "start"
-                ? "提交表单后，将按连线顺序进入后续节点。"
-                : "所有审批完成后，申请进入已完成状态。"
+              task.dependsOn
+                .map(
+                  (id) =>
+                    spec.tasks.find((item) => item.id === id)?.title ||
+                    "原节点",
+                )
+                .join("、")
             }}
+            全部完成。
+          </p>
+          <p class="field-hint">
+            拖动画布连线调整节点顺序。必填项在“字段权限”中设置。
           </p>
         </div>
-        <button class="button full-width" @click="emit('update:tab', 'flow')">
-          设置流程属性
-        </button></template
-      >
+        <div class="form-group">
+          <label class="checkbox-line"
+            ><input
+              type="checkbox"
+              :checked="!!task.waitFor"
+              @change="toggleWait(($event.target as HTMLInputElement).checked)"
+            />同时等待字段满足条件</label
+          >
+          <template v-if="task.waitFor">
+            <div class="select-wrap">
+              <select
+                v-model="task.waitFor.fieldId"
+                aria-label="等待字段"
+                @change="changeWaitField"
+              >
+                <option value="">请选择字段</option>
+                <option
+                  v-for="field in waitFields"
+                  :key="field.id"
+                  :value="field.id"
+                >
+                  {{ field.label }}
+                </option></select
+              ><AppIcon name="down" />
+            </div>
+            <label class="wait-value">等于</label>
+            <ServerFieldControl
+              v-if="waitField"
+              :field="waitField"
+              :identities="identities"
+              :model-value="task.waitFor.equals"
+              input-id="process-wait-value"
+              label="等待值"
+              @update:model-value="
+                task.waitFor!.equals = $event as
+                  string | number | boolean | string[]
+              "
+            />
+            <p class="field-hint">未满足时停留等待，不会自动跳过此节点。</p>
+          </template>
+        </div>
+      </template>
+      <template v-else>
+        <label class="standalone-label">当前可用操作</label>
+        <div class="node-action-list">
+          <div
+            v-for="action in task.kind === 'copy'
+              ? ['查看记录']
+              : ['保存办理内容', '完成办理', '转交']"
+            :key="action"
+            class="node-action-row"
+          >
+            <span>{{ action }}</span
+            ><AppIcon name="check" :size="16" />
+          </div>
+        </div>
+        <p class="field-hint">
+          {{
+            task.kind === "copy"
+              ? "抄送自动送达，仅可查看。"
+              : "仅当前负责人可以办理。转交对象须有这条记录的查看和编辑权限。"
+          }}
+        </p>
+      </template>
     </div>
-    <div v-else-if="tab === 'node'" class="empty-properties">
+    <div v-else-if="tab === 'node' && !selectedId" class="empty-properties">
       <AppIcon name="locate" :size="28" />
       <p>选择节点以编辑属性</p>
     </div>
+    <div v-else-if="tab === 'node'" class="property-content">
+      <div class="terminal-info">
+        <AppIcon
+          :name="selectedId === 'end' ? 'end' : 'start'"
+          :size="32"
+        /><strong>{{
+          selectedId === "end" ? "流程结束节点" : "流程发起节点"
+        }}</strong>
+        <p>
+          {{ terminalDescription }}
+        </p>
+      </div>
+      <p v-if="selectedId !== 'end'" class="field-hint">
+        发起权限和填写权限在表单发布中设置。
+      </p>
+      <button class="button full-width" @click="emit('update:tab', 'flow')">
+        设置流程属性
+      </button>
+    </div>
     <div v-else class="property-content flow-properties">
-      <FlowSettingsPanel :document="document" />
-      <details class="flow-extra">
-        <summary>流程信息与配置文件</summary>
-        <div class="form-group">
-          <label for="flow-title">流程名称</label
-          ><input id="flow-title" v-model="document.title" maxlength="60" />
-        </div>
-        <div class="form-group">
-          <label for="flow-description">流程说明</label
-          ><textarea
-            id="flow-description"
-            v-model="document.description"
-            rows="4"
-            placeholder="简要描述此流程的用途"
-          />
-        </div>
-        <div class="flow-summary">
-          <span
-            >当前版本<strong>V{{ document.version }}</strong></span
-          ><span
-            >流程节点<strong>{{ document.nodes.length }} 个</strong></span
-          ><span
-            >流程状态<strong :class="{ teal: document.enabled }">{{
-              document.enabled ? "已启用" : "草稿"
-            }}</strong></span
-          >
-        </div>
-        <div class="data-actions">
-          <button class="button" @click="emit('export')">
-            <AppIcon name="export" />导出 JSON</button
-          ><button class="button" @click="emit('import')">
-            <AppIcon name="import" />导入 JSON
-          </button>
-        </div>
-      </details>
+      <div class="form-group">
+        <label for="flow-title">流程名称</label
+        ><input id="flow-title" v-model="spec.title" maxlength="100" />
+      </div>
+      <div class="flow-summary">
+        <span
+          >当前版本<strong>{{
+            saved?.latestVersion ? `V${saved.latestVersion}` : "未启用"
+          }}</strong></span
+        ><span
+          >流程节点<strong>{{ spec.tasks.length }} 个</strong></span
+        >
+      </div>
+      <p class="field-hint">
+        保存只更新草稿；启用后，新提交按新版本执行，已有流程保持原版本。
+      </p>
+      <button
+        v-if="saved?.latestVersion && saved.enabled"
+        class="button full-width"
+        @click="emit('disable')"
+      >
+        停用流程
+      </button>
+      <p v-if="saved?.latestVersion && !saved.enabled" class="field-hint">
+        流程已停用，已有待办仍可继续办理。
+      </p>
     </div>
   </aside>
+  <BaseDialog
+    :open="memberOpen"
+    title="选择节点负责人"
+    width="560px"
+    @close="memberOpen = false"
+  >
+    <div class="segmented detail-tabs">
+      <button
+        v-for="kind in memberKinds"
+        :key="kind.id"
+        :class="{ active: memberKind === kind.id }"
+        @click="
+          memberKind = kind.id;
+          memberId = '';
+          memberQuery = '';
+        "
+      >
+        {{ kind.label }}
+      </button>
+    </div>
+    <div class="field-search">
+      <AppIcon name="search" :size="15" /><input
+        v-model="memberQuery"
+        aria-label="搜索负责人"
+        placeholder="搜索"
+      />
+    </div>
+    <div class="workflow-member-list">
+      <label v-for="item in candidates" :key="item.id" class="picker-result"
+        ><input
+          v-model="memberId"
+          type="radio"
+          name="workflow-owner"
+          :value="item.id"
+          :aria-label="`选择${item.name}`"
+        /><span class="person-avatar">{{ item.name.slice(0, 1) }}</span
+        ><span>{{ item.name }}</span></label
+      >
+      <p v-if="!candidates.length" class="field-hint">
+        没有符合条件的{{
+          memberKinds.find((kind) => kind.id === memberKind)?.label
+        }}。
+      </p>
+    </div>
+    <label v-if="memberKind === 'department'" class="checkbox-line"
+      ><input v-model="includeChildren" type="checkbox" />包含下级部门</label
+    >
+    <template #footer
+      ><button class="button" @click="memberOpen = false">取消</button
+      ><button
+        class="button primary"
+        :disabled="!candidates.some((item) => item.id === memberId)"
+        @click="confirmMembers"
+      >
+        确定
+      </button></template
+    >
+  </BaseDialog>
 </template>

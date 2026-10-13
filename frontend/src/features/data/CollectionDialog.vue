@@ -38,15 +38,12 @@ const edits = () => ({
   startsAt: startsAt.value,
   endsAt: endsAt.value,
 });
-const { requestClose, confirmDiscard, discard, markSaved } = useDraftDismiss(
+const { requestClose, confirmLeave, confirmDiscard, discard, markSaved } = useDraftDismiss(
   () => true,
   edits,
   () => emit("close"),
 );
-onBeforeRouteLeave(() => {
-  requestClose();
-  return false;
-});
+onBeforeRouteLeave(() => !busy.value && confirmLeave());
 function inputRules(): CollectionRules {
   return {
     ...rules.value,
@@ -144,6 +141,7 @@ function merge() {
   // This only updates the editing baseline. It does not acknowledge or save the user's changes.
 }
 onMounted(load);
+defineExpose({ confirmLeave: () => !busy.value && confirmLeave() });
 </script>
 <template>
   <component

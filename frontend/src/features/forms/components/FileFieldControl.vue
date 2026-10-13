@@ -6,11 +6,14 @@ import {
   fileTypesLimited,
   imageExtensions,
   isFileValue,
-  rasterPreview,
   type FileValue,
   type FormField,
 } from "@platform/contracts";
-import { readFile, saveFiles } from "../../../repositories/fileRepository";
+import {
+  discardFile,
+  readFile,
+  saveFiles,
+} from "../../../repositories/fileRepository";
 import BaseDialog from "../../../components/BaseDialog.vue";
 import AppIcon from "../../../components/AppIcon.vue";
 import { useFileUploads } from "../../../composables/useFileUploads";
@@ -63,7 +66,7 @@ watch(
   [
     () => props.field.id,
     () => props.field.type,
-    // Other fields may recreate the values object without changing this upload.
+    // 其他字段重新生成 values 时，不应中断当前内容未变的上传。
     () => JSON.stringify(props.modelValue),
     locked,
     () => accept.value,
@@ -88,11 +91,7 @@ watch(
       urls.forEach((url) => URL.revokeObjectURL(url));
     });
     values.forEach(async (file, index) => {
-      if (
-        !/^image\/(png|jpeg|gif|webp)$/i.test(file.type) &&
-        !rasterPreview(file)
-      )
-        return;
+      if (!/^image\/(png|jpeg|gif|webp)$/i.test(file.type)) return;
       try {
         const blob = await readFile(file);
         if (!active) return;
@@ -100,7 +99,7 @@ watch(
         urls.push(url);
         thumbs.value[index] = url;
       } catch {
-        /* The file name remains available; opening it explains missing historical content. */
+        // 缩略图加载失败仍保留文件名，打开时显示服务端返回的具体错误。
       }
     });
   },
@@ -126,7 +125,16 @@ async function upload(selection: File[]) {
   pending.value = true;
   try {
     const added = await saveFiles(selection);
-    if (token !== epoch || locked.value) return;
+    if (token !== epoch || locked.value) {
+      await Promise.allSettled(added.map(discardFile));
+      return;
+    }
+    const uploadedIssue = fileValueIssue(props.field, added);
+    if (uploadedIssue) {
+      await Promise.allSettled(added.map(discardFile));
+      error.value = uploadedIssue;
+      return;
+    }
     emit(
       "update:modelValue",
       props.field.multiple ? [...before, ...added] : added,
@@ -158,11 +166,13 @@ function paste(event: ClipboardEvent) {
   }
 }
 function remove(index: number) {
-  if (!locked.value && !pending.value)
-    emit(
-      "update:modelValue",
-      files.value.filter((_, i) => i !== index),
-    );
+  if (locked.value || pending.value) return;
+  const removed = files.value[index];
+  emit(
+    "update:modelValue",
+    files.value.filter((_, i) => i !== index),
+  );
+  if (removed) void discardFile(removed).catch(() => {});
 }
 function move(from: number, to: number) {
   if (

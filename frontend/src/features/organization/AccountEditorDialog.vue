@@ -40,16 +40,12 @@ const draft = computed(() => ({
   confirmation: confirmation.value,
 }));
 // Credentials stay in this dialog's memory and are never retained in browser drafts.
-const { requestClose, confirmDiscard, discard, markSaved } = useDraftDismiss(
+const { requestClose, confirmLeave, confirmDiscard, discard, markSaved } = useDraftDismiss(
   () => true,
   () => draft.value,
   () => emit("close"),
 );
-onBeforeRouteLeave(() => {
-  if (busy.value) return false;
-  requestClose();
-  return false;
-});
+onBeforeRouteLeave(() => !busy.value && confirmLeave());
 async function reloadAccount() {
   if (busy.value || !account.value) return;
   busy.value = true;

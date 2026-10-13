@@ -7,6 +7,7 @@ export * from "./field-display";
 export type * from "./form";
 export type * from "./relations";
 export type * from "./process-templates";
+export { processTemplateConnectionError } from "./process-templates";
 export * from "./data-view";
 export * from "./organization";
 export * from "./directory";
@@ -108,6 +109,7 @@ export interface RemovedRecordRow {
   reason?: string;
 }
 export interface RecordDetail {
+  processId?: string;
   collection?: import("./collection").CollectionStatus;
   /** Acknowledges this actor's successful command without content when current read access is absent. */
   accessLost?: true;
@@ -131,6 +133,8 @@ export interface RecordDetail {
 export interface TaskSpec {
   id: string;
   title: string;
+  kind?: "approval" | "copy";
+  fieldPermissions?: Record<string, "edit" | "read" | "hidden">;
   assigneeId: string;
   recordBinding: string;
   dependsOn: string[];
@@ -229,6 +233,9 @@ export interface ProcessView {
     id: string;
     key: string;
     title: string;
+    kind?: "approval" | "copy";
+    canOpen?: boolean;
+    canHandle?: boolean;
     recordId: string;
     status: "waiting" | "ready" | "blocked" | "completed";
     reason?: string;

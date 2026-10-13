@@ -4,543 +4,642 @@ import "@vue-flow/core/dist/theme-default.css";
 import "@vue-flow/minimap/dist/style.css";
 import "./workflow.css";
 import {
-  ref,
   computed,
+  nextTick,
   onMounted,
   onBeforeUnmount,
-  nextTick,
+  ref,
   watch,
 } from "vue";
-import { VueFlow, useVueFlow, type Connection } from "@vue-flow/core";
+import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
+import {
+  VueFlow,
+  MarkerType,
+  useVueFlow,
+  type Connection,
+  type Node,
+  type Edge,
+  type NodeMouseEvent,
+} from "@vue-flow/core";
 import { Background } from "@vue-flow/background";
 import { MiniMap } from "@vue-flow/minimap";
-import AppIcon from "../../components/AppIcon.vue";
-import WorkflowNode from "../../components/WorkflowNode.vue";
-import PluginEditor from "../extensions/components/PluginEditor.vue";
-import RunTrace from "../extensions/components/RunTrace.vue";
-import {
-  newInvocation,
-  runPlugin,
-  sampleValues,
-  type PluginInvocation,
-  type ExtensionRun,
-} from "../../domain/extensions";
-import { emptySchema, type FormValues } from "../../domain/form";
-import PropertyPanel from "../../components/PropertyPanel.vue";
-import BaseDialog from "../../components/BaseDialog.vue";
-import ShortcutPopover from "../../components/ShortcutPopover.vue";
-import OrganizationPicker from "../../components/organization/OrganizationPicker.vue";
-import { identityLabel, resolveIdentities } from "../../domain/organization";
-import { useRoute, useRouter } from "vue-router";
-import { useWorkspaceStore, syncFormWorkflow } from "../../stores/workspace";
-import DesignerHeader from "../../components/shared/DesignerHeader.vue";
-import { useWorkflow } from "../../composables/useWorkflow";
-import { platformApi } from "../../repositories/platformApi";
 import {
   composeFormSchema,
+  processTemplateConnectionError,
+  type DataModel,
+  type FormField,
   type PageEditorData,
-  type FormSchema,
+  type PageSummary,
+  type ProcessTemplateDraft,
+  type ProcessTemplateSpec,
+  type ProcessTemplateTask,
+  type PublishedPage,
+  type ServerOrganization,
 } from "@platform/contracts";
-import {
-  kindLabels,
-  validate,
-  serialize,
-  parseDocument,
-  initialDocument,
-  simulationPath,
-  clone,
-  type NodeKind,
-  type ValidationIssue,
-} from "../../domain/workflow";
+import AppIcon from "../../components/AppIcon.vue";
+import WorkflowNode from "../../components/WorkflowNode.vue";
+import PropertyPanel from "../../components/PropertyPanel.vue";
+import ShortcutPopover from "../../components/ShortcutPopover.vue";
+import DesignerHeader from "../../components/shared/DesignerHeader.vue";
+import BaseDialog from "../../components/BaseDialog.vue";
+import { useDraftDismiss } from "../../composables/useDraftDismiss";
+import { platformApi } from "../../repositories/platformApi";
 
-const pageRoute = useRoute(),
-  router = useRouter(),
-  workspace = useWorkspaceStore();
-const appId = computed(() =>
-  String(pageRoute.params.applicationId || pageRoute.params.appId || ""),
+const route = useRoute();
+const router = useRouter();
+const appId = String(route.params.applicationId);
+const pageId = String(route.params.pageId);
+const page = ref<PageEditorData>();
+const pages = ref<PageSummary[]>([]);
+const organization = ref<ServerOrganization>();
+const versions = ref<Record<string, { page: PublishedPage; model: DataModel }>>(
+  {},
 );
-const formId = computed(() =>
-  String(pageRoute.params.pageId || pageRoute.params.formId || ""),
+const saved = ref<ProcessTemplateDraft>();
+const spec = ref<ProcessTemplateSpec>({ title: "", bindings: [], tasks: [] });
+const selectedId = ref("start");
+const loading = ref(true);
+const busy = ref(false);
+const error = ref("");
+const notice = ref("");
+const helpOpen = ref(false);
+const reloadOpen = ref(false);
+const panelTab = ref("node");
+const pageTitle = computed(() => page.value?.draft.title || "表单");
+const formLinked = computed(
+  () => !!saved.value?.startPageId || !route.query.templateId,
 );
-const currentForm = workspace.openForm(formId.value);
-const serverPage = ref<PageEditorData>();
-const serverSchema = computed<FormSchema | undefined>(() => {
-  if (!serverPage.value) return undefined;
-  return composeFormSchema(
-    serverPage.value.model || { version: 1, fields: [] },
-    serverPage.value.draft.schema,
+const ready = computed(() => !!page.value?.draft.latestVersion);
+const selected = computed(() =>
+  spec.value.tasks.find((task) => task.id === selectedId.value),
+);
+const { dirty, confirmLeave, confirmDiscard, discard, markSaved } =
+  useDraftDismiss(
+    () => !loading.value,
+    () => spec.value,
+    () => router.push(`/applications/${appId}?form=${pageId}`),
   );
+onBeforeRouteLeave(() => !busy.value && confirmLeave());
+const saveState = computed(() => {
+  let state = saved.value ? "已保存" : "新流程";
+  if (dirty.value) state = "有未保存修改";
+  if (!saved.value?.latestVersion) return `${state} · 未发布`;
+  const enabled = saved.value.enabled ? "已启用" : "已停用";
+  return `${state} · V${saved.value.latestVersion} ${enabled}`;
 });
-const storageKey = computed(() => `vue-workflow-${formId.value || "default"}`);
-
-const initialFlow = (() => {
-  if (currentForm) return currentForm.workflow;
-  const key = `vue-workflow-${formId.value || "default"}`;
-  const saved = localStorage.getItem(key);
-  if (saved) {
-    try {
-      return parseDocument(saved);
-    } catch {}
-  }
-  return initialDocument();
-})();
-
 const {
-  doc,
-  selectedId,
-  selectedEdgeId,
-  selected,
-  dirty,
-  savedTime,
-  canUndo,
-  canRedo,
-  undo,
-  redo,
-  select,
-  add,
-  updateNode,
-  copySelection,
-  pasteSelection,
-  removeSelected,
-  connect,
-  save,
-  replace,
-  layout,
-  checkpoint,
-  loadError,
-} = useWorkflow({
-  initial: initialFlow,
-  onChange: (value) => {
-    if (currentForm) {
-      currentForm.workflow = value;
-      currentForm.title = value.title;
-    }
-  },
-  onSave: async (value) => {
-    if (currentForm) {
-      currentForm.workflow = value;
-      currentForm.title = value.title;
-      syncFormWorkflow(currentForm);
-      await workspace.saveForm(formId.value);
-    }
-    localStorage.setItem(storageKey.value, serialize(value));
-    return true;
-  },
-});
-
-watch(
-  serverSchema,
-  (schema) => {
-    if (schema) {
-      doc.value.formFields = schema.fields.map((f) => ({
-        id: f.id,
-        label: f.label,
-      }));
-    }
-  },
-  { immediate: true },
-);
-const {
-  setViewport,
+  fitView,
   zoomIn,
   zoomOut,
-  fitView,
+  setViewport,
   viewport,
-  removeSelectedElements,
+  screenToFlowCoordinate,
 } = useVueFlow("designer");
-const canvas = ref<HTMLElement>(),
-  fileInput = ref<HTMLInputElement>();
-const shortcutPosition = ref<{ left: number; top: number } | null>(null);
+const canvas = ref<HTMLElement>();
+const selectedEdgeId = ref("");
+const showInspector = ref(true);
+const showOutline = ref(false);
+const showMinimap = ref(false);
+const previewOpen = ref(false);
 const spacePanning = ref(false);
 const modifierKey = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl";
+const shortcutPosition = ref<{ left: number; top: number } | null>(null);
+const nodeMenu = ref<{ left: number; top: number }>();
+const nodeKinds = [
+  { id: "approval", label: "流程节点" },
+  { id: "copy", label: "抄送节点" },
+] as const;
+const draggedKind = ref<"approval" | "copy">();
+const identity = () => `task_${crypto.randomUUID().replaceAll("-", "")}`;
+
+// 撤销历史只存在于本次编辑会话，保存与读取均使用同一份服务端配置。
+const history = ref<string[]>([]);
+const historyIndex = ref(0);
+const canUndo = computed(() => historyIndex.value > 0);
+const canRedo = computed(() => historyIndex.value < history.value.length - 1);
+let restoring = false;
+let historyTimer: ReturnType<typeof setTimeout> | undefined;
+function checkpoint() {
+  clearTimeout(historyTimer);
+  if (restoring || loading.value) return;
+  const snapshot = JSON.stringify(spec.value);
+  if (snapshot === history.value[historyIndex.value]) return;
+  history.value = history.value.slice(0, historyIndex.value + 1);
+  history.value.push(snapshot);
+  if (history.value.length > 80) history.value.shift();
+  historyIndex.value = history.value.length - 1;
+}
+function resetHistory() {
+  clearTimeout(historyTimer);
+  history.value = [JSON.stringify(spec.value)];
+  historyIndex.value = 0;
+}
+watch(
+  spec,
+  () => {
+    if (restoring || loading.value) return;
+    clearTimeout(historyTimer);
+    historyTimer = setTimeout(checkpoint, 300);
+  },
+  { deep: true },
+);
+async function restore(index: number) {
+  restoring = true;
+  historyIndex.value = index;
+  spec.value = JSON.parse(history.value[index]!);
+  if (!spec.value.tasks.some((task) => task.id === selectedId.value))
+    selectedId.value = "start";
+  selectedEdgeId.value = "";
+  await nextTick();
+  restoring = false;
+}
+async function undo() {
+  if (busy.value) return;
+  checkpoint();
+  if (canUndo.value) await restore(historyIndex.value - 1);
+}
+async function redo() {
+  if (busy.value) return;
+  clearTimeout(historyTimer);
+  if (canRedo.value) await restore(historyIndex.value + 1);
+}
+
+async function ensurePage(task: ProcessTemplateTask) {
+  if (!task.pageId || !task.pageVersion) return;
+  const key = `${task.pageId}/${task.pageVersion}`;
+  if (!versions.value[key]) {
+    versions.value[key] = await platformApi(
+      `/pages/${task.pageId}?version=${task.pageVersion}`,
+    );
+  }
+}
+function taskFields(task: ProcessTemplateTask): FormField[] {
+  const value = versions.value[`${task.pageId}/${task.pageVersion}`];
+  return value
+    ? composeFormSchema(value.model, value.page.schema).fields.filter(
+        (field) => field.visible,
+      )
+    : [];
+}
+const pageChoices = computed(() =>
+  pages.value.filter((item) => {
+    if (!item.latestVersion || item.archivedAt) return false;
+    return (
+      !formLinked.value || item.definitionId === page.value?.draft.definitionId
+    );
+  }),
+);
+async function load() {
+  loading.value = true;
+  error.value = "";
+  try {
+    const [editor, availablePages, directory, templates] = await Promise.all([
+      platformApi<PageEditorData>(`/pages/${pageId}/editor`),
+      platformApi<PageSummary[]>(`/pages?applicationId=${appId}`),
+      platformApi<ServerOrganization>("/organization"),
+      platformApi<ProcessTemplateDraft[]>(
+        `/process-templates?applicationId=${appId}`,
+      ),
+    ]);
+    page.value = editor;
+    pages.value = availablePages;
+    organization.value = directory;
+    const templateId = String(route.query.templateId || "");
+    saved.value = templateId
+      ? templates.find((item) => item.id === templateId)
+      : templates.find((item) => item.startPageId === pageId);
+    if (templateId && !saved.value)
+      throw new Error("流程不存在或当前账号无权配置。");
+    if (saved.value) {
+      spec.value = JSON.parse(JSON.stringify(saved.value.spec));
+    } else if (editor.draft.latestVersion) {
+      const published = await platformApi<{
+        page: PublishedPage;
+        model: DataModel;
+      }>(`/pages/${pageId}`);
+      versions.value[`${pageId}/${published.page.version}`] = published;
+      spec.value = {
+        title: `${editor.draft.title}流程`,
+        bindings: [
+          {
+            id: "main",
+            title: editor.draft.title,
+            definitionId: published.page.definitionId,
+            definitionVersion: published.page.definitionVersion,
+          },
+        ],
+        tasks: [],
+      };
+    }
+    await Promise.all(spec.value.tasks.map(ensurePage));
+    // 未存位置的旧节点只在打开时排布一次，手动画线不能重新排列画布。
+    for (const task of spec.value.tasks) {
+      task.position ||= { ...layoutPositions.value[task.id]! };
+    }
+    spec.value.layout ||= {};
+    spec.value.layout.end ||= {
+      ...nodes.value.find((node) => node.id === "end")!.position,
+    };
+    selectedId.value = spec.value.tasks[0]?.id || "start";
+  } catch (cause) {
+    error.value = (cause as Error).message;
+  } finally {
+    loading.value = false;
+    await nextTick();
+    markSaved();
+    resetHistory();
+    resetView();
+  }
+}
+onMounted(load);
+
+// 画布只展示用户保存的依赖与起止连线，不推断或补齐办理顺序。
+const layoutPositions = computed(() => {
+  const depths = new Map<string, number>();
+  function depth(task: ProcessTemplateTask, path = new Set<string>()): number {
+    if (path.has(task.id)) return 1;
+    if (depths.has(task.id)) return depths.get(task.id)!;
+    const ancestors = spec.value.tasks.filter((item) =>
+      task.dependsOn.includes(item.id),
+    );
+    const next = new Set(path).add(task.id);
+    const level = ancestors.length
+      ? Math.max(...ancestors.map((item) => depth(item, next))) + 1
+      : 1;
+    depths.set(task.id, level);
+    return level;
+  }
+  const groups = new Map<number, ProcessTemplateTask[]>();
+  for (const task of spec.value.tasks) {
+    const level = depth(task);
+    groups.set(level, [...(groups.get(level) || []), task]);
+  }
+  const positions: Record<string, { x: number; y: number }> = {};
+  groups.forEach((tasks, level) =>
+    tasks.forEach((task, index) => {
+      positions[task.id] = {
+        x: (index - (tasks.length - 1) / 2) * 250,
+        y: 56 + level * 155,
+      };
+    }),
+  );
+  return positions;
+});
+function assigneeLabel(task: ProcessTemplateTask) {
+  if (task.assigneeSelector) {
+    const values =
+      task.assigneeSelector.kind === "department"
+        ? organization.value?.spec.departments
+        : organization.value?.spec.roles;
+    return (
+      values?.find((item) => item.id === task.assigneeSelector?.id)?.name ||
+      "请选择处理范围"
+    );
+  }
+  return (
+    organization.value?.users.find((user) => user.id === task.assigneeId)
+      ?.name || "请选择处理人"
+  );
+}
+const nodes = computed<Node[]>(() => {
+  const tasks = spec.value.tasks.map((task) => ({
+    id: task.id,
+    type: "workflow",
+    position: task.position || layoutPositions.value[task.id]!,
+    data: {
+      label: task.title,
+      kind: task.kind || "approval",
+      owner: assigneeLabel(task),
+    },
+  }));
+  const endY = tasks.length
+    ? Math.max(...tasks.map((task) => task.position.y)) + 155
+    : 250;
+  return [
+    {
+      id: "start",
+      type: "workflow",
+      position: spec.value.layout?.start || { x: 0, y: 56 },
+      data: { label: "流程发起节点", kind: "start" },
+    },
+    ...tasks,
+    {
+      id: "end",
+      type: "workflow",
+      position: spec.value.layout?.end || { x: 0, y: endY },
+      data: { label: "流程结束节点", kind: "end" },
+    },
+  ];
+});
+function edge(source: string, target: string): Edge {
+  const sourceNode = nodes.value.find((node) => node.id === source);
+  const targetNode = nodes.value.find((node) => node.id === target);
+  let sourceHandle = "bottom";
+  if (
+    source !== "start" &&
+    sourceNode &&
+    targetNode &&
+    Math.abs(sourceNode.position.y - targetNode.position.y) < 80
+  ) {
+    sourceHandle =
+      sourceNode.position.x < targetNode.position.x ? "right" : "left";
+  }
+  return {
+    id: `${source}:${target}`,
+    source,
+    target,
+    sourceHandle,
+    targetHandle: "top",
+    type: "smoothstep",
+    style: {
+      stroke:
+        selectedEdgeId.value === `${source}:${target}` ? "#06b2a8" : "#3478ff",
+      strokeWidth: 1.7,
+    },
+    markerEnd: {
+      type: MarkerType.ArrowClosed,
+      color: "#3478ff",
+      width: 16,
+      height: 16,
+    },
+    pathOptions: { borderRadius: 12, offset: 26 },
+  };
+}
+const edges = computed<Edge[]>(() => {
+  const connections: Edge[] = [];
+  for (const target of spec.value.startTaskIds || []) {
+    connections.push(edge("start", target));
+  }
+  for (const task of spec.value.tasks) {
+    for (const source of task.dependsOn) {
+      connections.push(edge(source, task.id));
+    }
+  }
+  for (const source of spec.value.endTaskIds || []) {
+    connections.push(edge(source, "end"));
+  }
+  return connections;
+});
+function select(id: string) {
+  nodeMenu.value = undefined;
+  selectedId.value = id;
+  selectedEdgeId.value = "";
+  panelTab.value = "node";
+  showInspector.value = true;
+}
+function openNodeMenu({ node, event }: NodeMouseEvent) {
+  event.preventDefault();
+  if (busy.value || !(event instanceof MouseEvent)) return;
+  select(node.id);
+  shortcutPosition.value = null;
+  nodeMenu.value = {
+    left: Math.max(8, Math.min(event.clientX, window.innerWidth - 208)),
+    top: Math.max(8, Math.min(event.clientY, window.innerHeight - 218)),
+  };
+}
+function resetView() {
+  setViewport(
+    { x: (canvas.value?.clientWidth || 1000) / 2 - 80, y: 0, zoom: 1 },
+    { duration: 150 },
+  );
+}
+function startNodeDrag(event: DragEvent, kind: "approval" | "copy") {
+  if (busy.value || spec.value.tasks.length >= 30 || !event.dataTransfer) {
+    event.preventDefault();
+    return;
+  }
+  draggedKind.value = kind;
+  event.dataTransfer.effectAllowed = "copy";
+  event.dataTransfer.setData("application/x-workflow-node", kind);
+}
+function dragOverCanvas(event: DragEvent) {
+  if (!draggedKind.value || busy.value || !event.dataTransfer) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "copy";
+}
+function dropNode(event: DragEvent) {
+  const kind = draggedKind.value;
+  draggedKind.value = undefined;
+  if (!kind) return;
+  event.preventDefault();
+  const point = screenToFlowCoordinate({ x: event.clientX, y: event.clientY });
+  // 按当前缩放和平移换算坐标，让节点中心落在松手位置。
+  addTask(kind, { position: { x: point.x - 80, y: point.y - 20 } });
+}
+function addTask(
+  kind: "approval" | "copy",
+  {
+    source,
+    position,
+  }: {
+    source?: ProcessTemplateTask;
+    position?: { x: number; y: number };
+  } = {},
+) {
+  if (busy.value || spec.value.tasks.length >= 30) return;
+  checkpoint();
+  const pageTask = spec.value.tasks.find((task) => task.pageId === pageId);
+  const node =
+    nodes.value.find((item) => item.id === selectedId.value) || nodes.value[0]!;
+  const task: ProcessTemplateTask = source
+    ? JSON.parse(JSON.stringify(source))
+    : {
+        id: "",
+        title: kind === "copy" ? "抄送节点" : "流程节点",
+        kind,
+        assigneeId: "",
+        recordBinding: spec.value.bindings[0]?.id || "",
+        pageId,
+        pageVersion:
+          pageTask?.pageVersion || page.value?.draft.latestVersion || 0,
+        dependsOn: [],
+        requiredFields: [],
+        fieldPermissions: {},
+      };
+  task.id = identity();
+  if (source) task.title = `${source.title}（副本）`;
+  task.position = position || {
+    x: node.position.x + 40,
+    y: node.position.y + 60,
+  };
+  // 新建和粘贴都只创建独立节点，连线必须由用户手动建立。
+  task.dependsOn = [];
+  for (const item of spec.value.tasks) {
+    item.position ||= { ...layoutPositions.value[item.id]! };
+  }
+  spec.value.layout ||= {};
+  spec.value.layout.end ||= {
+    ...nodes.value.find((item) => item.id === "end")!.position,
+  };
+  spec.value.tasks.push(task);
+  select(task.id);
+  checkpoint();
+  ensurePage(task).catch((cause) => {
+    error.value = cause.message;
+  });
+}
+function removeSelected() {
+  if (busy.value) return;
+  nodeMenu.value = undefined;
+  checkpoint();
+  if (selectedEdgeId.value) {
+    const connection = edges.value.find(
+      (item) => item.id === selectedEdgeId.value,
+    );
+    if (!connection) return;
+    if (connection.source === "start") {
+      spec.value.startTaskIds = (spec.value.startTaskIds || []).filter(
+        (id) => id !== connection.target,
+      );
+    } else if (connection.target === "end") {
+      spec.value.endTaskIds = (spec.value.endTaskIds || []).filter(
+        (id) => id !== connection.source,
+      );
+    } else {
+      const task = spec.value.tasks.find(
+        (item) => item.id === connection.target,
+      )!;
+      task.dependsOn = task.dependsOn.filter((id) => id !== connection.source);
+    }
+    selectedEdgeId.value = "";
+  } else {
+    const task = selected.value;
+    if (!task) return;
+    // 删除只移除相关连线，不替用户把前后节点重新接起来。
+    for (const other of spec.value.tasks) {
+      other.dependsOn = other.dependsOn.filter((id) => id !== task.id);
+    }
+    spec.value.startTaskIds = (spec.value.startTaskIds || []).filter(
+      (id) => id !== task.id,
+    );
+    spec.value.endTaskIds = (spec.value.endTaskIds || []).filter(
+      (id) => id !== task.id,
+    );
+    spec.value.tasks = spec.value.tasks.filter((item) => item.id !== task.id);
+    select("start");
+  }
+  checkpoint();
+}
+function connect(connection: Connection) {
+  if (busy.value) return;
+  const source = spec.value.tasks.find((task) => task.id === connection.source);
+  const target = spec.value.tasks.find((task) => task.id === connection.target);
+  if (connection.source === "start" && target) {
+    checkpoint();
+    spec.value.startTaskIds ||= [];
+    if (!spec.value.startTaskIds.includes(target.id))
+      spec.value.startTaskIds.push(target.id);
+    error.value = "";
+    checkpoint();
+    return;
+  }
+  if (connection.target === "end" && source) {
+    checkpoint();
+    spec.value.endTaskIds ||= [];
+    if (!spec.value.endTaskIds.includes(source.id))
+      spec.value.endTaskIds.push(source.id);
+    error.value = "";
+    checkpoint();
+    return;
+  }
+  if (!source || !target) {
+    error.value = "请按发起节点、流程节点、结束节点的方向连接。";
+    return;
+  }
+  const ancestors = new Set<string>();
+  const visit = (id: string) => {
+    if (ancestors.has(id)) return;
+    ancestors.add(id);
+    spec.value.tasks.find((task) => task.id === id)?.dependsOn.forEach(visit);
+  };
+  visit(connection.source);
+  if (ancestors.has(target.id)) {
+    error.value = "这条连线会形成循环，请连接到后续节点。";
+    return;
+  }
+  checkpoint();
+  if (!target.dependsOn.includes(connection.source))
+    target.dependsOn.push(connection.source);
+  error.value = "";
+  checkpoint();
+}
+function positionNode({ node }: { node: Node }) {
+  if (busy.value) return;
+  if (node.id === "start" || node.id === "end") {
+    spec.value.layout ||= {};
+    spec.value.layout[node.id] = { ...node.position };
+  } else {
+    const task = spec.value.tasks.find((item) => item.id === node.id);
+    if (task) task.position = { ...node.position };
+  }
+  checkpoint();
+}
+async function arrange(horizontal = false) {
+  checkpoint();
+  spec.value.layout = undefined;
+  for (const task of spec.value.tasks) {
+    const position = layoutPositions.value[task.id]!;
+    task.position = horizontal
+      ? { x: ((position.y - 56) / 155) * 245, y: position.x }
+      : { ...position };
+  }
+  if (horizontal)
+    spec.value.layout = {
+      start: { x: 0, y: 0 },
+      end: {
+        x:
+          Math.max(0, ...spec.value.tasks.map((task) => task.position!.x)) +
+          245,
+        y: 0,
+      },
+    };
+  checkpoint();
+  await nextTick();
+  fitView({ padding: 0.3, maxZoom: 1 });
+}
+const clipboard = ref<ProcessTemplateTask>();
+function copyNode() {
+  if (!selected.value) return;
+  clipboard.value = JSON.parse(JSON.stringify(selected.value));
+  nodeMenu.value = undefined;
+  notice.value = "节点已复制，粘贴后请自行连接办理顺序。";
+}
+function cutNode() {
+  if (!selected.value || busy.value) return;
+  copyNode();
+  removeSelected();
+  notice.value = "节点已剪切，粘贴后请自行连接办理顺序。";
+}
+function pasteNode() {
+  if (clipboard.value)
+    addTask(clipboard.value.kind || "approval", { source: clipboard.value });
+}
 function toggleShortcuts(event: MouseEvent) {
   if (shortcutPosition.value) {
     shortcutPosition.value = null;
     return;
   }
   const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
-  const toolbarBottom = (event.currentTarget as HTMLElement)
-    .closest(".toolbar")!
-    .getBoundingClientRect().bottom;
   shortcutPosition.value = {
-    left: Math.max(
-      16,
-      Math.min(bounds.left + bounds.width / 2 - 262, window.innerWidth - 540),
-    ),
-    top: toolbarBottom + 4,
-  };
-  picker.value = null;
-}
-function closeShortcuts() {
-  shortcutPosition.value = null;
-}
-function releasePan(event?: KeyboardEvent) {
-  if (!event || event.code === "Space") spacePanning.value = false;
-}
-function cancelSelection() {
-  selectedId.value = "";
-  selectedEdgeId.value = null;
-  removeSelectedElements();
-}
-const panelTab = ref("node"),
-  showMinimap = ref(false),
-  showOutline = ref(false),
-  showInspector = ref(true);
-const dialog = ref("");
-const pluginOpen = ref(false),
-  pluginTrial = ref<ExtensionRun>(),
-  forcePluginFailure = ref(false),
-  testValues = ref<FormValues>({});
-function applyPlugin(config: PluginInvocation) {
-  if (!selected.value || selected.value.data.kind !== "plugin") return false;
-  updateNode(selectedId.value, {
-    plugin: config.actionId,
-    pluginConfig: config,
-  });
-  notify("动作配置已应用，请保存流程");
-  return true;
-}
-function openPlugin() {
-  pluginOpen.value = true;
-}
-
-const timeoutHours = ref(24),
-  timeoutAction = ref("remind"),
-  timeoutEnabled = ref(true);
-const notices = ref<
-  { id: number; message: string; type: "success" | "warning" }[]
->([]);
-const noticeTimers = new Set<ReturnType<typeof setTimeout>>();
-const picker = ref<{
-  x: number;
-  y: number;
-  anchor: string;
-  direction: "before" | "after";
-} | null>(null);
-const issues = ref<ValidationIssue[]>([]),
-  testAmount = ref(6000),
-  testRunning = ref(false),
-  testIndex = ref(-1);
-const records = ref<
-  { time: string; title: string; nodes: number; amount: number }[]
->([]);
-const sampleForm = ref({
-  applicant: "张三",
-  department: "产品部",
-  date: new Date().toLocaleDateString("en-CA"),
-  amount: 6000,
-  note: "",
-});
-const previewKey = ref(0);
-const previewNodes = computed(() =>
-  doc.value.nodes.map((n) => ({
-    ...clone(n),
-    selected: false,
-    draggable: false,
-    selectable: false,
-  })),
-);
-const previewEdges = computed(() =>
-  doc.value.edges.map((e) => ({ ...clone(e), selected: false })),
-);
-const route = computed(() =>
-  simulationPath(
-    doc.value,
-    testRunning.value ? testValues.value : testAmount.value,
-  ),
-);
-const finished = computed(
-  () => testIndex.value >= route.value.length - 1 && testIndex.value >= 0,
-);
-function memberName(id: string) {
-  return identityLabel(workspace.data.organization, id);
-}
-const nodeKinds: NodeKind[] = [
-  "approval",
-  "copy",
-  "condition",
-  "subflow",
-  "plugin",
-];
-const dialogTitles: Record<string, string> = {
-  members: "选择成员或部门",
-  timeout: "节点限时处理",
-  preview: "流程预览",
-  test: "流程测试",
-  activate: "启用流程",
-  help: "操作指南",
-  form: "表单设计",
-  extensions: "扩展功能",
-  publish: "表单发布",
-  records: "记录管理",
-  notes: "流程说明",
-  files: "当前表单",
-  notifications: "通知中心",
-  export: "导出流程 JSON",
-};
-function notify(message: string, type: "success" | "warning" = "success") {
-  const id = Date.now() + Math.random();
-  notices.value.push({ id, message, type });
-  const timer = setTimeout(() => {
-    notices.value = notices.value.filter((n) => n.id !== id);
-    noticeTimers.delete(timer);
-  }, 3600);
-  noticeTimers.add(timer);
-}
-async function saveFlow() {
-  if (await save()) {
-    notify("流程已保存到当前浏览器");
-    return true;
-  } else notify(workspace.storageError || "保存未完成，当前设计已保留，请重试。", "warning");
-  return false;
-}
-async function saveNotes() {
-  if (await saveFlow()) dialog.value = "";
-}
-function openDialog(name: string) {
-  const routes: Record<string, string> = {
-    form: "design",
-    extensions: "extensions",
-    publish: "publish",
-    records: "data",
-  };
-  if (routes[name]) {
-    if (pageRoute.params.applicationId) {
-      if (routes[name] === "design") {
-        router.push(
-          `/applications/${appId.value}/pages/${formId.value}/design`,
-        );
-      } else if (routes[name] === "data") {
-        router.push({
-          path: `/applications/${appId.value}`,
-          query: { form: formId.value, view: "records" },
-        });
-      }
-    } else {
-      router.push(
-        `/apps/${pageRoute.params.appId}/forms/${formId.value}/${routes[name]}`,
-      );
-    }
-    return;
-  }
-  picker.value = null;
-  closeShortcuts();
-  dialog.value = name;
-  if (name === "preview") previewKey.value++;
-  if (name === "test" || name === "activate" || name === "publish") {
-    issues.value = validate(
-      doc.value,
-      workspace.data.organization,
-      currentForm?.schema || serverSchema.value,
-    );
-    testRunning.value = false;
-    testIndex.value = -1;
-  }
-}
-function pickNode(id: string) {
-  select(id);
-  panelTab.value = "node";
-  showInspector.value = true;
-}
-function openPicker(
-  id: string,
-  direction: "before" | "after",
-  event: MouseEvent,
-) {
-  picker.value = {
-    x: Math.max(12, Math.min(event.clientX + 12, window.innerWidth - 210)),
-    y: Math.max(100, Math.min(event.clientY + 10, window.innerHeight - 274)),
-    anchor: id,
-    direction,
+    left: Math.max(16, Math.min(bounds.left - 160, window.innerWidth - 540)),
+    top: bounds.bottom + 12,
   };
 }
-function addPicked(kind: NodeKind) {
-  if (picker.value) add(kind, picker.value.anchor, picker.value.direction);
-  picker.value = null;
-  panelTab.value = "node";
-}
-function addToolbar(kind: NodeKind) {
-  add(kind);
-  panelTab.value = "node";
-  notify(`已添加${kindLabels[kind]}`);
-}
-function handleConnect(connection: Connection) {
-  const error = connect(connection);
-  if (error) notify(error, "warning");
-}
-function openMembers() {
-  openDialog("members");
-}
-function confirmMembers(ids: string[]) {
-  updateNode(selectedId.value, { members: ids });
-  dialog.value = "";
-}
-function openTimeout() {
-  timeoutEnabled.value = !!selected.value?.data.timeout;
-  timeoutHours.value = selected.value?.data.timeout || 24;
-  timeoutAction.value = selected.value?.data.timeoutAction || "remind";
-  openDialog("timeout");
-}
-function confirmTimeout() {
-  if (
-    timeoutEnabled.value &&
-    (!Number.isFinite(timeoutHours.value) ||
-      timeoutHours.value < 1 ||
-      timeoutHours.value > 8760)
-  ) {
-    notify("处理时限应在 1 至 8760 小时之间", "warning");
-    return;
-  }
-  updateNode(selectedId.value, {
-    timeout: timeoutEnabled.value ? timeoutHours.value : 0,
-    timeoutAction: timeoutAction.value,
-  });
-  dialog.value = "";
-}
-function exportFlow() {
-  openDialog("export");
-}
-async function copyExport() {
-  const textbox = document.querySelector<HTMLTextAreaElement>(".json-output");
-  textbox?.focus();
-  textbox?.select();
-  try {
-    if (document.execCommand("copy")) {
-      notify("流程 JSON 已复制");
-      return;
-    }
-    await navigator.clipboard.writeText(
-      JSON.stringify(JSON.parse(serialize(doc.value)), null, 2),
-    );
-    notify("流程 JSON 已复制");
-  } catch {
-    notify("JSON 已选中，请按 ⌘ C 或 Ctrl C 复制", "warning");
-  }
-}
-function downloadFlow() {
-  const url = URL.createObjectURL(
-    new Blob([JSON.stringify(JSON.parse(serialize(doc.value)), null, 2)], {
-      type: "application/json",
-    }),
-  );
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${doc.value.title || "流程"}.json`;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-  notify("已请求下载流程文件；也可直接复制 JSON");
-}
-async function importFlow(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (!file) return;
-  try {
-    if (file.size > 2_000_000)
-      throw new Error("文件过大，请选择 2 MB 以内的流程文件");
-    replace(await file.text());
-    await nextTick();
-    fitView({ padding: 0.25, duration: 300 });
-    notify("流程已导入，可撤销本次操作");
-  } catch (error) {
-    notify(
-      error instanceof Error ? error.message : "无法读取流程文件",
-      "warning",
-    );
-  } finally {
-    input.value = "";
-  }
-}
-async function activate() {
-  issues.value = validate(
-    doc.value,
-    workspace.data.organization,
-    currentForm?.schema || serverSchema.value,
-  );
-  if (issues.value.length) return;
-  doc.value.enabled = true;
-  if (!(await save())) {
-    doc.value.enabled = false;
-    notify("保存失败，流程尚未启用", "warning");
-    return;
-  }
-  dialog.value = "";
-  notify("流程已启用，配置已保存");
-}
-function handleIssue(issue: ValidationIssue) {
-  if (issue.nodeId) {
-    pickNode(issue.nodeId);
-    dialog.value = "";
-    fitView({ nodes: [issue.nodeId], maxZoom: 1, duration: 300 });
-  }
-}
-function startTest() {
-  const schema = currentForm?.schema || serverSchema.value;
-  issues.value = validate(
-    doc.value,
-    workspace.data.organization,
-    schema,
-  );
-  if (issues.value.length) return;
-  testValues.value = schema ? sampleValues(schema) : {};
-  for (const node of doc.value.nodes.filter((n) => n.data.kind === "condition"))
-    testValues.value[node.data.conditionFieldId || "amount"] = testAmount.value;
-  pluginTrial.value = undefined;
-  testRunning.value = true;
-  testIndex.value = 0;
-}
-async function nextStep() {
-  if (finished.value) return;
-  const node = route.value[testIndex.value];
-  if (node?.data.kind === "plugin") {
-    const previous = pluginTrial.value;
-    pluginTrial.value = runPlugin(
-      node.data.pluginConfig || newInvocation(node.data.plugin),
-      currentForm?.schema || serverSchema.value || emptySchema(),
-      testValues.value,
-      workspace.data,
-      forcePluginFailure.value,
-      node.id,
-    );
-    if (previous?.status === "failed") pluginTrial.value.retryOf = previous.id;
-    await workspace.recordExtensionRun(pluginTrial.value, formId.value);
-    if (pluginTrial.value.status !== "success") return;
-    Object.assign(testValues.value, pluginTrial.value.mappedValues);
-  }
-  testIndex.value++;
-  if (finished.value) {
-    records.value.unshift({
-      time: new Date().toLocaleString("zh-CN"),
-      title: doc.value.title,
-      nodes: route.value.length,
-      amount: testAmount.value,
-    });
-    notify("模拟流程已完成");
-  }
-}
-function resetView() {
-  const width = canvas.value?.clientWidth || 1100;
-  setViewport({ x: width / 2 - 88, y: 0, zoom: 1 }, { duration: 250 });
-}
-async function autoLayout(horizontal = false) {
-  layout(horizontal);
-  await nextTick();
-  fitView({ padding: 0.3, maxZoom: 1, duration: 300 });
-  notify(horizontal ? "已按水平方向排列" : "已自动整理流程");
+function releasePan() {
+  spacePanning.value = false;
 }
 function keyboard(event: KeyboardEvent) {
-  const key = event.key.toLowerCase();
+  const target = event.target as HTMLElement;
+  if (loading.value || busy.value || document.querySelector("dialog[open]"))
+    return;
   const modifier = event.metaKey || event.ctrlKey;
+  const key = event.key.toLowerCase();
   if (modifier && key === "s") {
     event.preventDefault();
-    saveFlow();
+    save(false);
     return;
   }
-  const target = event.target as HTMLElement;
-  if (
-    dialog.value ||
-    /INPUT|TEXTAREA|SELECT/.test(target.tagName) ||
-    target.isContentEditable
-  )
+  if (/INPUT|TEXTAREA|SELECT/.test(target.tagName) || target.isContentEditable)
     return;
   if (event.code === "Space" && !modifier) {
     event.preventDefault();
@@ -548,10 +647,10 @@ function keyboard(event: KeyboardEvent) {
     return;
   }
   if (key === "escape") {
-    event.preventDefault();
-    picker.value = null;
-    closeShortcuts();
-    cancelSelection();
+    nodeMenu.value = undefined;
+    shortcutPosition.value = null;
+    selectedEdgeId.value = "";
+    selectedId.value = "";
     releasePan();
     return;
   }
@@ -560,913 +659,619 @@ function keyboard(event: KeyboardEvent) {
     removeSelected();
     return;
   }
-  if (!modifier || event.altKey) return;
+  if (!modifier) return;
   if (key === "z") {
     event.preventDefault();
-    event.shiftKey ? redo() : undo();
+    if (event.shiftKey) redo();
+    else undo();
   } else if (key === "y") {
     event.preventDefault();
     redo();
-  } else if (key === "c") {
+  } else if (key === "+" || key === "=") {
     event.preventDefault();
-    notify(copySelection());
-  } else if (key === "v") {
+    zoomIn();
+  } else if (key === "-") {
     event.preventDefault();
-    const error = pasteSelection();
-    if (error) notify(error, "warning");
-    else {
-      panelTab.value = "node";
-      notify("已粘贴，拖动连接点可接入流程");
-    }
-  } else if (key === "+" || key === "=" || event.code === "NumpadAdd") {
-    event.preventDefault();
-    zoomIn({ duration: 150 });
-  } else if (key === "-" || event.code === "NumpadSubtract") {
-    event.preventDefault();
-    zoomOut({ duration: 150 });
+    zoomOut();
   } else if (key === "0") {
     event.preventDefault();
-    fitView({ padding: 0.3, maxZoom: 1, duration: 250 });
+    fitView({ padding: 0.3, maxZoom: 1 });
   }
 }
-function editorClipboardEvent(event: ClipboardEvent) {
+// 使用原生剪贴板事件，菜单复制和快捷键共用同一个节点副本。
+function clipboardEvent(event: ClipboardEvent) {
   const target = event.target as HTMLElement;
-  if (
-    dialog.value ||
-    /INPUT|TEXTAREA|SELECT/.test(target.tagName) ||
-    target.isContentEditable
-  )
+  if (busy.value || loading.value || document.querySelector("dialog[open]"))
     return;
-  if (event.type === "copy") {
-    if (window.getSelection()?.toString()) return;
-    const message = copySelection();
-    if (!message.startsWith("已复制")) return;
-    event.preventDefault();
-    event.clipboardData?.setData("text/plain", message);
-    notify(message);
+  if (/INPUT|TEXTAREA|SELECT/.test(target.tagName) || target.isContentEditable)
+    return;
+  if (event.type === "copy" || event.type === "cut") {
+    if (!selected.value || window.getSelection()?.toString()) return;
+    event.clipboardData?.setData(
+      "text/plain",
+      `流程节点：${selected.value.title}`,
+    );
+    if (event.type === "cut") cutNode();
+    else copyNode();
   } else {
-    const error = pasteSelection();
-    if (error) return;
-    event.preventDefault();
-    panelTab.value = "node";
-    notify("已粘贴，拖动连接点可接入流程");
+    if (!clipboard.value) return;
+    pasteNode();
   }
+  event.preventDefault();
 }
-function releasePanOnBlur() {
-  releasePan();
-}
-function beforeUnload(event: BeforeUnloadEvent) {
-  if (dirty.value) event.preventDefault();
-}
-watch(
-  () => doc.value.title,
-  (title) => (document.title = `${title || "未命名表单"} · 流程设计器`),
-  { immediate: true },
-);
 onMounted(() => {
-  window.addEventListener("keydown", keyboard, true);
-  window.addEventListener("copy", editorClipboardEvent);
-  window.addEventListener("paste", editorClipboardEvent);
+  window.addEventListener("copy", clipboardEvent);
+  window.addEventListener("cut", clipboardEvent);
+  window.addEventListener("paste", clipboardEvent);
+  window.addEventListener("keydown", keyboard);
   window.addEventListener("keyup", releasePan);
-  window.addEventListener("blur", releasePanOnBlur);
-  window.addEventListener("resize", closeShortcuts);
-  window.addEventListener("beforeunload", beforeUnload);
-  if (loadError) notify(loadError, "warning");
-  if (pageRoute.params.pageId) {
-    platformApi<PageEditorData>(
-      `/pages/${pageRoute.params.pageId}/editor`,
-    )
-      .then((data) => {
-        if (data) {
-          serverPage.value = data;
-          if (
-            data.draft.title &&
-            (!doc.value.title || doc.value.title === "未命名表单")
-          ) {
-            doc.value.title = data.draft.title;
-          }
-        }
-      })
-      .catch(() => {});
-  }
-  if (
-    typeof pageRoute.query.node === "string" &&
-    doc.value.nodes.some((n) => n.id === pageRoute.query.node)
-  )
-    pickNode(pageRoute.query.node);
+  window.addEventListener("blur", releasePan);
 });
 onBeforeUnmount(() => {
-  window.removeEventListener("keydown", keyboard, true);
-  window.removeEventListener("copy", editorClipboardEvent);
-  window.removeEventListener("paste", editorClipboardEvent);
+  clearTimeout(historyTimer);
+  window.removeEventListener("copy", clipboardEvent);
+  window.removeEventListener("cut", clipboardEvent);
+  window.removeEventListener("paste", clipboardEvent);
+  window.removeEventListener("keydown", keyboard);
   window.removeEventListener("keyup", releasePan);
-  window.removeEventListener("blur", releasePanOnBlur);
-  window.removeEventListener("resize", closeShortcuts);
-  window.removeEventListener("beforeunload", beforeUnload);
-  noticeTimers.forEach(clearTimeout);
+  window.removeEventListener("blur", releasePan);
 });
+function removeUnusedBindings() {
+  const used = new Set(
+    spec.value.tasks.flatMap((task) => [
+      task.recordBinding,
+      task.waitFor?.recordBinding,
+    ]),
+  );
+  spec.value.bindings = spec.value.bindings.filter((binding) =>
+    used.has(binding.id),
+  );
+}
+async function changePage(task: ProcessTemplateTask) {
+  const target = pages.value.find((item) => item.id === task.pageId);
+  if (!target) return;
+  task.pageVersion = target.latestVersion;
+  task.subformId = undefined;
+  task.requiredFields = [];
+  task.fieldPermissions = {};
+  task.waitFor = undefined;
+  try {
+    await ensurePage(task);
+    const published =
+      versions.value[`${task.pageId}/${task.pageVersion}`]!.page;
+    let binding = spec.value.bindings.find(
+      (item) =>
+        item.definitionId === published.definitionId &&
+        item.definitionVersion === published.definitionVersion,
+    );
+    if (!binding) {
+      binding = {
+        id: `data_${crypto.randomUUID().replaceAll("-", "")}`,
+        title: published.title,
+        definitionId: published.definitionId,
+        definitionVersion: published.definitionVersion,
+      };
+      spec.value.bindings.push(binding);
+    }
+    task.recordBinding = binding.id;
+    removeUnusedBindings();
+  } catch (cause) {
+    error.value = (cause as Error).message;
+  }
+}
+let requestId = crypto.randomUUID();
+let requestFingerprint = "";
+async function save(publish: boolean) {
+  if (busy.value) return;
+  if (publish) {
+    const connectionError = processTemplateConnectionError(spec.value);
+    if (connectionError) {
+      error.value = connectionError;
+      return;
+    }
+  }
+  busy.value = true;
+  error.value = "";
+  notice.value = "";
+  try {
+    const fingerprint = JSON.stringify(spec.value);
+    if (fingerprint !== requestFingerprint) {
+      requestId = crypto.randomUUID();
+      requestFingerprint = fingerprint;
+    }
+    saved.value = await platformApi<ProcessTemplateDraft>(
+      saved.value
+        ? `/process-templates/${saved.value.id}`
+        : "/process-templates",
+      saved.value ? "PUT" : "POST",
+      {
+        applicationId: appId,
+        requestId,
+        expectedRevision: saved.value?.revision,
+        spec: spec.value,
+        ...(formLinked.value ? { startPageId: pageId } : {}),
+      },
+    );
+    markSaved();
+    if (publish) {
+      await platformApi(
+        `/process-templates/${saved.value.id}/publish`,
+        "POST",
+        { expectedRevision: saved.value.revision },
+      );
+      saved.value = (
+        await platformApi<ProcessTemplateDraft[]>(
+          `/process-templates?applicationId=${appId}`,
+        )
+      ).find((item) => item.id === saved.value?.id);
+    }
+    markSaved();
+    notice.value = publish
+      ? "流程已发布，后续提交按新版本办理。"
+      : "流程草稿已保存。";
+  } catch (cause) {
+    error.value = (cause as Error).message;
+  } finally {
+    busy.value = false;
+  }
+}
+async function disable() {
+  if (!saved.value || busy.value) return;
+  busy.value = true;
+  error.value = "";
+  try {
+    await platformApi(`/process-templates/${saved.value.id}/state`, "PUT", {
+      expectedRevision: saved.value.revision,
+      enabled: false,
+    });
+    saved.value.revision++;
+    saved.value.enabled = false;
+    notice.value = "流程已停用，已有待办继续办理。";
+  } catch (cause) {
+    error.value = (cause as Error).message;
+  } finally {
+    busy.value = false;
+  }
+}
 </script>
 
 <template>
   <div
-    class="application"
+    class="application workflow-designer"
     @click="
-      picker = null;
-      closeShortcuts();
+      nodeMenu = undefined;
+      shortcutPosition = null;
     "
   >
     <DesignerHeader
-      v-model:title="doc.title"
+      :title="pageTitle"
       :app-id="appId"
-      :form-id="formId"
+      :form-id="pageId"
       active="flow"
-      @help="openDialog('help')"
+      readonly-title
+      @help="helpOpen = true"
     />
     <main class="designer-shell">
-      <div class="toolbar" role="toolbar" aria-label="流程设计工具">
-        <div class="toolbar-tools">
-          <div class="tool-group history-tools">
-            <button
-              class="icon-button"
-              title="撤销（⌘ Z）"
-              aria-label="撤销"
-              :disabled="!canUndo"
-              @click="undo"
-            >
-              <AppIcon name="undo" :size="15" /></button
-            ><button
-              class="icon-button"
-              :title="`重做（${modifierKey} Y）`"
-              aria-label="重做"
-              :disabled="!canRedo"
-              @click="redo"
-            >
-              <AppIcon name="redo" :size="15" />
-            </button>
-          </div>
-          <span class="toolbar-divider" />
-          <button
-            v-for="kind in [
-              'approval',
-              'copy',
-              'subflow',
-              'plugin',
-            ] as NodeKind[]"
-            :key="kind"
-            class="node-tool"
-            :title="`添加${kindLabels[kind]}`"
-            @click="addToolbar(kind)"
-          >
-            <AppIcon :name="kind" :class="kind" :size="16" /><span>{{
-              kindLabels[kind]
-            }}</span>
-          </button>
-          <span class="toolbar-divider" /><button
-            class="icon-button"
-            aria-label="自动整理"
-            title="自动整理"
-            @click="autoLayout()"
-          >
-            <AppIcon name="align" /></button
-          ><button
-            class="icon-button"
-            aria-label="水平排列"
-            title="水平排列"
-            @click="autoLayout(true)"
-          >
-            <AppIcon name="horizontal" /></button
-          ><span class="toolbar-divider" />
-          <button
-            class="icon-button"
-            aria-label="删除所选节点或连线"
-            title="删除所选节点或连线（Delete）"
-            :disabled="
-              !selectedEdgeId &&
-              (!selected || ['start', 'end'].includes(selected.data.kind))
-            "
-            @click="removeSelected"
-          >
-            <AppIcon name="trash" /></button
-          ><button
-            class="icon-button keyboard-tool"
-            aria-label="快捷键"
-            title="快捷键"
-            :class="{ 'is-open': shortcutPosition }"
-            :aria-expanded="!!shortcutPosition"
-            aria-controls="shortcut-popover"
-            @click.stop="toggleShortcuts"
-          >
-            <AppIcon name="keyboard" />
-          </button>
-        </div>
-        <div class="toolbar-actions">
-          <button
-            class="version-button"
-            :title="
-              savedTime
-                ? `上次保存 ${savedTime}${dirty ? '，有未保存修改' : ''}`
-                : dirty
-                  ? '尚未保存'
-                  : '已保存到当前浏览器'
-            "
-            @click="
-              panelTab = 'flow';
-              showInspector = true;
-            "
-          >
-            <span class="status-dot" :class="{ enabled: doc.enabled }" /><span
-              >流程版本（V{{ doc.version }}）</span
-            ></button
-          ><button
-            class="icon-button notes-button"
-            title="流程说明"
-            aria-label="流程说明"
-            @click="openDialog('notes')"
-          >
-            <AppIcon name="comment" /></button
-          ><button class="button outline" @click="openDialog('preview')">
-            预览</button
-          ><button class="button outline" @click="openDialog('test')">
-            测试</button
-          ><button class="button outline" @click="saveFlow">保存</button
-          ><button
-            class="button primary activate-button"
-            :class="{ enabled: doc.enabled }"
-            @click="openDialog('activate')"
-          >
-            {{ doc.enabled ? "已启用" : "启用流程" }}
-          </button>
-        </div>
+      <p v-if="loading" class="flow-message" role="status">正在读取流程…</p>
+      <div v-if="error" class="flow-message error" role="alert">
+        {{ error
+        }}<button class="text-button" @click="reloadOpen = true">
+          重新读取
+        </button>
       </div>
-      <div class="designer-body">
-        <section
-          ref="canvas"
-          class="canvas-area"
-          :class="{ 'is-panning': spacePanning }"
-          aria-label="流程画布"
+      <div v-if="notice" class="flow-message" role="status">
+        {{ notice
+        }}<button
+          class="icon-button"
+          aria-label="关闭提示"
+          @click="notice = ''"
         >
-          <VueFlow
-            id="designer"
-            v-model:nodes="doc.nodes"
-            v-model:edges="doc.edges"
-            :min-zoom="0.25"
-            :max-zoom="2"
-            :delete-key-code="null"
-            pan-activation-key-code="Space"
-            :nodes-draggable="!spacePanning"
-            :nodes-connectable="!spacePanning"
-            :snap-to-grid="false"
-            :connection-radius="28"
-            :zoom-on-double-click="false"
-            :default-viewport="{ x: 440, y: 0, zoom: 1 }"
-            @init="resetView"
-            @node-click="pickNode($event.node.id)"
-            @edge-click="selectedEdgeId = $event.edge.id"
-            @node-drag-start="checkpoint"
-            @node-drag-stop="checkpoint"
-            @connect="handleConnect"
-            @pane-click="
-              picker = null;
-              selectedEdgeId = null;
-            "
-          >
-            <Background :gap="24" :size="1.5" pattern-color="#dce1ec" />
-            <template #node-workflow="props"
-              ><WorkflowNode
-                v-bind="props"
-                :selected="
-                  (selectedId === props.id || props.selected) && !selectedEdgeId
-                "
-                @add="openPicker"
-            /></template>
-            <MiniMap
-              v-if="showMinimap"
-              :pannable="true"
-              :zoomable="true"
-              :node-color="
-                (node) =>
-                  node.data.kind === 'start'
-                    ? '#4eba66'
-                    : node.data.kind === 'end'
-                      ? '#9aa4b3'
-                      : '#78a5ff'
-              "
-            />
-          </VueFlow>
-          <div class="canvas-view-toggle segmented">
-            <button
-              :class="{ active: !showOutline }"
-              title="流程图"
-              aria-label="流程图"
-              @click="showOutline = false"
-            >
-              <AppIcon name="list" :size="18" /></button
-            ><button
-              :class="{ active: showOutline }"
-              title="节点目录"
-              aria-label="节点目录"
-              @click="showOutline = !showOutline"
-            >
-              <AppIcon name="layers" :size="16" />
-            </button>
-          </div>
-          <div v-if="showOutline" class="outline-panel">
-            <div class="outline-heading">
-              流程节点<button
+          <AppIcon name="close" :size="14" />
+        </button>
+      </div>
+      <div
+        v-if="confirmDiscard"
+        class="flow-message config-discard"
+        tabindex="-1"
+      >
+        流程尚未保存。<button class="button" @click="confirmDiscard = false">
+          继续编辑</button
+        ><button class="button" @click="discard">放弃修改并离开</button>
+      </div>
+      <div v-if="!loading && !ready" class="flow-empty">
+        <h2>先发布表单，再设置流程</h2>
+        <p>流程使用已发布的字段和权限。</p>
+        <button
+          class="button primary"
+          @click="router.push(`/applications/${appId}/pages/${pageId}/publish`)"
+        >
+          去发布表单
+        </button>
+      </div>
+      <template v-if="!loading && ready">
+        <div class="toolbar" role="toolbar" aria-label="流程设计工具">
+          <div class="toolbar-tools" :inert="busy || undefined">
+            <div class="tool-group history-tools">
+              <button
                 class="icon-button"
-                aria-label="关闭目录"
-                @click="showOutline = false"
+                :title="`撤销（${modifierKey} Z）`"
+                aria-label="撤销"
+                :disabled="!canUndo"
+                @click="undo"
               >
-                <AppIcon name="close" :size="15" />
+                <AppIcon name="undo" :size="15" />
+              </button>
+              <button
+                class="icon-button"
+                :title="`重做（${modifierKey} Y）`"
+                aria-label="重做"
+                :disabled="!canRedo"
+                @click="redo"
+              >
+                <AppIcon name="redo" :size="15" />
               </button>
             </div>
+            <span class="toolbar-divider" />
             <button
-              v-for="node in doc.nodes"
-              :key="node.id"
-              :class="{ active: selectedId === node.id }"
+              v-for="kind in nodeKinds"
+              :key="kind.id"
+              class="node-tool"
+              :title="`拖拽${kind.label}到画布`"
+              :disabled="spec.tasks.length >= 30"
+              :draggable="spec.tasks.length < 30"
+              @dragstart="startNodeDrag($event, kind.id)"
+              @dragend="draggedKind = undefined"
+            >
+              <AppIcon :name="kind.id" :class="kind.id" :size="16" /><span>{{
+                kind.label
+              }}</span>
+            </button>
+            <button
+              class="node-tool"
+              disabled
+              title="子流程尚未接入执行，暂不可添加"
+            >
+              <AppIcon name="subflow" class="subflow" :size="16" /><span
+                >子流程</span
+              >
+            </button>
+            <button
+              class="node-tool"
+              disabled
+              title="插件节点尚未接入执行，暂不可添加"
+            >
+              <AppIcon name="plugin" class="plugin" :size="16" /><span
+                >插件节点</span
+              >
+            </button>
+            <span class="toolbar-divider" />
+            <button
+              class="icon-button"
+              aria-label="自动整理"
+              title="自动整理"
+              @click="arrange()"
+            >
+              <AppIcon name="align" />
+            </button>
+            <button
+              class="icon-button"
+              aria-label="水平排列"
+              title="水平排列"
+              @click="arrange(true)"
+            >
+              <AppIcon name="horizontal" />
+            </button>
+            <span class="toolbar-divider" />
+            <button
+              class="icon-button"
+              aria-label="删除所选节点或连线"
+              title="删除所选节点或连线（Delete）"
+              :disabled="!selected && !selectedEdgeId"
+              @click="removeSelected"
+            >
+              <AppIcon name="trash" />
+            </button>
+            <button
+              class="icon-button keyboard-tool"
+              title="快捷键"
+              aria-label="快捷键"
+              :class="{ 'is-open': shortcutPosition }"
+              :aria-expanded="!!shortcutPosition"
+              @click.stop="toggleShortcuts"
+            >
+              <AppIcon name="keyboard" />
+            </button>
+          </div>
+          <div class="toolbar-actions">
+            <button
+              class="version-button"
+              :title="saveState"
               @click="
-                pickNode(node.id);
-                fitView({ nodes: [node.id], maxZoom: 1, duration: 200 });
+                panelTab = 'flow';
+                showInspector = true;
               "
             >
-              <AppIcon :name="node.data.kind" :class="node.data.kind" />{{
-                node.data.label
+              <span
+                class="status-dot"
+                :class="{ enabled: saved?.enabled && saved.latestVersion }"
+              /><span>{{
+                dirty ? "未保存" : `流程版本（V${saved?.latestVersion || 0}）`
+              }}</span>
+            </button>
+            <button class="button outline" @click="previewOpen = true">
+              预览
+            </button>
+            <button
+              class="button outline"
+              :disabled="busy"
+              @click="save(false)"
+            >
+              保存
+            </button>
+            <button
+              class="button primary activate-button"
+              :disabled="busy"
+              @click="save(true)"
+            >
+              {{
+                saved?.latestVersion && saved.enabled ? "发布更新" : "启用流程"
               }}
             </button>
           </div>
-          <button
-            class="inspector-toggle icon-button"
-            title="切换属性面板"
-            aria-label="切换属性面板"
-            @click="showInspector = !showInspector"
+        </div>
+        <div class="designer-body" :inert="busy || undefined">
+          <section
+            ref="canvas"
+            class="canvas-area"
+            :class="{
+              'is-panning': spacePanning,
+              'is-dragging-node': draggedKind,
+            }"
+            aria-label="流程画布"
           >
-            <AppIcon name="settings" />
-          </button>
-          <div class="canvas-controls">
-            <div class="zoom-controls">
+            <VueFlow
+              id="designer"
+              :nodes="nodes"
+              :edges="edges"
+              :min-zoom="0.25"
+              :max-zoom="2"
+              :delete-key-code="null"
+              pan-activation-key-code="Space"
+              :nodes-draggable="!spacePanning"
+              :nodes-connectable="!spacePanning"
+              :connection-radius="28"
+              :zoom-on-double-click="false"
+              @dragenter="dragOverCanvas"
+              @dragover="dragOverCanvas"
+              @drop="dropNode"
+              @init="resetView"
+              @node-click="select($event.node.id)"
+              @node-context-menu="openNodeMenu"
+              @edge-click="selectedEdgeId = $event.edge.id"
+              @node-drag-start="checkpoint"
+              @node-drag-stop="positionNode"
+              @connect="connect"
+              @pane-click="selectedEdgeId = ''"
+            >
+              <Background :gap="24" :size="1.5" pattern-color="#dce1ec" />
+              <template #node-workflow="props"
+                ><WorkflowNode
+                  v-bind="props"
+                  :selected="selectedId === props.id && !selectedEdgeId"
+              /></template>
+              <MiniMap v-if="showMinimap" pannable zoomable />
+            </VueFlow>
+            <div v-if="draggedKind" class="canvas-drop-hint">
+              拖到画布，松手添加节点
+            </div>
+            <div class="canvas-view-toggle segmented">
               <button
-                class="icon-button"
-                aria-label="缩小"
-                title="缩小"
-                @click="zoomOut({ duration: 200 })"
+                :class="{ active: !showOutline }"
+                title="流程图"
+                aria-label="流程图"
+                @click="showOutline = false"
               >
-                <AppIcon name="search" :size="15" /><AppIcon
-                  class="zoom-symbol"
-                  name="minus"
-                  :size="6"
-                /></button
+                <AppIcon name="list" :size="18" /></button
               ><button
-                class="zoom-label"
-                title="重置为 100%"
-                @click="resetView"
+                :class="{ active: showOutline }"
+                title="节点目录"
+                aria-label="节点目录"
+                @click="showOutline = !showOutline"
               >
-                {{ Math.round(viewport.zoom * 100) }}%</button
-              ><button
-                class="icon-button"
-                aria-label="放大"
-                title="放大"
-                @click="zoomIn({ duration: 200 })"
+                <AppIcon name="layers" :size="16" />
+              </button>
+            </div>
+            <div v-if="showOutline" class="outline-panel">
+              <div class="outline-heading">
+                流程节点<button
+                  class="icon-button"
+                  aria-label="关闭目录"
+                  @click="showOutline = false"
+                >
+                  <AppIcon name="close" :size="15" />
+                </button>
+              </div>
+              <button
+                v-for="node in nodes"
+                :key="node.id"
+                :class="{ active: selectedId === node.id }"
+                @click="
+                  select(node.id);
+                  fitView({ nodes: [node.id], maxZoom: 1, duration: 200 });
+                "
               >
-                <AppIcon name="search" :size="15" /><AppIcon
-                  class="zoom-symbol"
-                  name="add"
-                  :size="6"
-                />
+                <AppIcon :name="node.data.kind" :class="node.data.kind" />{{
+                  node.data.label
+                }}
               </button>
             </div>
             <button
-              class="icon-button fit-button"
-              aria-label="适应画布"
-              title="适应画布；双击显示缩略图"
-              @click="fitView({ padding: 0.3, maxZoom: 1, duration: 250 })"
-              @dblclick="showMinimap = !showMinimap"
+              class="inspector-toggle icon-button"
+              title="切换属性面板"
+              aria-label="切换属性面板"
+              @click="showInspector = !showInspector"
             >
-              <AppIcon name="locate" :size="18" />
+              <AppIcon name="settings" />
             </button>
-          </div>
-        </section>
-        <PropertyPanel
-          v-if="showInspector"
-          :node="selected"
-          :document="doc"
-          v-model:tab="panelTab"
-          @update="updateNode(selectedId, $event)"
-          @members="openMembers"
-          @timeout="openTimeout"
-          @export="exportFlow"
-          @import="fileInput?.click()"
-          @plugin="openPlugin"
-        />
-      </div>
+            <div class="canvas-controls">
+              <div class="zoom-controls">
+                <button
+                  class="icon-button"
+                  aria-label="缩小"
+                  title="缩小"
+                  @click="zoomOut({ duration: 200 })"
+                >
+                  <AppIcon name="search" :size="15" /><AppIcon
+                    class="zoom-symbol"
+                    name="minus"
+                    :size="6"
+                  /></button
+                ><button
+                  class="zoom-label"
+                  title="重置为 100%"
+                  @click="resetView"
+                >
+                  {{ Math.round(viewport.zoom * 100) }}%</button
+                ><button
+                  class="icon-button"
+                  aria-label="放大"
+                  title="放大"
+                  @click="zoomIn({ duration: 200 })"
+                >
+                  <AppIcon name="search" :size="15" /><AppIcon
+                    class="zoom-symbol"
+                    name="add"
+                    :size="6"
+                  />
+                </button>
+              </div>
+              <button
+                class="icon-button fit-button"
+                aria-label="适应画布"
+                title="适应画布；双击显示缩略图"
+                @click="fitView({ padding: 0.3, maxZoom: 1, duration: 250 })"
+                @dblclick="showMinimap = !showMinimap"
+              >
+                <AppIcon name="locate" :size="18" />
+              </button>
+            </div>
+          </section>
+          <PropertyPanel
+            v-if="showInspector"
+            v-model:tab="panelTab"
+            :task="selected"
+            :selected-id="selectedId"
+            :spec="spec"
+            :saved="saved"
+            :fields="selected ? taskFields(selected) : []"
+            :pages="pageChoices"
+            :organization="organization"
+            :form-linked="formLinked"
+            @page="changePage"
+            @disable="disable"
+          />
+        </div>
+      </template>
     </main>
-    <PluginEditor
-      :open="pluginOpen"
-      :model-value="selected?.data.pluginConfig"
-      :legacy="selected?.data.plugin"
-      :schema="currentForm?.schema || serverSchema || emptySchema()"
-      :form-id="formId"
-      :node-id="selectedId"
-      :save-config="applyPlugin"
-      @close="pluginOpen = false"
-    />
+    <div
+      v-if="nodeMenu"
+      class="workflow-node-menu"
+      role="menu"
+      aria-label="节点操作"
+      :style="{ left: `${nodeMenu.left}px`, top: `${nodeMenu.top}px` }"
+      @contextmenu.prevent
+    >
+      <button role="menuitem" @click="select(selectedId)">节点属性</button>
+      <button role="menuitem" :disabled="!selected" @click="copyNode">
+        <span>复制节点</span><kbd>{{ modifierKey }} C</kbd>
+      </button>
+      <button role="menuitem" :disabled="!selected" @click="cutNode">
+        <span>剪切节点</span><kbd>{{ modifierKey }} X</kbd>
+      </button>
+      <button
+        role="menuitem"
+        :disabled="!clipboard || spec.tasks.length >= 30"
+        @click="pasteNode"
+      >
+        <span>粘贴节点</span><kbd>{{ modifierKey }} V</kbd>
+      </button>
+      <button
+        role="menuitem"
+        class="delete-node"
+        :disabled="!selected"
+        :title="selected ? '删除节点及其连线' : '流程起止节点不能删除'"
+        @click="removeSelected"
+      >
+        <span>删除节点</span><kbd>Delete</kbd>
+      </button>
+    </div>
     <ShortcutPopover
       v-if="shortcutPosition"
       v-bind="shortcutPosition"
       :modifier="modifierKey"
     />
-    <div
-      v-if="picker"
-      class="node-picker"
-      :style="{ left: `${picker.x}px`, top: `${picker.y}px` }"
-      @click.stop
-    >
-      <div class="picker-heading">添加节点</div>
-      <button v-for="kind in nodeKinds" :key="kind" @click="addPicked(kind)">
-        <span class="picker-icon" :class="kind"
-          ><AppIcon :name="kind" :size="18" /></span
-        ><span>{{ kindLabels[kind] }}</span
-        ><AppIcon name="add" :size="15" />
-      </button>
-    </div>
-    <div class="toast-stack" aria-live="polite">
-      <div
-        v-for="notice in notices"
-        :key="notice.id"
-        class="toast"
-        :class="notice.type"
-      >
-        <AppIcon
-          :name="notice.type === 'success' ? 'success' : 'warning'"
-          :size="19"
-        />{{ notice.message }}
-      </div>
-    </div>
-    <input
-      ref="fileInput"
-      type="file"
-      accept="application/json,.json"
-      class="visually-hidden"
-      aria-label="导入流程文件"
-      @change="importFlow"
-    />
-
-    <OrganizationPicker
-      :open="dialog === 'members'"
-      :model-value="selected?.data.members || []"
-      kind="mixed"
-      multiple
-      title="选择节点负责人"
-      @update:model-value="confirmMembers"
-      @close="dialog = ''"
-    />
     <BaseDialog
-      :open="!!dialog && dialog !== 'members'"
-      :title="dialogTitles[dialog] || ''"
-      :width="
-        dialog === 'preview' ? '920px' : dialog === 'test' ? '620px' : '520px'
-      "
-      @close="dialog = ''"
+      :open="previewOpen"
+      title="流程预览"
+      width="920px"
+      @close="previewOpen = false"
     >
-      <template v-if="dialog === 'timeout'"
-        ><label class="checkbox-line"
-          ><input v-model="timeoutEnabled" type="checkbox" />启用限时处理</label
-        >
-        <div class="form-group dialog-field">
-          <label for="timeout-hours">处理时限</label>
-          <div class="input-suffix">
-            <input
-              id="timeout-hours"
-              v-model.number="timeoutHours"
-              type="number"
-              min="1"
-              max="8760"
-              :disabled="!timeoutEnabled"
-            /><span>小时</span>
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="timeout-action">超时后执行</label>
-          <div class="select-wrap">
-            <select
-              id="timeout-action"
-              v-model="timeoutAction"
-              :disabled="!timeoutEnabled"
-            >
-              <option value="remind">提醒节点负责人</option>
-              <option value="approve">自动通过当前节点</option></select
-            ><AppIcon name="down" />
-          </div></div
-      ></template>
-      <template v-else-if="dialog === 'preview'"
-        ><div class="preview-heading">
-          <span>{{ doc.title }}</span
-          ><span class="subtle"
-            >{{ doc.nodes.length }} 个节点 · V{{ doc.version }}</span
-          >
-        </div>
-        <div class="preview-canvas">
-          <VueFlow
-            :id="`preview-${previewKey}`"
-            :key="previewKey"
-            :nodes="previewNodes"
-            :edges="previewEdges"
-            fit-view-on-init
-            :nodes-draggable="false"
-            :nodes-connectable="false"
-            :elements-selectable="false"
-            :delete-key-code="null"
-            :min-zoom="0.2"
-            :max-zoom="1.5"
-            ><Background
-              :gap="24"
-              :size="1.5"
-              pattern-color="#dce1ec" /><template #node-workflow="props"
-              ><WorkflowNode
-                v-bind="props"
-                readonly
-                :selected="false" /></template
-          ></VueFlow>
-        </div>
-        <p class="field-hint preview-hint">
-          滚轮缩放，拖动空白区域查看完整流程。
-        </p></template
+      <div class="preview-canvas">
+        <VueFlow
+          v-if="previewOpen"
+          id="workflow-preview"
+          :nodes="nodes"
+          :edges="edges"
+          :nodes-draggable="false"
+          :nodes-connectable="false"
+          :elements-selectable="false"
+          :delete-key-code="null"
+          fit-view-on-init
+          :max-zoom="1"
+          ><Background :gap="24" :size="1.5" pattern-color="#dce1ec" /><template
+            #node-workflow="props"
+            ><WorkflowNode v-bind="props" readonly /></template
+        ></VueFlow>
+      </div>
+      <template #footer
+        ><button class="button primary" @click="previewOpen = false">
+          关闭
+        </button></template
       >
-      <template v-else-if="['test', 'activate', 'publish'].includes(dialog)">
-        <div v-if="issues.length" class="validation-summary warning">
-          <AppIcon name="warning" :size="23" />
-          <div>
-            <strong>还有 {{ issues.length }} 项配置需要完善</strong>
-            <p>
-              完善以下配置后即可{{ dialog === "test" ? "测试" : "启用" }}流程。
-            </p>
-          </div>
-        </div>
-        <div v-if="issues.length" class="issue-list">
-          <button
-            v-for="(issue, index) in issues"
-            :key="index"
-            @click="handleIssue(issue)"
-          >
-            <span>{{ index + 1 }}. {{ issue.message }}</span
-            ><AppIcon
-              v-if="issue.nodeId"
-              name="back"
-              class="arrow-forward"
-              :size="16"
-            />
-          </button>
-        </div>
-        <template v-else-if="dialog === 'test'"
-          ><div v-if="!testRunning" class="test-intro">
-            <AppIcon name="success" :size="28" />
-            <div>
-              <strong>流程校验通过</strong>
-              <p>输入测试数据，逐步预演节点流转。</p>
-            </div>
-          </div>
-          <div class="form-group">
-            <label for="test-amount">申请金额</label>
-            <div class="input-suffix">
-              <input
-                id="test-amount"
-                v-model.number="testAmount"
-                type="number"
-                min="0"
-                :disabled="testRunning"
-              /><span>元</span>
-            </div>
-          </div>
-          <div v-if="testRunning" class="simulation-list">
-            <div
-              v-for="(node, index) in route"
-              :key="node.id"
-              class="simulation-step"
-              :class="{
-                complete: index < testIndex || finished,
-                current: index === testIndex && !finished,
-              }"
-            >
-              <span class="step-icon"
-                ><AppIcon
-                  :name="
-                    index < testIndex || finished ? 'check' : node.data.kind
-                  "
-                  :size="17"
-              /></span>
-              <div>
-                <strong>{{ node.data.label }}</strong
-                ><small>{{
-                  index < testIndex || finished
-                    ? "已完成"
-                    : index === testIndex
-                      ? "等待模拟处理"
-                      : "待流转"
-                }}</small>
-              </div>
-              <span v-if="node.data.members.length" class="step-assignees">{{
-                node.data.members.map(memberName).join("、")
-              }}</span>
-            </div>
-          </div>
-          <label
-            v-if="doc.nodes.some((n) => n.data.kind === 'plugin')"
-            class="enable-config"
-            ><input
-              type="checkbox"
-              v-model="forcePluginFailure"
-            />模拟插件执行失败</label
-          >
-          <RunTrace
-            v-if="pluginTrial"
-            :run="pluginTrial"
-            @locate="
-              dialog = '';
-              pickNode(pluginTrial.subjectId);
-              pluginOpen = true;
-            "
-          />
-          <div v-if="finished" class="inline-success">
-            <AppIcon name="success" />流程已完成，测试记录已生成。
-          </div>
-          <p class="field-hint">
-            本地转换会计算并回填测试副本；外部插件仅模拟响应，失败会停在当前节点。
-          </p></template
-        >
-        <template v-else
-          ><div class="activation-preview">
-            <span class="activation-icon"
-              ><AppIcon name="check" :size="28"
-            /></span>
-            <h3>{{ doc.enabled ? "流程已启用" : "流程配置已就绪" }}</h3>
-            <p>
-              {{ doc.title }} · {{ doc.nodes.length }} 个节点 · V{{
-                doc.version
-              }}
-            </p>
-          </div>
-          <div class="helper-note">
-            启用后将保存当前流程配置。修改配置会重新进入草稿状态；实际审批执行需接入后端服务。
-          </div></template
-        >
-      </template>
-      <template v-else-if="dialog === 'help'"
-        ><p class="dialog-intro">在画布上搭建你的审批流程。</p>
-        <div class="help-row">
-          <span>添加节点</span>
-          <p>点击顶部节点工具，或点击节点周围的加号。</p>
-        </div>
-        <div class="help-row">
-          <span>连接节点</span>
-          <p>从节点下方或侧面的连接点拖向另一节点上方。</p>
-        </div>
-        <div class="help-row">
-          <span>移动与缩放</span>
-          <p>拖动节点调整位置，拖动空白处平移，滚轮缩放。</p>
-        </div>
-        <div class="help-row"><span>保存</span><kbd>⌘ / Ctrl + S</kbd></div>
-        <div class="help-row">
-          <span>撤销 / 重做</span><kbd>⌘ Z / ⌘ Y（兼容 ⌘ ⇧ Z）</kbd>
-        </div>
-        <div class="help-row">
-          <span>删除选中节点或连线</span><kbd>Delete / Backspace</kbd>
-        </div>
-        <p class="field-hint">
-          配置保存在当前浏览器中，可通过流程属性导入、导出 JSON。
-        </p></template
-      >
-      <template v-else-if="dialog === 'form'"
-        ><p class="dialog-intro">{{ doc.title }} · 表单预览</p>
-        <div class="form-grid">
-          <div class="form-group">
-            <label for="sample-applicant">申请人</label
-            ><input id="sample-applicant" v-model="sampleForm.applicant" />
-          </div>
-          <div class="form-group">
-            <label for="sample-department">申请部门</label
-            ><input id="sample-department" v-model="sampleForm.department" />
-          </div>
-          <div class="form-group">
-            <label for="sample-date">申请日期</label
-            ><input id="sample-date" v-model="sampleForm.date" type="date" />
-          </div>
-          <div class="form-group">
-            <label for="sample-amount">申请金额</label
-            ><input
-              id="sample-amount"
-              v-model.number="sampleForm.amount"
-              type="number"
-              min="0"
-            />
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="sample-note">申请说明</label
-          ><textarea id="sample-note" v-model="sampleForm.note" rows="3" />
-        </div>
-        <p class="field-hint">
-          当前展示用于流程测试的示例表单。可在节点「字段权限」中设置各字段的访问权限。
-        </p></template
-      >
-      <template v-else-if="dialog === 'extensions'"
-        ><p class="dialog-intro">为流程添加自动化处理步骤。</p>
-        <button
-          v-for="item in [
-            {
-              name: '消息通知',
-              icon: 'bell',
-              detail: '节点流转后向成员发送提醒',
-              value: 'notification',
-            },
-            {
-              name: 'Webhook 请求',
-              icon: 'code',
-              detail: '将流程数据发送至外部系统',
-              value: 'webhook',
-            },
-            {
-              name: '更新表单数据',
-              icon: 'document',
-              detail: '在流程中自动更新业务数据',
-              value: 'update',
-            },
-          ]"
-          :key="item.value"
-          class="extension-item"
+    </BaseDialog>
+    <BaseDialog
+      :open="reloadOpen"
+      title="重新读取流程"
+      @close="reloadOpen = false"
+      ><p>重新读取会替换当前未保存的修改。</p>
+      <template #footer
+        ><button class="button" @click="reloadOpen = false">继续编辑</button
+        ><button
+          class="button primary"
           @click="
-            addToolbar('plugin');
-            updateNode(selectedId, { plugin: item.value, label: item.name });
-            dialog = '';
+            reloadOpen = false;
+            load();
           "
         >
-          <span class="extension-icon"
-            ><AppIcon :name="item.icon" :size="22" /></span
-          ><span
-            ><strong>{{ item.name }}</strong
-            ><small>{{ item.detail }}</small></span
-          ><AppIcon name="add" :size="18" />
-        </button>
-        <p class="field-hint">
-          点击添加插件节点，配置可保存及导出，实际执行需连接服务端。
-        </p></template
-      >
-      <template v-else-if="dialog === 'records'"
-        ><p class="dialog-intro">本次会话的流程测试记录</p>
-        <div v-if="!records.length" class="empty-state">
-          <AppIcon name="document" :size="40" />
-          <h3>暂无测试记录</h3>
-          <p>运行一次完整流程测试后，记录会出现在这里。</p>
-          <button class="button outline" @click="openDialog('test')">
-            去测试流程
-          </button>
-        </div>
-        <div v-else class="record-list">
-          <div v-for="(record, index) in records" :key="index">
-            <AppIcon name="success" class="teal" :size="20" />
-            <div>
-              <strong>{{ record.title }}</strong
-              ><small
-                >{{ record.time }} · {{ record.nodes }} 个节点 · ¥{{
-                  record.amount
-                }}</small
-              >
-            </div>
-            <span class="record-status">已完成</span>
-          </div>
-        </div></template
-      >
-      <template v-else-if="dialog === 'notes'"
-        ><label class="standalone-label" for="notes">流程说明</label
-        ><textarea
-          id="notes"
-          v-model="doc.description"
-          rows="6"
-          placeholder="记录流程用途、审批规范或其他说明…"
-        />
-      </template>
-      <template v-else-if="dialog === 'files'"
-        ><div class="document-card">
-          <AppIcon name="document" :size="34" />
-          <div>
-            <strong>{{ doc.title || "未命名表单" }}</strong>
-            <p>
-              {{ doc.nodes.length }} 个节点 ·
-              {{ dirty ? "有未保存的修改" : "已保存到浏览器" }}
-            </p>
-          </div>
-        </div>
-        <div class="file-actions">
-          <button class="button" @click="exportFlow">
-            <AppIcon name="export" />导出流程</button
-          ><button
-            class="button"
-            @click="
-              fileInput?.click();
-              dialog = '';
-            "
-          >
-            <AppIcon name="import" />导入流程
-          </button>
-        </div></template
-      >
-      <template v-else-if="dialog === 'export'"
-        ><p class="dialog-intro">
-          完整配置包含节点、连线、负责人和流转规则，可再次导入。
-        </p>
-        <textarea
-          class="json-output"
-          aria-label="流程 JSON"
-          :value="JSON.stringify(JSON.parse(serialize(doc)), null, 2)"
-          readonly
-          rows="16"
-          spellcheck="false"
-        />
-      </template>
-      <template v-else-if="dialog === 'notifications'"
-        ><div class="empty-state">
-          <AppIcon name="bell" :size="38" />
-          <h3>暂无新通知</h3>
-          <p>保存和流程测试的结果会即时在页面中提示。</p>
-        </div></template
-      >
-      <template #footer>
-        <template v-if="dialog === 'timeout'"
-          ><button class="button" @click="dialog = ''">取消</button
-          ><button class="button primary" @click="confirmTimeout">
-            确定
-          </button></template
-        >
-        <template v-else-if="dialog === 'test' && !issues.length"
-          ><button class="button" @click="dialog = ''">关闭</button
-          ><button
-            v-if="!testRunning"
-            class="button primary"
-            :disabled="!Number.isFinite(testAmount) || testAmount < 0"
-            @click="startTest"
-          >
-            <AppIcon name="start" />开始测试</button
-          ><button
-            v-else-if="!finished"
-            class="button primary"
-            @click="nextStep"
-          >
-            {{
-              route[testIndex]?.data.kind === "approval"
-                ? "模拟同意，继续流转"
-                : "执行下一节点"
-            }}</button
-          ><button
-            v-else
-            class="button primary"
-            @click="
-              testRunning = false;
-              testIndex = -1;
-            "
-          >
-            重新测试
-          </button></template
-        >
-        <template
-          v-else-if="['activate', 'publish'].includes(dialog) && !issues.length"
-          ><button class="button" @click="dialog = ''">关闭</button
-          ><button v-if="!doc.enabled" class="button primary" @click="activate">
-            确认启用
-          </button></template
-        >
-        <template v-else-if="dialog === 'form'"
-          ><button class="button" @click="dialog = ''">关闭</button
-          ><button
-            class="button primary"
-            @click="
-              testAmount = sampleForm.amount;
-              openDialog('test');
-            "
-          >
-            使用此数据测试
-          </button></template
-        >
-        <template v-else-if="dialog === 'notes'"
-          ><button class="button primary" @click="saveNotes">
-            保存说明
-          </button></template
-        >
-        <template v-else-if="dialog === 'export'"
-          ><button class="button" @click="downloadFlow">
-            <AppIcon name="export" />下载文件</button
-          ><button class="button primary" @click="copyExport">
-            复制 JSON
-          </button></template
-        >
-        <template v-else
-          ><button class="button" @click="dialog = ''">关闭</button
-          ><button
-            v-if="dialog === 'preview'"
-            class="button primary"
-            @click="exportFlow"
-          >
-            <AppIcon name="export" />导出流程
-          </button></template
-        >
-      </template>
-    </BaseDialog>
+          重新读取
+        </button></template
+      ></BaseDialog
+    >
+    <BaseDialog :open="helpOpen" title="流程设计说明" @close="helpOpen = false"
+      ><p>
+        将工具栏节点拖到画布，松手添加。拖动节点调整位置，拖动连接点设置流转顺序。节点负责人、字段权限与流转条件在右侧设置。
+      </p>
+      <p>
+        未连通的流程可以保存草稿；所有节点接通发起与结束节点后才能启用。启用后成员提交表单将进入流程。旧版本的待办继续按原版本办理。
+      </p>
+      <p>
+        当前可执行办理、抄送、并行等待与逐行办理；子流程、插件、退回与加签尚未接入执行。
+      </p>
+      <template #footer
+        ><button class="button primary" @click="helpOpen = false">
+          知道了
+        </button></template
+      ></BaseDialog
+    >
   </div>
 </template>

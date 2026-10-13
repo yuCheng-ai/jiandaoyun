@@ -1,13 +1,37 @@
 import { requireActiveRecord } from "../records/record-state";
-import { BadRequestException, ForbiddenException, Injectable } from "@nestjs/common";
-import type { FormField, FormSchema, FormValues, RecordDetail, TaskSpec } from "@platform/contracts";
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+} from "@nestjs/common";
+import type {
+  FormField,
+  FormSchema,
+  FormValues,
+  RecordDetail,
+  TaskSpec,
+} from "@platform/contracts";
 import { recordCreator } from "../directory/organization-fields";
 import type { Actor } from "../../core/auth/auth.service";
 import type { Transaction } from "../../core/database/database";
 import { PageService } from "../pages/pages.service";
-import { PlatformService, definitionDto, recordDto } from "../pages/platform.service";
-import { pageAccess, validatePageSubmission, type RecordPageScope } from "../pages/page-runtime";
-import { allFields, masked, permission, rowActions, scalar } from "../../core/database/schema";
+import {
+  PlatformService,
+  definitionDto,
+  recordDto,
+} from "../pages/platform.service";
+import {
+  pageAccess,
+  validatePageSubmission,
+  type RecordPageScope,
+} from "../pages/page-runtime";
+import {
+  allFields,
+  masked,
+  permission,
+  rowActions,
+  scalar,
+} from "../../core/database/schema";
 
 @Injectable()
 export class TaskContextService {
@@ -52,6 +76,23 @@ export class TaskContextService {
       }
     }
 
+    // 节点权限只收紧表单权限，不能借流程提高成员原有的数据权限。
+    for (const field of allSchemaFields) {
+      const nodePermission = task.fieldPermissions?.[field.id];
+      const parent = scope.schema.fields.find((item) =>
+        item.children.some((child) => child.id === field.id),
+      );
+      const hiddenByParent =
+        parent && task.fieldPermissions?.[parent.id] === "hidden";
+      if (nodePermission === "hidden" || hiddenByParent) {
+        field.visible = false;
+        field.editable = false;
+        field.required = false;
+      } else if (nodePermission === "read" || task.kind === "copy") {
+        field.editable = false;
+      }
+    }
+
     if (task.subformId) {
       const hasVisibleSubform = scope.schema.fields.some(
         (f) => f.id === task.subformId && f.type === "subform" && f.visible,
@@ -63,7 +104,11 @@ export class TaskContextService {
       scope.row = { subformId: task.subformId, rowId: task.rowId };
       scope.schema.fields = scope.schema.fields
         .filter((f) => f.type !== "subform" || f.id === task.subformId)
-        .map((f) => (f.id === task.subformId ? f : { ...f, editable: false, required: false }));
+        .map((f) =>
+          f.id === task.subformId
+            ? f
+            : { ...f, editable: false, required: false },
+        );
     }
 
     return scope;
@@ -78,6 +123,8 @@ export class TaskContextService {
     allowArchived = true,
   ) {
     const source = await this.platform.loadRecord(tx, actor, recordId);
+    if (!source.access.read)
+      throw new ForbiddenException("当前成员没有任务记录的查看权限");
     const scope = await this.scope(actor, task, tx, allowArchived);
     requireActiveRecord(source.row);
 
@@ -95,7 +142,8 @@ export class TaskContextService {
       if (!field || permission(access, field) === "hidden") {
         throw new ForbiddenException("当前成员没有任务明细的访问权限");
       }
-      const rows = source.row.values[task.subformId] as FormValues[] | undefined;
+      const rows = source.row.values[task.subformId] as
+        FormValues[] | undefined;
       if (!rows?.some((row) => row._rowId === task.rowId)) {
         throw new BadRequestException("任务绑定的明细行已不存在");
       }
@@ -128,7 +176,9 @@ export class TaskContextService {
 
     if (!source.scope) {
       for (const id of task.requiredFields || []) {
-        const field = source.schema.fields.find((f) => f.id === id && f.type !== "subform");
+        const field = source.schema.fields.find(
+          (f) => f.id === id && f.type !== "subform",
+        );
         if (!field || permission(source.access, field) === "hidden") {
           throw new ForbiddenException("无法检查任务要求的字段");
         }
@@ -138,11 +188,16 @@ export class TaskContextService {
   }
 
   /** 生成任务节点专属的记录详情视图（对非 ready 任务自动降级为只读，并按权限脱敏字段与子表行） */
-  async record(tx: Transaction, actor: Actor, processId: string, task: any): Promise<RecordDetail> {
+  async record(
+    tx: Transaction,
+    actor: Actor,
+    processId: string,
+    task: any,
+  ): Promise<RecordDetail> {
     const spec = task.spec as TaskSpec;
     const source = await this.load(tx, actor, task.record_id, spec);
 
-    const writable = task.status === "ready";
+    const writable = task.status === "ready" && spec.kind !== "copy";
     const access = { ...source.access, edit: source.access.edit && writable };
     if (!writable) {
       access.fields = Object.fromEntries(
@@ -156,11 +211,22 @@ export class TaskContextService {
     const values = structuredClone(source.row.values);
     if (source.scope?.row) {
       const { subformId, rowId } = source.scope.row;
-      values[subformId] = values[subformId].filter((row: FormValues) => row._rowId === rowId);
+      values[subformId] = values[subformId].filter(
+        (row: FormValues) => row._rowId === rowId,
+      );
     }
 
-    const visible = masked(source.schema, values, source.row.cell_revisions, access);
-    const rawRowActions = rowActions(source.version.schema, access, source.scope?.schema);
+    const visible = masked(
+      source.schema,
+      values,
+      source.row.cell_revisions,
+      access,
+    );
+    const rawRowActions = rowActions(
+      source.version.schema,
+      access,
+      source.scope?.schema,
+    );
 
     return {
       task: {
@@ -180,13 +246,20 @@ export class TaskContextService {
           }
         : {}),
       creator: await recordCreator(tx, actor, source.row.created_by),
-      identities: await this.platform.identityLabels(tx, actor, visible.schema, visible.values),
+      identities: await this.platform.identityLabels(
+        tx,
+        actor,
+        visible.schema,
+        visible.values,
+      ),
       definition: { ...definitionDto(source.version), schema: visible.schema },
       access,
       rowActions: Object.fromEntries(
         Object.entries(rawRowActions).map(([id, actions]) => [
           id,
-          spec.rowId ? { ...actions, add: false, insert: false, remove: false } : actions,
+          spec.rowId
+            ? { ...actions, add: false, insert: false, remove: false }
+            : actions,
         ]),
       ),
       record: {

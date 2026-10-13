@@ -10,6 +10,62 @@
 .node-tool:hover {
   background: #f1f5fa;
 }
+.workflow-node-menu {
+  position: fixed;
+  z-index: 40;
+  width: 200px;
+  padding: 5px;
+  border: 1px solid #e0e5ee;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 6px 24px #263c6b26;
+}
+.workflow-node-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 4px;
+  text-align: left;
+}
+.workflow-node-menu button:hover:not(:disabled) {
+  background: #f1f5fa;
+}
+.workflow-node-menu kbd {
+  color: #8994a5;
+  font: inherit;
+  font-size: 12px;
+}
+.workflow-node-menu .delete-node {
+  margin-top: 4px;
+  border-top: 1px solid #edf0f5;
+  color: #db4646;
+}
+.node-tool[draggable="true"] {
+  cursor: grab;
+  user-select: none;
+}
+.node-tool[draggable="true"]:active {
+  cursor: grabbing;
+}
+.canvas-area.is-dragging-node {
+  outline: 2px dashed var(--teal);
+  outline-offset: -2px;
+}
+.canvas-drop-hint {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  border: 1px solid var(--teal);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--teal);
+  pointer-events: none;
+  white-space: nowrap;
+}
 .canvas-area {
   position: relative;
   background: var(--canvas);
@@ -48,13 +104,6 @@
 .workflow-node.copy > .app-icon {
   color: #00b29d;
 }
-.workflow-node.condition > .app-icon,
-.workflow-node.subflow > .app-icon {
-  color: #ff9135;
-}
-.workflow-node.plugin > .app-icon {
-  color: #8964ec;
-}
 .workflow-node.start > .app-icon {
   color: #43b85a;
 }
@@ -85,18 +134,13 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.node-time {
-  margin-left: auto;
-  color: #a0aaba;
-  display: flex;
-}
 .node-handle.vue-flow__handle {
-  width: 14px;
-  height: 14px;
-  min-width: 14px;
-  min-height: 14px;
-  border: 1.5px solid white;
-  background: #b8d2ff;
+  width: 10px;
+  height: 10px;
+  min-width: 10px;
+  min-height: 10px;
+  border: 2px solid white;
+  background: #8fb5ff;
   color: white;
   border-radius: 50%;
   display: flex;
@@ -106,25 +150,22 @@
   z-index: 5;
   cursor: crosshair;
 }
-.node-handle .app-icon {
-  pointer-events: none;
-}
 .workflow-node.is-selected .node-handle,
 .workflow-node:hover .node-handle,
 .vue-flow__node.connecting .node-handle {
   opacity: 1;
 }
 .node-handle.top {
-  top: -16px;
+  top: 0;
 }
 .node-handle.bottom {
-  bottom: -16px;
+  bottom: 0;
 }
 .node-handle.left {
-  left: -16px;
+  left: 0;
 }
 .node-handle.right {
-  right: -16px;
+  right: 0;
 }
 .node-handle:hover {
   background: var(--blue) !important;
@@ -196,82 +237,6 @@
 .preview-canvas .node-handle {
   opacity: 0 !important;
 }
-.simulation-list {
-  padding: 5px 0 15px;
-}
-.simulation-step {
-  display: flex;
-  align-items: center;
-  gap: 13px;
-  padding: 10px 11px;
-  margin-bottom: 5px;
-  border-radius: 6px;
-  color: #9aa6b8;
-  background: #f9fafc;
-}
-.step-icon {
-  width: 31px;
-  height: 31px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #ecf0f5;
-  border-radius: 50%;
-}
-.simulation-step strong {
-  font-weight: 500;
-  font-size: 13px;
-}
-.simulation-step small {
-  font-size: 11px;
-  display: block;
-  margin-top: 3px;
-}
-.simulation-step.complete {
-  color: #679387;
-}
-.simulation-step.complete .step-icon {
-  background: #e3f4ec;
-  color: #3fa579;
-}
-.simulation-step.current {
-  background: #eaf8f7;
-  color: #219c92;
-}
-.simulation-step.current .step-icon {
-  background: var(--teal);
-  color: white;
-}
-.step-assignees {
-  margin-left: auto;
-  font-size: 12px;
-}
-.activation-preview {
-  display: flex;
-  align-items: center;
-  flex-direction: column;
-  padding: 4px 0 25px;
-  gap: 12px;
-}
-.activation-icon {
-  width: 55px;
-  height: 55px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #e9f8f3;
-  color: var(--teal);
-  border-radius: 50%;
-  margin-bottom: 3px;
-}
-.activation-preview h3 {
-  font-size: 17px;
-  font-weight: 600;
-}
-.activation-preview p {
-  color: #99a2af;
-  font-size: 12px;
-}
 @media (max-width: 1260px) {
   .node-tool {
     gap: 4px;
@@ -314,51 +279,6 @@
   .preview-canvas {
     height: 350px;
   }
-}
-.node-handle.top {
-  top: 0;
-}
-.node-handle.bottom {
-  bottom: 0;
-}
-.node-handle.left {
-  left: 0;
-}
-.node-handle.right {
-  right: 0;
-}
-.node-handle.vue-flow__handle {
-  width: 7px;
-  height: 7px;
-  min-width: 7px;
-  min-height: 7px;
-  border: 0;
-  background: transparent;
-}
-.node-handle .app-icon {
-  width: 14px !important;
-  height: 14px !important;
-  min-width: 14px;
-  background: #b8d2ff;
-  border: 1px solid white;
-  border-radius: 50%;
-  pointer-events: auto;
-  cursor: crosshair;
-}
-.node-handle.top .app-icon {
-  transform: translateY(-14px);
-}
-.node-handle.bottom .app-icon {
-  transform: translateY(14px);
-}
-.node-handle.left .app-icon {
-  transform: translateX(-14px);
-}
-.node-handle.right .app-icon {
-  transform: translateX(14px);
-}
-.node-handle .app-icon:hover {
-  background: var(--blue);
 }
 @media (max-width: 650px) {
   .node-tool span {
@@ -457,14 +377,6 @@
     padding: 16px 0 0;
   }
 }
-.connection-warning {
-  padding: 12px;
-  margin-bottom: 16px;
-  background: #fff9e5;
-  border-radius: 4px;
-  text-align: center;
-  font-size: 13px;
-}
 .node-action-list {
   border: 1px solid #e3e5e9;
   border-radius: 9px;
@@ -481,28 +393,65 @@
 .node-action-row:last-child {
   border-bottom: 0;
 }
-.flow-reminders {
-  margin: 1px 0 29px;
+/* 保留原设计器布局，补齐服务端保存反馈与真实成员选择。 */
+.application.workflow-designer {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
 }
-.flow-rules .standalone-label {
-  margin-bottom: 3px;
+.workflow-designer > .app-header {
+  flex-shrink: 0;
 }
-.flow-rules .form-group {
-  margin: 10px 0 15px;
+.workflow-designer .designer-shell {
+  height: auto;
+  flex: 1;
+  min-height: 0;
 }
-.flow-rules .form-group > label {
-  font-weight: 400;
-  color: #606874;
-  margin-bottom: 7px;
+.workflow-designer .flow-message {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 10px 18px;
+  color: #257e72;
+  background: #f0faf7;
+  font-size: 13px;
 }
-.flow-extra {
-  border-top: 1px solid #eceff2;
-  padding-top: 16px;
-  margin-top: 28px;
+.workflow-designer .flow-message.error {
+  color: #b74343;
+  background: #fff4f3;
 }
-.flow-extra summary {
-  color: #778393;
-  cursor: pointer;
-  font-size: 12px;
-  margin-bottom: 20px;
+.workflow-designer .flow-empty {
+  margin: auto;
+  text-align: center;
+  padding: 40px;
+}
+.workflow-designer .flow-empty p {
+  margin: 14px 0 24px;
+  color: var(--muted);
+}
+.workflow-member-list {
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 12px 0;
+}
+.workflow-designer .permission-table td:first-child {
+  max-width: 130px;
+  overflow-wrap: anywhere;
+  padding-right: 8px;
+}
+.wait-value {
+  display: block;
+  margin: 12px 0 8px;
+}
+@media (max-width: 1100px) {
+  .workflow-designer .toolbar {
+    height: auto;
+    flex-wrap: wrap;
+    padding: 8px 12px;
+  }
+  .workflow-designer .toolbar-actions {
+    margin-left: auto;
+  }
 }

@@ -10,6 +10,15 @@ export function useDraftDismiss(
 ) {
   const initial = ref("");
   const confirmDiscard = ref(false);
+  let leaving: ((allow: boolean) => void) | undefined;
+  function finishLeave(allow: boolean) {
+    const resolve = leaving;
+    leaving = undefined;
+    resolve?.(allow);
+  }
+  watch(confirmDiscard, (show) => {
+    if (!show) finishLeave(false);
+  });
   const dirty = computed(
     () => isOpen() && JSON.stringify(value()) !== initial.value,
   );
@@ -49,24 +58,40 @@ export function useDraftDismiss(
   }
   function discard() {
     editorDraft?.clear();
+    if (leaving) {
+      finishLeave(true);
+      confirmDiscard.value = false;
+      return;
+    }
     confirmDiscard.value = false;
     close();
+  }
+  /** 路由和页内切换共用同一次确认；无修改时直接放行。 */
+  function confirmLeave(): boolean | Promise<boolean> {
+    if (!dirty.value) return true;
+    finishLeave(false);
+    requestClose();
+    return new Promise<boolean>((resolve) => { leaving = resolve; });
   }
   function beforeUnload(event: BeforeUnloadEvent) {
     if (dirty.value && !editorDraft?.retained.value) event.preventDefault();
   }
   window.addEventListener("beforeunload", beforeUnload);
-  onBeforeUnmount(() =>
-    window.removeEventListener("beforeunload", beforeUnload),
-  );
+  onBeforeUnmount(() => {
+    finishLeave(false);
+    window.removeEventListener("beforeunload", beforeUnload);
+  });
   function markSaved() {
     editorDraft?.clear();
     initial.value = JSON.stringify(value());
+    finishLeave(true);
+    confirmDiscard.value = false;
   }
   return {
     dirty,
     confirmDiscard,
     requestClose,
+    confirmLeave,
     discard,
     markSaved,
     draftKey: editorDraft?.key,

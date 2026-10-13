@@ -47,7 +47,7 @@ const choices = computed(
 const selected = computed(() =>
   choices.value.find((account) => account.id === selectedId.value),
 );
-const { requestClose, confirmDiscard, discard, markSaved, dirty } =
+const { requestClose, confirmLeave, confirmDiscard, discard, markSaved, dirty } =
   useDraftDismiss(
     () => !!directory.value,
     () => selectedId.value,
@@ -130,8 +130,7 @@ async function accountSaved() {
 onMounted(load);
 onBeforeRouteLeave(() => {
   if (editing.value !== undefined) return;
-  if (!busy.value) requestClose();
-  return false;
+  return !busy.value && confirmLeave();
 });
 </script>
 <template>

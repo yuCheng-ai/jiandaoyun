@@ -50,6 +50,25 @@ export class ProcessesController {
     return this.processes.get(r.actor, id, tid);
   }
 
+  @Get("processes/:id/tasks/:taskId/delegate-options")
+  delegateOptions(
+    @Req() r: AuthenticatedRequest,
+    @Param("id") id: string,
+    @Param("taskId") taskId: string,
+  ) {
+    return this.processes.delegateOptions(r.actor, id, taskId);
+  }
+
+  @Post("processes/:id/tasks/:taskId/delegate")
+  delegate(
+    @Req() r: AuthenticatedRequest,
+    @Param("id") id: string,
+    @Param("taskId") taskId: string,
+    @Body() b: unknown,
+  ) {
+    return this.processes.delegate(r.actor, id, taskId, b);
+  }
+
   /** 读取任务节点绑定的业务记录视图与权限上下文 */
   @Get("processes/:id/tasks/:taskId/record")
   taskRecord(

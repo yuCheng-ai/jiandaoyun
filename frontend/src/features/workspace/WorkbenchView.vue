@@ -26,8 +26,8 @@ const workMenu = [
   { id: "delegation", title: "待办委托", icon: "people" },
 ];
 const processScope = computed(() =>
-  ["todo", "started", "handled"].includes(tab.value)
-    ? (tab.value as "todo" | "started" | "handled")
+  ["todo", "started", "handled", "copied", "delegation"].includes(tab.value)
+    ? (tab.value as "todo" | "started" | "handled" | "copied" | "delegation")
     : undefined,
 );
 const applications = ref<ApplicationSummary[]>([]),
@@ -164,8 +164,14 @@ onBeforeUnmount(() => {
     </header>
     <main class="workbench-scroll">
       <div class="workbench-content">
-        <p v-if="route.query.notice === 'legacy-link'" class="workbench-message" role="status">
-          此旧入口已停用。请{{ session.user ? '' : '登录后' }}从“我的应用”打开表单；找不到原有表单时，请联系管理员。
+        <p
+          v-if="route.query.notice === 'legacy-link'"
+          class="workbench-message"
+          role="status"
+        >
+          此旧入口已停用。请{{
+            session.user ? "" : "登录后"
+          }}从“我的应用”打开表单；找不到原有表单时，请联系管理员。
         </p>
         <p v-if="error" class="collab-error workbench-message" role="alert">
           {{ error }}
@@ -218,21 +224,6 @@ onBeforeUnmount(() => {
               v-else-if="tab === 'launch'"
               :applications="applications"
             />
-            <section
-              v-else-if="tab === 'copied' || tab === 'delegation'"
-              class="panel-card apps-panel"
-            >
-              <header class="section-heading">
-                <h2>{{ tab === "copied" ? "抄送我的" : "待办委托" }}</h2>
-              </header>
-              <p class="workspace-empty">
-                {{
-                  tab === "copied"
-                    ? "抄送功能尚未接通。"
-                    : "待办委托尚未接通，任务仍由原处理人办理。"
-                }}
-              </p>
-            </section>
             <section v-else class="panel-card apps-panel">
               <header class="section-heading">
                 <h2>我的应用</h2>

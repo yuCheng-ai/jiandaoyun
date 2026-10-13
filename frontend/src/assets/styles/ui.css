@@ -686,43 +686,6 @@
   font-size: 13px;
   flex: 1;
 }
-.node-picker {
-  position: fixed;
-  width: 196px;
-  background: #fff;
-  padding: 7px;
-  border-radius: 8px;
-  box-shadow: 0 6px 30px #263c6b26;
-  border: 1px solid #e6eaf1;
-  z-index: 30;
-}
-.picker-heading {
-  font-size: 12px;
-  color: #939caa;
-  padding: 6px 10px 8px;
-}
-.node-picker button {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 9px;
-  width: 100%;
-  border-radius: 5px;
-  font-size: 13px;
-}
-.node-picker button:hover {
-  background: #f3f7fb;
-}
-.picker-icon {
-  display: flex;
-  width: 24px;
-  align-items: center;
-  justify-content: center;
-}
-.node-picker button > .app-icon {
-  margin-left: auto;
-  color: #a7b2c2;
-}
 .toast-stack {
   position: fixed;
   left: 50%;

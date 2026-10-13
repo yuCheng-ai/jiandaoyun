@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import type {
   ApplicationSummary,
@@ -20,7 +20,7 @@ const busy = ref(false),
   starting = ref<ProcessTemplateDraft>(),
   processId = ref("");
 async function load() {
-  if (busy.value || session.user?.role !== "admin") return;
+  if (busy.value) return;
   busy.value = true;
   error.value = "";
   try {
@@ -32,7 +32,7 @@ async function load() {
               `/process-templates?applicationId=${app.id}`,
             )
           )
-            .filter((item) => item.latestVersion)
+            .filter((item) => item.latestVersion && item.enabled)
             .map((item) => ({ ...item, applicationTitle: app.title })),
         ),
       )
@@ -43,20 +43,23 @@ async function load() {
     busy.value = false;
   }
 }
+function start(template: ProcessTemplateDraft) {
+  if (template.startPageId) {
+    router.push({
+      path: `/applications/${template.applicationId}`,
+      query: { form: template.startPageId },
+    });
+    return;
+  }
+  starting.value = template;
+}
 onMounted(load);
 </script>
 <template>
   <section class="panel-card apps-panel">
     <header class="section-heading">
       <h2>发起流程</h2>
-      <button
-        v-if="session.user?.role === 'admin'"
-        class="button"
-        :disabled="busy"
-        @click="load"
-      >
-        刷新
-      </button>
+      <button class="button" :disabled="busy" @click="load">刷新</button>
     </header>
     <p v-if="error" class="collab-error" role="alert">{{ error }}</p>
     <p v-if="busy" role="status">正在读取…</p>
@@ -64,16 +67,13 @@ onMounted(load);
       <button
         v-for="template in templates"
         :key="template.id"
-        @click="starting = template"
+        @click="start(template)"
       >
         <strong>{{ template.spec.title }}</strong
         ><span>{{ template.applicationTitle }}</span>
       </button>
     </div>
-    <p
-      v-if="!busy && !error && !templates.length"
-      class="workspace-empty"
-    >
+    <p v-if="!busy && !error && !templates.length" class="workspace-empty">
       {{
         session.user?.role === "admin"
           ? "暂无已发布的流程。"

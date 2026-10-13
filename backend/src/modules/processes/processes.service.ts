@@ -10,7 +10,11 @@ import {
   OnModuleInit,
 } from "@nestjs/common";
 import { scalar } from "../pages/field-values";
-import { equalFieldValues, validConditionValue, choiceConditionValue } from "@platform/contracts";
+import {
+  equalFieldValues,
+  validConditionValue,
+  choiceConditionValue,
+} from "@platform/contracts";
 import { randomUUID } from "node:crypto";
 import type {
   FormSchema,
@@ -120,7 +124,13 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
     uuid(body.requestId);
 
     return this.db.transaction((tx) =>
-      this.createIn(tx, actor, body.spec as ProcessSpec, body.bindings, body.requestId),
+      this.createIn(
+        tx,
+        actor,
+        body.spec as ProcessSpec,
+        body.bindings,
+        body.requestId,
+      ),
     );
   }
 
@@ -186,7 +196,8 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
 
       if (
         task.requiredFields &&
-        (!Array.isArray(task.requiredFields) || task.requiredFields.length > 120)
+        (!Array.isArray(task.requiredFields) ||
+          task.requiredFields.length > 120)
       ) {
         throw new BadRequestException("任务必填字段配置不合法");
       }
@@ -195,7 +206,10 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
       if (task.waitFor) {
         object(task.waitFor);
         identifier(task.waitFor.fieldId);
-        if (!bindings[task.waitFor.recordBinding] || !validConditionValue(task.waitFor.equals)) {
+        if (
+          !bindings[task.waitFor.recordBinding] ||
+          !validConditionValue(task.waitFor.equals)
+        ) {
           throw new BadRequestException("等待条件不合法");
         }
         if (task.waitFor.subformId || task.waitFor.rowId) {
@@ -211,7 +225,9 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
     await tx.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
       `process:${actor.workspaceId}:${requestId}`,
     ]);
-    const hash = tokenHash(JSON.stringify({ spec, bindings, ...(source ? { source } : {}) }));
+    const hash = tokenHash(
+      JSON.stringify({ spec, bindings, ...(source ? { source } : {}) }),
+    );
     const { rows: priorRows } = await tx.query(
       "SELECT * FROM processes WHERE workspace_id=$1 AND request_id=$2",
       [actor.workspaceId, requestId],
@@ -228,7 +244,13 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
     const records = await this.lockBindings(tx, actor, bindings);
     for (const task of spec.tasks) {
       const member = await this.member(tx, actor, task.assigneeId);
-      await this.context.load(tx, member, bindings[task.recordBinding]!, task, false);
+      await this.context.load(
+        tx,
+        member,
+        bindings[task.recordBinding]!,
+        task,
+        false,
+      );
 
       if (task.waitFor) {
         const record = records.get(bindings[task.waitFor.recordBinding]!)!;
@@ -238,7 +260,8 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
         );
         const schema = schemaRows[0].schema as FormSchema;
         const fields = task.waitFor.subformId
-          ? schema.fields.find((f) => f.id === task.waitFor!.subformId)?.children
+          ? schema.fields.find((f) => f.id === task.waitFor!.subformId)
+              ?.children
           : schema.fields;
         const waitField = fields?.find(
           (f) => f.id === task.waitFor!.fieldId && f.type !== "subform",
@@ -249,7 +272,8 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
         scalar(waitField, task.waitFor.equals, false);
 
         if (task.waitFor.subformId) {
-          const subformRows = record.values[task.waitFor.subformId] as FormValues[] | undefined;
+          const subformRows = record.values[task.waitFor.subformId] as
+            FormValues[] | undefined;
           if (!subformRows?.some((row) => row._rowId === task.waitFor!.rowId)) {
             throw new BadRequestException("等待条件的明细行不存在");
           }
@@ -312,7 +336,9 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
       throw new NotFoundException("绑定记录不存在或不可访问");
     }
 
-    const definitionIds = [...new Set(rows.map((row) => row.definition_id as string))].sort();
+    const definitionIds = [
+      ...new Set(rows.map((row) => row.definition_id as string)),
+    ].sort();
     for (const id of definitionIds) {
       await this.platform.definition(tx, actor, id, "FOR SHARE");
     }
@@ -355,9 +381,24 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
       "SELECT * FROM tasks WHERE process_id=$1 ORDER BY task_key",
       [id],
     );
-    const done = new Set(tasks.filter((t) => t.status === "completed").map((t) => t.task_key));
+    const done = new Set(
+      tasks.filter((t) => t.status === "completed").map((t) => t.task_key),
+    );
+    // 按依赖顺序处理自动抄送，使连续抄送与后续办理在本次事务内一起推进。
+    const ordered: typeof tasks = [];
+    const visited = new Set<string>();
+    const visit = (task: any) => {
+      if (visited.has(task.task_key)) return;
+      visited.add(task.task_key);
+      for (const key of task.spec.dependsOn) {
+        const prior = tasks.find((item) => item.task_key === key);
+        if (prior) visit(prior);
+      }
+      ordered.push(task);
+    };
+    tasks.forEach(visit);
 
-    for (const task of tasks) {
+    for (const task of ordered) {
       if (task.status === "completed") continue;
 
       const spec = task.spec as TaskSpec;
@@ -392,7 +433,9 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
           const currentVal = choiceConditionValue(values[spec.waitFor.fieldId]);
           if (!equalFieldValues(currentVal, spec.waitFor.equals)) {
             status = "waiting";
-            reason = reason ? `${reason}，并等待业务条件满足` : "等待业务条件满足";
+            reason = reason
+              ? `${reason}，并等待业务条件满足`
+              : "等待业务条件满足";
           }
         }
       } catch (error) {
@@ -408,13 +451,31 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
         reason = (error as Error).message;
       }
 
+      if (status === "ready" && spec.kind === "copy") {
+        await tx.query(
+          "UPDATE tasks SET status='completed',reason=NULL,completed_at=now() WHERE id=$1",
+          [task.id],
+        );
+        await this.event(tx, id, task.id, null, "copied", "已抄送");
+        task.status = "completed";
+        done.add(task.task_key);
+        continue;
+      }
+
       if (task.status !== status || (task.reason || "") !== reason) {
         await tx.query("UPDATE tasks SET status=$2,reason=$3 WHERE id=$1", [
           task.id,
           status,
           reason || null,
         ]);
-        await this.event(tx, id, task.id, null, status, reason || "任务已可处理");
+        await this.event(
+          tx,
+          id,
+          task.id,
+          null,
+          status,
+          reason || "任务已可处理",
+        );
       }
     }
 
@@ -437,9 +498,11 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
     const row = rows[0];
     if (!row) throw new NotFoundException("流程不存在");
 
-    if (actor.role !== "admin") {
+    if (actor.role !== "admin" && row.created_by !== actor.id) {
       const assigned = await tx.query(
-        "SELECT 1 FROM tasks WHERE process_id=$1 AND assignee_id=$2 LIMIT 1",
+        `SELECT 1 FROM tasks WHERE process_id=$1 AND assignee_id=$2
+          AND (COALESCE(spec->>'kind','approval') <> 'copy' OR status='completed')
+        UNION ALL SELECT 1 FROM process_events WHERE process_id=$1 AND actor_id=$2 AND action='delegated' LIMIT 1`,
         [id, actor.id],
       );
       if (!assigned.rowCount) {
@@ -450,7 +513,12 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** 查询指定任务并校验当前用户是否为该任务的处理人（或管理员） */
-  private async task(tx: Transaction, actor: Actor, processId: string, taskId: string) {
+  private async task(
+    tx: Transaction,
+    actor: Actor,
+    processId: string,
+    taskId: string,
+  ) {
     uuid(taskId);
     const { rows } = await tx.query(
       "SELECT * FROM tasks WHERE id=$1 AND process_id=$2",
@@ -460,11 +528,22 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
     if (!task || (actor.role !== "admin" && task.assignee_id !== actor.id)) {
       throw new ForbiddenException("不是此任务的处理人");
     }
+    if (
+      actor.role !== "admin" &&
+      task.spec.kind === "copy" &&
+      task.status !== "completed"
+    ) {
+      throw new ForbiddenException("此记录尚未抄送给你");
+    }
     return task;
   }
 
   /** 构造流程详情视图（按当前用户角色过滤可见任务与关联事件） */
-  async viewIn(tx: Transaction, actor: Actor, id: string): Promise<ProcessView> {
+  async viewIn(
+    tx: Transaction,
+    actor: Actor,
+    id: string,
+  ): Promise<ProcessView> {
     const process = await this.process(tx, actor, id);
 
     const { rows: tasks } = await tx.query(
@@ -474,9 +553,28 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
     const position = new Map<string, number>(
       (process.spec.tasks as TaskSpec[]).map((task, index) => [task.id, index]),
     );
-    tasks.sort((a, b) => (position.get(a.task_key) ?? 0) - (position.get(b.task_key) ?? 0));
+    tasks.sort(
+      (a, b) =>
+        (position.get(a.task_key) ?? 0) - (position.get(b.task_key) ?? 0),
+    );
 
-    const visible = tasks.filter((t) => actor.role === "admin" || t.assignee_id === actor.id);
+    const delegated = await tx.query(
+      "SELECT DISTINCT task_id FROM process_events WHERE process_id=$1 AND actor_id=$2 AND action='delegated'",
+      [id, actor.id],
+    );
+    const delegatedIds = new Set(delegated.rows.map((row) => row.task_id));
+    const visible = tasks.filter((t) => {
+      if (
+        actor.role === "admin" ||
+        process.created_by === actor.id ||
+        delegatedIds.has(t.id)
+      )
+        return true;
+      return (
+        t.assignee_id === actor.id &&
+        (t.spec.kind !== "copy" || t.status === "completed")
+      );
+    });
     const visibleIds = visible.map((t) => t.id);
 
     const eventsSql = `
@@ -517,13 +615,26 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
         id: t.id,
         key: t.task_key,
         title: t.spec.title,
+        kind: t.spec.kind || "approval",
+        canOpen:
+          actor.role === "admin" ||
+          (t.assignee_id === actor.id &&
+            (t.spec.kind !== "copy" || t.status === "completed")),
+        canHandle:
+          t.status === "ready" &&
+          t.spec.kind !== "copy" &&
+          (actor.role === "admin" || t.assignee_id === actor.id),
         recordId: t.record_id,
         status: t.status,
         ...(t.reason ? { reason: t.reason } : {}),
         assigneeName: t.assignee_name,
-        ...(t.spec.pageId ? { pageId: t.spec.pageId, pageVersion: t.spec.pageVersion } : {}),
+        ...(t.spec.pageId
+          ? { pageId: t.spec.pageId, pageVersion: t.spec.pageVersion }
+          : {}),
         ...(t.row_id ? { rowId: t.row_id, subformId: t.subform_id } : {}),
-        ...(t.completed_at ? { completedAt: t.completed_at.toISOString() } : {}),
+        ...(t.completed_at
+          ? { completedAt: t.completed_at.toISOString() }
+          : {}),
       })),
       events: events.map((e) => ({
         id: e.id,
@@ -546,16 +657,32 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
 
       if (completeTaskId) {
         const task = await this.task(tx, actor, id, completeTaskId);
+        if (task.spec.kind === "copy")
+          throw new ForbiddenException("抄送节点不需要办理");
         if (task.status !== "completed") {
           if (task.status !== "ready") {
-            throw new ConflictException(task.reason || "依赖任务或业务条件尚未满足");
+            throw new ConflictException(
+              task.reason || "依赖任务或业务条件尚未满足",
+            );
           }
-          await this.context.validateCompletion(tx, actor, task.record_id, task.spec);
+          await this.context.validateCompletion(
+            tx,
+            actor,
+            task.record_id,
+            task.spec,
+          );
           await tx.query(
             "UPDATE tasks SET status='completed',reason=NULL,completed_at=now() WHERE id=$1",
             [task.id],
           );
-          await this.event(tx, id, task.id, actor.id, "completed", "任务已完成");
+          await this.event(
+            tx,
+            id,
+            task.id,
+            actor.id,
+            "completed",
+            "任务已完成",
+          );
           await this.reconcile(tx, actor, id, records, process.bindings);
         }
       }
@@ -564,7 +691,12 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** 在任务节点上下文中获取组织成员/部门选项 */
-  async taskOrganizationOptions(actor: Actor, id: string, taskId: string, body: unknown) {
+  async taskOrganizationOptions(
+    actor: Actor,
+    id: string,
+    taskId: string,
+    body: unknown,
+  ) {
     object(body);
     return this.db.transaction(async (tx) => {
       const process = await this.process(tx, actor, id);
@@ -573,7 +705,7 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
       await this.reconcile(tx, actor, id, records, process.bindings);
 
       const task = await this.task(tx, actor, id, taskId);
-      if (task.status !== "ready") {
+      if (task.status !== "ready" || task.spec.kind === "copy") {
         throw new ForbiddenException("此任务当前不能修改业务数据");
       }
 
@@ -602,7 +734,12 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
       }
 
       const process = await this.process(tx, actor, id);
-      const records = await this.lockBindings(tx, actor, process.bindings, body !== undefined);
+      const records = await this.lockBindings(
+        tx,
+        actor,
+        process.bindings,
+        body !== undefined,
+      );
       await tx.query("SELECT id FROM processes WHERE id=$1 FOR UPDATE", [id]);
       await this.reconcile(tx, actor, id, records, process.bindings);
 
@@ -615,28 +752,150 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
         }
 
         const revision = records.get(task.record_id).revision;
-        await this.platform.patchRecord(actor, task.record_id, body, scope, tx, () => {
-          if (task.status !== "ready") {
-            throw new ConflictException(task.reason || "此任务当前不能修改业务数据");
-          }
-        });
+        await this.platform.patchRecord(
+          actor,
+          task.record_id,
+          body,
+          scope,
+          tx,
+          () => {
+            if (task.status !== "ready" || task.spec.kind === "copy") {
+              throw new ConflictException(
+                task.reason || "此任务当前不能修改业务数据",
+              );
+            }
+          },
+        );
 
-        const updated = (await this.platform.loadRecord(tx, actor, task.record_id)).row;
+        const updated = (
+          await this.platform.loadRecord(tx, actor, task.record_id)
+        ).row;
         if (updated.revision !== revision) {
-          await this.event(tx, id, task.id, actor.id, "record-saved", "任务业务数据已保存");
+          await this.event(
+            tx,
+            id,
+            task.id,
+            actor.id,
+            "record-saved",
+            "任务业务数据已保存",
+          );
         }
         records.set(task.record_id, updated);
         await this.reconcile(tx, actor, id, records, process.bindings);
       }
 
-      return this.context.record(tx, actor, id, await this.task(tx, actor, id, taskId));
+      return this.context.record(
+        tx,
+        actor,
+        id,
+        await this.task(tx, actor, id, taskId),
+      );
+    });
+  }
+
+  /** 仅返回可接手本任务的成员，不向普通成员开放完整组织管理接口。 */
+  async delegateOptions(actor: Actor, id: string, taskId: string) {
+    return this.db.transaction(async (tx) => {
+      await this.process(tx, actor, id);
+      const task = await this.task(tx, actor, id, taskId);
+      if (task.status !== "ready" || task.spec.kind === "copy") {
+        throw new ConflictException("只能委托当前可办理的任务");
+      }
+      const { rows } = await tx.query(
+        "SELECT id,name,username,role FROM users WHERE workspace_id=$1 AND active AND id<>$2 ORDER BY name,id",
+        [actor.workspaceId, task.assignee_id],
+      );
+      const candidates: { id: string; name: string }[] = [];
+      for (const user of rows) {
+        try {
+          const recipient: Actor = { ...user, workspaceId: actor.workspaceId };
+          const source = await this.context.load(
+            tx,
+            recipient,
+            task.record_id,
+            task.spec,
+          );
+          if (source.access.edit)
+            candidates.push({ id: user.id, name: user.name });
+        } catch (error) {
+          if (
+            !(error instanceof ForbiddenException) &&
+            !(error instanceof BadRequestException) &&
+            !(error instanceof NotFoundException) &&
+            !(error instanceof ConflictException)
+          )
+            throw error;
+        }
+      }
+      return candidates;
+    });
+  }
+
+  /** 仅委托当前待办；接收人须已有对应记录和字段权限，不因委托获得额外授权。 */
+  async delegate(actor: Actor, id: string, taskId: string, body: unknown) {
+    object(body);
+    uuid(body.assigneeId);
+    return this.db.transaction(async (tx) => {
+      const process = await this.process(tx, actor, id);
+      const records = await this.lockBindings(tx, actor, process.bindings);
+      const locked = await tx.query(
+        "SELECT spec FROM processes WHERE id=$1 FOR UPDATE",
+        [id],
+      );
+      const currentSpec = locked.rows[0].spec;
+
+      await this.reconcile(tx, actor, id, records, process.bindings);
+      const task = await this.task(tx, actor, id, taskId);
+      if (task.status !== "ready" || task.spec.kind === "copy")
+        throw new ConflictException("只能委托当前可办理的任务");
+      if (task.assignee_id === body.assigneeId)
+        throw new BadRequestException("请选择其他处理人");
+      const recipient = await this.member(tx, actor, body.assigneeId);
+      const spec = { ...task.spec, assigneeId: recipient.id };
+      const access = await this.context.load(
+        tx,
+        recipient,
+        task.record_id,
+        spec,
+      );
+      if (!access.access.edit)
+        throw new ForbiddenException(
+          "该成员没有任务记录的编辑权限，请先由管理员配置权限",
+        );
+      await tx.query("UPDATE tasks SET assignee_id=$2,spec=$3 WHERE id=$1", [
+        task.id,
+        recipient.id,
+        spec,
+      ]);
+      const nextSpec = {
+        ...currentSpec,
+        tasks: currentSpec.tasks.map((item: TaskSpec) =>
+          item.id === task.task_key ? spec : item,
+        ),
+      };
+      await tx.query("UPDATE processes SET spec=$2 WHERE id=$1", [
+        id,
+        nextSpec,
+      ]);
+      await this.event(
+        tx,
+        id,
+        task.id,
+        actor.id,
+        "delegated",
+        `已委托给${recipient.name}`,
+      );
+      return this.viewIn(tx, actor, id);
     });
   }
 
   /** 按工作空间、应用与任务范围（待办 / 我发起的 / 我处理的）查询流程列表 */
   async list(actor: Actor, applicationId?: string, scope?: string) {
     if (applicationId) uuid(applicationId);
-    if (scope && !["todo", "started", "handled"].includes(scope)) {
+    if (
+      scope &&
+      !["todo", "started", "handled", "copied", "delegation"].includes(scope)
+    ) {
       throw new BadRequestException("流程范围无效");
     }
 
@@ -651,10 +910,13 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
         AND ($4::uuid IS NULL OR p.application_id = $4)
         AND (
           $2 = 'admin'
+          OR p.created_by = $3
           OR EXISTS (
             SELECT 1 FROM tasks t
             WHERE t.process_id = p.id AND t.assignee_id = $3
+              AND (COALESCE(t.spec->>'kind','approval') <> 'copy' OR t.status='completed')
           )
+          OR EXISTS (SELECT 1 FROM process_events e WHERE e.process_id=p.id AND e.actor_id=$3 AND e.action='delegated')
         )
         AND (
           $5::text IS NULL
@@ -665,9 +927,17 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
               WHERE t.process_id = p.id
                 AND t.assignee_id = $3
                 AND t.status IN ('ready', 'blocked')
+                AND COALESCE(t.spec->>'kind','approval') <> 'copy'
             )
           )
           OR ($5 = 'started' AND p.created_by = $3)
+          OR ($5 = 'copied' AND EXISTS (
+            SELECT 1 FROM tasks t WHERE t.process_id=p.id AND t.assignee_id=$3 AND t.spec->>'kind'='copy' AND t.status='completed'
+          ))
+          OR ($5 = 'delegation' AND (
+            EXISTS (SELECT 1 FROM tasks t WHERE t.process_id=p.id AND t.assignee_id=$3 AND t.status='ready' AND COALESCE(t.spec->>'kind','approval')<>'copy')
+            OR EXISTS (SELECT 1 FROM process_events e WHERE e.process_id=p.id AND e.actor_id=$3 AND e.action='delegated')
+          ))
           OR (
             $5 = 'handled'
             AND EXISTS (
