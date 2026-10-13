@@ -7,7 +7,6 @@ import FieldControl from "../../forms/components/FieldControl.vue";
 import SampleEditor from "./SampleEditor.vue";
 import { sampleValues } from "../../../domain/extensions";
 import { useWorkspaceStore } from "../../../stores/workspace";
-import { restoreButtonDraft } from "../../../domain/extensionDraftAdapters";
 import { useDraftDismiss } from "../../../composables/useDraftDismiss";
 import { copy, type FormValues, type FormSchema } from "../../../domain/form";
 import { runtimeDefaults } from "../../../domain/relations";
@@ -76,23 +75,6 @@ const { confirmDiscard, requestClose, discard, markSaved, draftKey } =
     () => props.open,
     () => config.value,
     () => emit("close"),
-    {
-      key: () => `button:${props.formId}:${props.modelValue?.id || "new"}`,
-      title: () => `自定义按钮 · ${config.value.name || "未命名按钮"}`,
-      context: () => ({
-        schema: props.schema,
-        original: props.modelValue || null,
-        member: store.data.organization.currentUserId,
-      }),
-      restore: (value) => {
-        config.value = restoreButtonDraft(value, props.modelValue?.id);
-        step.value = 0;
-        error.value = "";
-        sample.value = sampleValues(props.schema);
-        trial.value = undefined;
-        confirmDiscard.value = false;
-      },
-    },
   );
 watch(
   [config, sample],

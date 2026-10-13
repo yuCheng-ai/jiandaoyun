@@ -61,7 +61,7 @@ import {
   formulaReferences,
   formulaValue,
   usesFormula,
-} from "./formula";
+} from "@platform/contracts";
 export function defaultLinkErrors(
   field: FormField,
   fields: FormField[],

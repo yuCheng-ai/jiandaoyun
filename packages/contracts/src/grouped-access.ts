@@ -1,6 +1,7 @@
 import type { DataFilter } from "./form";
 import type { FieldPermission } from "./index";
-import type { MigrationIdentityKind } from "./migration";
+
+export type GroupSubjectKind = "member" | "department" | "role";
 
 export const groupActionNames = {
   view: "查看",
@@ -19,7 +20,7 @@ export const groupScopeNames = {
 } as const;
 /** One subject is kept as a live directory reference, never expanded into a frozen list of members. */
 export interface GroupAccessSubject {
-  kind: MigrationIdentityKind;
+  kind: GroupSubjectKind;
   id: string;
   sourceId: string;
   historical: boolean;
@@ -38,7 +39,6 @@ export interface PermissionGroup {
   filters: DataFilter[];
   fields: Record<string, FieldPermission>;
 }
-/** Declarative migration contract. This is not the live direct/subject grant format. */
 export interface GroupedAccessConfig {
   version: 1;
   membersEnabled: boolean;
@@ -50,30 +50,6 @@ export interface GroupedAccessConfig {
   filling: import("./collection").CollectionRules;
   groups: PermissionGroup[];
 }
-export interface MigrationAccessGroupSummary {
-  id: string;
-  name: string;
-  enabled: boolean | null;
-  archived: boolean | null;
-  checked: boolean;
-  actions: GroupAction[];
-  scope: keyof typeof groupScopeNames | null;
-  subjects: number;
-  mappedSubjects: number;
-  historicalSubjects: number;
-  fields: number;
-  filters: number;
-}
-export interface MigrationAccessSummary {
-  formId: string;
-  checked: boolean;
-  membersEnabled: boolean | null;
-  publicEnabled: boolean | null;
-  allowMerged: boolean | null;
-  filling: GroupedAccessConfig["filling"] | null;
-  groups: MigrationAccessGroupSummary[];
-  executionReady: boolean;
-}
 
 /** Live operation policy. Collection limits and legacy start-node rules remain separate. */
 export type RecordGroupAction = GroupAction;
@@ -82,7 +58,7 @@ export interface RecordPermissionGroup {
   name: string;
   enabled: boolean;
   archived: boolean;
-  subjects: { kind: MigrationIdentityKind; id: string; includeChildren?: boolean }[];
+  subjects: { kind: GroupSubjectKind; id: string; includeChildren?: boolean }[];
   actions: RecordGroupAction[];
   scope: keyof typeof groupScopeNames;
   filters: DataFilter[];

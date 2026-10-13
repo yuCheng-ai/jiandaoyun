@@ -20,7 +20,7 @@ import { Actor, requireAdmin } from "../../core/auth/auth.service";
 import { Database, Transaction } from "../../core/database/database";
 import { OrganizationService } from "../directory/organization.service";
 import { identifier, object, title, uuid } from "../../core/database/schema";
-import { directGroupConfiguration, eligibleRecordGroups } from "./group-access";
+import { directGroupConfiguration, eligibleRecordGroups } from "./access.service";
 
 /** 校验配置对象是否仅包含受支持的属性键 */
 const assertAllowedKeys = (raw: Record<string, unknown>, allowed: string[]) => {
@@ -43,7 +43,7 @@ function parsePermissionLevels(
     result[key] = value;
   }
   return result;
-}
+};
 
 @Injectable()
 export class GroupConfigurationService {
@@ -74,7 +74,9 @@ export class GroupConfigurationService {
       [id],
     );
     const row = rows[0];
-    return row ? { ...row.config, mode: "groups", revision: row.revision } : directGroupConfiguration();
+    return row
+      ? { ...row.config, mode: "groups", allowMerged: true, revision: row.revision }
+      : directGroupConfiguration();
   }
 
   /** 获取表单的权限组完整配置（仅管理员可访问） */
@@ -96,7 +98,7 @@ export class GroupConfigurationService {
         return {
           mode: "direct",
           revision: config.revision,
-          allowMerged: false,
+          allowMerged: true,
           groups: [],
         };
       }
@@ -110,7 +112,7 @@ export class GroupConfigurationService {
       return {
         mode: "groups",
         revision: config.revision,
-        allowMerged: config.allowMerged,
+        allowMerged: true,
         groups: groups.map(({ id: groupId, name, actions }) => ({ id: groupId, name, actions })),
       };
     });
@@ -134,7 +136,7 @@ export class GroupConfigurationService {
 
     if (
       (body.mode !== undefined && body.mode !== "groups") ||
-      typeof body.allowMerged !== "boolean" ||
+      (body.allowMerged !== undefined && typeof body.allowMerged !== "boolean") ||
       !Array.isArray(body.groups) ||
       body.groups.length > 100
     ) {

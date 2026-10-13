@@ -20,7 +20,7 @@ import {
 import { validateDynamicValues } from "../src/domain/fieldValidation";
 import { importFieldValue } from "../src/domain/recordImport";
 import { quickFillValue } from "../src/domain/quickFill";
-import { fieldConditionValues } from "../src/domain/conditionValues";
+import { fieldConditionValues } from "@platform/contracts";
 
 function fixture() {
   const data = seedWorkspace();

@@ -10,13 +10,13 @@ import {
   isFieldVisible,
   parseSchema,
 } from "../src/domain/form";
-import { conditionDisplayValue } from "../src/domain/conditionValues";
+import { conditionDisplayValue } from "@platform/contracts";
 import {
   matchesFilters,
   resolveConditionOption,
   referenceDependencies,
 } from "../src/domain/relations";
-import { textVisibilityRules } from "../src/domain/visibility";
+import { textVisibilityRules } from "@platform/contracts";
 import {
   defaultAccess,
   groupsForEntry,

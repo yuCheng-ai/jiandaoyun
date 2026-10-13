@@ -2,17 +2,18 @@
 import { computed, ref, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import DesignerHeader from "../../components/shared/DesignerHeader.vue";
-import PublishAccessSettings from "./components/PublishAccessSettings.vue";
+import RecordGroupDialog from "../collaboration/RecordGroupDialog.vue";
+import CollectionDialog from "../data/CollectionDialog.vue";
 import AppIcon from "../../components/AppIcon.vue";
 import BaseDialog from "../../components/BaseDialog.vue";
 import { useWorkspaceStore } from "../../stores/workspace";
 import { usePageDesignerStore } from "../../stores/pageDesigner";
 import { platformApi } from "../../repositories/platformApi";
-import { newForm, type FormRecord } from "../../domain/workspace";
 import {
   composeFormSchema,
   type PageEditorData,
   type FormSchema,
+  type ServerDefinition,
 } from "@platform/contracts";
 import { emptySchema } from "../../domain/form";
 import "../organization/access.css";
@@ -65,27 +66,13 @@ const pageSchema = computed<FormSchema>(() => {
   );
 });
 
-const workspaceForm = computed<FormRecord>(() => {
-  let f = store.data.forms.find((form) => form.id === pageId.value);
-  if (!f) {
-    f = newForm(appId.value, pageTitle.value);
-    f.id = pageId.value;
-    f.appId = appId.value;
-    store.data.forms.push(f);
-  }
-  f.title = pageTitle.value;
-  f.schema = pageSchema.value;
-  if (latestVersion.value > 0) {
-    f.published = {
-      version: latestVersion.value,
-      title: pageTitle.value,
-      publishedAt: new Date().toISOString(),
-      schema: pageSchema.value,
-      workflow: f.workflow,
-    };
-  }
-  return f;
-});
+const serverDefinition = computed<ServerDefinition>(() => ({
+  id: pageData.value?.draft?.definitionId || pageId.value,
+  title: pageTitle.value,
+  version: pageData.value?.draft?.definitionVersion || 1,
+  schema: pageSchema.value,
+  createdAt: new Date().toISOString(),
+}));
 
 async function loadPage() {
   if (!pageId.value) return;
@@ -290,7 +277,12 @@ onMounted(() => {
             <h2>访问权限设置</h2>
             <p class="subtitle">针对不同部门、成员或角色，设置独立的数据录入与查看权限组</p>
           </div>
-          <PublishAccessSettings :form="workspaceForm" />
+          <RecordGroupDialog
+            v-if="pageData"
+            :definition="serverDefinition"
+            inline
+            @saved="store.notify('权限组设置已保存')"
+          />
         </template>
 
         <template v-else-if="section === 'collection'">
@@ -298,38 +290,13 @@ onMounted(() => {
             <h2>数据收集规则</h2>
             <p class="subtitle">控制表单收集时间范围、提交频次与数量上限</p>
           </div>
-          <div class="publish-card">
-            <h3>收集时间限制</h3>
-            <p class="card-hint">设定收集开启与截止时间，超时后表单自动停止接收提交</p>
-            <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 24px;">
-              <label style="font-size: 13px; color: #4b5563;">
-                开始时间：
-                <input type="datetime-local" class="publish-link-input" style="width: auto; margin-left: 8px;" />
-              </label>
-              <label style="font-size: 13px; color: #4b5563;">
-                截止时间：
-                <input type="datetime-local" class="publish-link-input" style="width: auto; margin-left: 8px;" />
-              </label>
-            </div>
-
-            <h3>提交次数与数量限制</h3>
-            <p class="card-hint">防止同一用户多次提交，或设置总记录数上限</p>
-            <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px;">
-              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #374151;">
-                <input type="checkbox" checked />允许同一成员多次提交
-              </label>
-              <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #374151;">
-                <input type="checkbox" />限制收集总量上限（达到上限后自动停止）
-              </label>
-            </div>
-
-            <button
-              class="button primary"
-              @click="store.notify('收集规则已保存，发布后生效')"
-            >
-              保存收集规则
-            </button>
-          </div>
+          <CollectionDialog
+            v-if="pageData"
+            :definition-id="serverDefinition.id"
+            :title="pageTitle"
+            inline
+            @saved="store.notify('收集规则已保存')"
+          />
         </template>
 
         <template v-else-if="section === 'versions'">

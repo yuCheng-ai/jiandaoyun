@@ -3,7 +3,7 @@ import { computed, nextTick, ref, watch } from "vue";
 import type { FormField } from "@platform/contracts";
 import AppIcon from "../../../components/AppIcon.vue";
 import { useDialogLayer } from "../../../composables/useDialogLayer";
-import { formulaFields } from "../../../domain/formula";
+import { formulaFields } from "@platform/contracts";
 import { escapeText, serializeFieldText } from "./fieldText";
 const props = defineProps<{
   modelValue: string;

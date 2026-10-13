@@ -23,7 +23,7 @@ export async function recordGroupOptions(
   )
     chooseAccessGroup(
       id,
-      options.groups.length === 1 ? options.groups[0]!.id : "",
+      options.groups.length === 1 ? options.groups[0]!.id : "*",
     );
   return options;
 }

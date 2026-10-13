@@ -5,7 +5,6 @@ import IdentityInput from "../../../components/organization/IdentityInput.vue";
 import DataFilterEditor from "../../forms/components/DataFilterEditor.vue";
 import SampleEditor from "./SampleEditor.vue";
 import RunTrace from "./RunTrace.vue";
-import { restoreReminderDraft } from "../../../domain/extensionDraftAdapters";
 import { useDraftDismiss } from "../../../composables/useDraftDismiss";
 import { useWorkspaceStore } from "../../../stores/workspace";
 import { copy, type FormSchema, type FormValues } from "../../../domain/form";
@@ -164,27 +163,6 @@ const { confirmDiscard, requestClose, discard, markSaved, draftKey } =
     () => props.open,
     () => config.value,
     () => emit("close"),
-    {
-      key: () => `reminder:${props.formId}:${props.modelValue?.id || "new"}`,
-      title: () => `推送提醒 · ${config.value.name || "未命名提醒"}`,
-      context: () => ({
-        schema: props.schema,
-        original: props.modelValue || null,
-        member: store.data.organization.currentUserId,
-      }),
-      restore: (value) => {
-        config.value = restoreReminderDraft(value, props.modelValue?.id);
-        step.value = 0;
-        issues.value = [];
-        values.value = sampleValues(props.schema);
-        result.value = undefined;
-        tested.value = "";
-        failure.value = false;
-        event.value = config.value.events[0] || "data_create";
-        saveError.value = "";
-        confirmDiscard.value = false;
-      },
-    },
   );
 </script>
 <template>

@@ -7,7 +7,7 @@ import { parseOrganization } from "../domain/organization";
 import { parseExtensions } from "../domain/extensions";
 import { parseSchema, copy } from "../domain/form";
 import { parseSerialCounters } from "../domain/serial";
-import { parseVisibilityRules } from "../domain/visibility";
+import { parseVisibilityRules } from "@platform/contracts";
 import { parseDocument } from "../domain/workflow";
 import {
   seedWorkspace,

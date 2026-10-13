@@ -26,7 +26,7 @@ import {
   formulaSyntaxError,
   formulaValue,
   replaceFormulaReferences,
-} from "../src/domain/formula";
+} from "@platform/contracts";
 import { applyFieldChange, runtimeDefaults } from "../src/domain/relations";
 import {
   validateDynamicValues,

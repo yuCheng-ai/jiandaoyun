@@ -19,7 +19,26 @@ import { Database, type Transaction } from "../../core/database/database";
 import { OrganizationService } from "./organization.service";
 import { once } from "../processes/commands";
 import { object, uuid } from "../../core/database/schema";
-import { directoryApplications } from "./directory-grants";
+
+type Queryable = Pick<Database, "query">;
+
+/** 查询工作空间下的应用与表单目录列表 */
+async function directoryApplications(tx: Queryable, actor: Actor) {
+  const sql = `
+    SELECT
+      a.id AS application_id,
+      a.title AS application_title,
+      d.id,
+      d.title,
+      true AS grouped
+    FROM applications a
+    LEFT JOIN definitions d ON d.application_id = a.id
+    WHERE a.workspace_id = $1
+    ORDER BY a.created_at, a.id, d.created_at, d.id
+  `;
+  const { rows } = await tx.query(sql, [actor.workspaceId]);
+  return rows;
+}
 
 /** 将数据库行转换为通讯录快照 DTO */
 const dto = (row: any): DirectorySnapshot => ({
@@ -63,12 +82,7 @@ export class DirectoryService {
   async applications(actor: Actor): Promise<RoleApplication[]> {
     requireAdmin(actor);
     return this.db.transaction(async (tx) => {
-      const { rows } = await tx.query(
-        "SELECT source_namespace FROM organization_directories WHERE workspace_id = $1",
-        [actor.workspaceId],
-      );
-      const namespace = rows[0]?.source_namespace || null;
-      const forms = await directoryApplications(tx, actor, namespace);
+      const forms = await directoryApplications(tx, actor);
 
       const apps = new Map<string, RoleApplication>();
       for (const form of forms) {
@@ -76,7 +90,6 @@ export class DirectoryService {
           apps.set(form.application_id, {
             id: form.application_id,
             name: form.application_title,
-            ...(form.source_application_id ? { sourceId: form.source_application_id } : {}),
             forms: [],
           });
         }
@@ -85,7 +98,6 @@ export class DirectoryService {
             id: form.id,
             title: form.title,
             grouped: form.grouped,
-            ...(form.source_form_id ? { sourceId: form.source_form_id } : {}),
           });
         }
       }
@@ -98,7 +110,7 @@ export class DirectoryService {
    * 接入或保存外部通讯录配置：
    * - 支持三方合并（before / current / after）；
    * - 校验角色新增或修改的本地应用/表单授权引用是否真实存在；
-   * - 将通讯录中的部门、角色、角色组与历史迁移身份对齐并投影至工作空间组织架构。
+   * - 将通讯录中的部门、角色、角色组投影至工作空间组织架构。
    */
   async save(actor: Actor, body: unknown, initialize = false) {
     requireAdmin(actor);
@@ -161,19 +173,14 @@ export class DirectoryService {
           (grant) => isNativeId(grant.appId) || grant.formIds.some(isNativeId),
         );
         if (hasNativeGrantRef) {
-          const catalog = await directoryApplications(tx, actor, body.namespace);
+          const catalog = await directoryApplications(tx, actor);
           for (const grant of changedGrants) {
             const matchingForms = catalog.filter(
-              (form) =>
-                grant.appId === "*" ||
-                grant.appId === form.application_id ||
-                grant.appId === form.source_application_id,
+              (form) => grant.appId === "*" || grant.appId === form.application_id,
             );
             const appMissing = isNativeId(grant.appId) && !matchingForms.length;
             const formMissing = grant.formIds.some(
-              (id) =>
-                isNativeId(id) &&
-                !matchingForms.some((form) => form.id === id || form.source_form_id === id),
+              (id) => isNativeId(id) && !matchingForms.some((form) => form.id === id),
             );
             if (appMissing || formMissing) {
               throw new BadRequestException(
@@ -183,13 +190,8 @@ export class DirectoryService {
           }
         }
 
-        // 将通讯录中的部门、角色、角色组与已确认的迁移身份决议对齐
+        // 为新增的通讯录部门、角色、角色组分配稳定的工作空间身份 ID
         const identities: DirectoryIdentity[] = row?.identities || [];
-        const { rows: batches } = await tx.query(
-          "SELECT choices FROM migration_batches WHERE workspace_id = $1 AND source_namespace = $2 AND state = 'identities_confirmed'",
-          [actor.workspaceId, body.namespace],
-        );
-
         const entityGroups = [
           ["department", spec.departments],
           ["role", spec.roles],
@@ -201,36 +203,7 @@ export class DirectoryService {
             if (identities.some((key) => key.kind === kind && key.id === entry.id)) {
               continue;
             }
-
-            const choices = batches
-              .flatMap((batch) => batch.choices)
-              .filter((choice) => choice.kind === kind && choice.sourceId === entry.id);
-
-            if (
-              choices.some((choice) => choice.mode !== "existing") ||
-              new Set(choices.map((choice) => choice.targetId)).size > 1
-            ) {
-              throw new ConflictException(`「${entry.name}」已有不一致的历史身份决定，请先核对`);
-            }
-
-            const targetId = choices[0]?.targetId || randomUUID();
-            if (identities.some((key) => key.targetId === targetId)) {
-              throw new ConflictException("不同组织身份不能合并");
-            }
-
-            const occupiedByOtherSource = batches.some((batch) =>
-              batch.choices.some(
-                (choice: any) =>
-                  choice.kind === kind &&
-                  choice.sourceId !== entry.id &&
-                  choice.targetId === targetId,
-              ),
-            );
-            if (occupiedByOtherSource) {
-              throw new ConflictException("此组织身份已对应另一个来源，不能覆盖");
-            }
-
-            identities.push({ kind, id: entry.id, targetId });
+            identities.push({ kind, id: entry.id, targetId: randomUUID() });
           }
         }
 

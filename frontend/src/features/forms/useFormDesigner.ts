@@ -13,7 +13,7 @@ import {
   type FormField,
   type VisibilityRule,
 } from "../../domain/form";
-import { visibilityConditions } from "../../domain/visibility";
+import { visibilityConditions } from "@platform/contracts";
 import { formFieldLimitError, type FormRecord } from "../../domain/workspace";
 import { useEditorHistory } from "../../composables/useEditorHistory";
 export interface FieldDrop {

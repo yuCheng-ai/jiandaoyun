@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import type { ConditionalVisibilityRule, VisibilityCondition } from "@platform/contracts";
-import { conditionValueType, conditionDisplayValue } from "../../../domain/conditionValues";
+import { conditionValueType, conditionDisplayValue } from "@platform/contracts";
 import AppIcon from "../../../components/AppIcon.vue";
 import BaseDialog from "../../../components/BaseDialog.vue";
 import ChoiceFieldControl from "./ChoiceFieldControl.vue";
 import { copy, createField, flattenFields, uid, type FormSchema } from "../../../domain/form";
-import { editableVisibilityRules, visibilityRuleIssue, visibilityScopes } from "../../../domain/visibility";
+import { editableVisibilityRules, visibilityRuleIssue, visibilityScopes } from "@platform/contracts";
 import { resolveChoices } from "../../../domain/relations";
 import { useRuntimeData } from "../../../composables/useRuntimeData";
 

@@ -9,7 +9,7 @@ import {
   formulaExpressionErrors,
   formulaTokens,
   formulaValue,
-} from "./formula";
+} from "@platform/contracts";
 import type { WorkspaceData } from "./workspace";
 
 export type RecordBatchChange = {

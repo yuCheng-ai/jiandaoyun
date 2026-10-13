@@ -14,7 +14,7 @@ import {
 import {
   formulaConfigurationErrors,
   formulaValue,
-} from "../src/domain/formula";
+} from "@platform/contracts";
 import {
   linkTypesMatch,
   selectionFilterOperators,

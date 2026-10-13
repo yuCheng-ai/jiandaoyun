@@ -54,7 +54,7 @@ import { workspaceScopes } from "../domain/workspaceTransactions";
 import { workspaceWrites } from "./workspaceWrites";
 import { defineStore, storeToRefs } from "pinia";
 import { useNotices } from "./notices";
-import { formulaConfigurationErrors } from "../domain/formula";
+import { formulaConfigurationErrors } from "@platform/contracts";
 import {
   copy,
   parseSchema,

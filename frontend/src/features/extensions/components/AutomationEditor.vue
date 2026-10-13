@@ -8,7 +8,6 @@ import RunTrace from "./RunTrace.vue";
 import AutomationStepEditor from "./AutomationStepEditor.vue";
 import { useWorkspaceStore } from "../../../stores/workspace";
 import { useDraftDismiss } from "../../../composables/useDraftDismiss";
-import { restoreAutomationDraft } from "../../../domain/extensionDraftAdapters";
 import { copy, type FormValues, type FormSchema } from "../../../domain/form";
 import { buttonSources } from "../../../domain/buttons";
 import {
@@ -65,24 +64,6 @@ const { confirmDiscard, requestClose, discard, markSaved, draftKey } =
     () => props.open,
     () => config.value,
     () => emit("close"),
-    {
-      key: () => `automation:${props.formId}:${props.modelValue?.id || "new"}`,
-      title: () => `智能助手 · ${config.value.name || "未命名助手"}`,
-      context: () => ({
-        schema: props.schema,
-        original: props.modelValue || null,
-        member: store.data.organization.currentUserId,
-      }),
-      restore: (value) => {
-        config.value = restoreAutomationDraft(value, props.modelValue?.id);
-        step.value = 0;
-        error.value = "";
-        sample.value = sampleValues(props.schema);
-        trial.value = undefined;
-        trialEvent.value = config.value.events[0] || "data_create";
-        confirmDiscard.value = false;
-      },
-    },
   );
 watch(
   [config, sample, trialEvent],

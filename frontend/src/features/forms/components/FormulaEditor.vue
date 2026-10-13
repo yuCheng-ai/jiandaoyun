@@ -22,7 +22,7 @@ import {
   formulaExpressionErrors,
   evaluateFieldFormula,
   replaceFormulaReferences,
-} from "../../../domain/formula";
+} from "@platform/contracts";
 import { validateFieldConfiguration } from "../../../domain/fieldValidation";
 import { formulaLabel } from "../../../domain/formValidation";
 import { escapeText, serializeFieldText } from "./fieldText";

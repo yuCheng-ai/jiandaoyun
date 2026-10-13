@@ -15,9 +15,9 @@ import {
   type FieldOption,
   type FormSchema,
 } from "./form";
-import { formulaReferences, usesFormula } from "./formula";
+import { formulaReferences, usesFormula } from "@platform/contracts";
 import { displayFieldValue, valueText as text } from "./fieldDisplay";
-import { conditionValues, fieldConditionValues } from "./conditionValues";
+import { conditionValues, fieldConditionValues } from "@platform/contracts";
 import {
   defaultLinkTypes,
   linkTypesMatch,

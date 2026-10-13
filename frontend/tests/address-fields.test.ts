@@ -28,7 +28,7 @@ import { validateFieldConfiguration } from "../src/domain/fieldValidation";
 import {
   formulaExpressionErrors,
   evaluateFieldFormula,
-} from "../src/domain/formula";
+} from "@platform/contracts";
 import { seedWorkspace } from "../src/domain/workspace";
 import AddressFieldControl from "../src/features/forms/components/AddressFieldControl.vue";
 import FieldControl from "../src/features/forms/components/FieldControl.vue";

@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="Filter extends SelectionFilter = DataFilter">
-import { conditionValueType, conditionDisplayValue } from "../../../domain/conditionValues";
+import { conditionValueType, conditionDisplayValue } from "@platform/contracts";
 import { resolveChoices, resolveConditionOption } from "../../../domain/relations";
 import { useRuntimeData } from "../../../composables/useRuntimeData";
 import AppIcon from "../../../components/AppIcon.vue";

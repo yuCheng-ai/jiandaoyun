@@ -13,6 +13,10 @@ import {
   type OrganizationIdentity,
   type ServerOrganization,
 } from "@platform/contracts";
+import type { Actor } from "../../core/auth/auth.service";
+import type { Database } from "../../core/database/database";
+
+type Queryable = Pick<Database, "query">;
 
 // ============================================================================
 // 1. 基础辅助函数
@@ -386,3 +390,60 @@ export function organizationLabels(
 
   return [...result.values()];
 }
+
+/** 补充已停用或历史身份的展示名称 */
+export async function historicalLabels(
+  tx: Queryable,
+  actor: Actor,
+  labels: OrganizationIdentity[],
+): Promise<OrganizationIdentity[]> {
+  const ids = labels.filter((item) => !item.active).map((item) => item.id);
+  if (!ids.length) return labels;
+
+  const sql = `
+    SELECT id, kind, name
+    FROM historical_identities
+    WHERE workspace_id = $1
+      AND id::text = ANY($2::text[])
+  `;
+  const { rows } = await tx.query(sql, [actor.workspaceId, ids]);
+
+  return labels.map((item) => {
+    const found = rows.find((row) => row.id === item.id && row.kind === item.kind);
+    if (!found) return item;
+    return { ...item, name: found.name, active: false, historical: true };
+  });
+}
+
+/** 解析记录创建人身份标签 */
+export async function recordCreator(
+  tx: Queryable,
+  actor: Actor,
+  id: string,
+): Promise<OrganizationIdentity> {
+  const sql = `
+    SELECT
+      p.id,
+      u.name,
+      u.active,
+      h.name AS historical_name
+    FROM record_principals p
+    LEFT JOIN users u
+      ON u.id = p.user_id AND u.workspace_id = p.workspace_id
+    LEFT JOIN historical_identities h
+      ON h.id = p.historical_id AND h.workspace_id = p.workspace_id
+    WHERE p.id = $1
+      AND p.workspace_id = $2
+  `;
+  const { rows } = await tx.query(sql, [id, actor.workspaceId]);
+  const row = rows[0];
+
+  return {
+    id,
+    kind: "member",
+    name: row?.historical_name || row?.name || "已不可用身份",
+    active: !!row?.active,
+    ...(row?.historical_name ? { historical: true } : {}),
+  };
+}
+

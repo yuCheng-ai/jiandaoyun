@@ -12,7 +12,6 @@ import {
 import { sampleValues } from "../../../domain/extensions";
 import { useWorkspaceStore } from "../../../stores/workspace";
 import { useDraftDismiss } from "../../../composables/useDraftDismiss";
-import { restorePrintTemplateDraft } from "../../../domain/extensionDraftAdapters";
 import PresentationFields from "./PresentationFields.vue";
 import SampleEditor from "./SampleEditor.vue";
 import PrintDocument from "../../forms/components/PrintDocument.vue";
@@ -53,23 +52,6 @@ const { confirmDiscard, requestClose, discard, markSaved, draftKey } =
     () => props.open,
     () => config.value,
     () => emit("close"),
-    {
-      key: () => `print:${props.formId}:${props.modelValue?.id || "new"}`,
-      title: () => `打印模板 · ${config.value.name || "未命名模板"}`,
-      context: () => ({
-        schema: props.schema,
-        original: props.modelValue || null,
-        member: store.data.organization.currentUserId,
-      }),
-      restore: (value) => {
-        config.value = restorePrintTemplateDraft(value, props.modelValue?.id);
-        config.value.fileName ||= { mode: "default", value: "" };
-        values.value = sampleValues(props.schema);
-        errors.value = [];
-        tab.value = "layout";
-        confirmDiscard.value = false;
-      },
-    },
   );
 const sizeLabel = computed(
   () =>

@@ -5,9 +5,9 @@ import {
   formulaReferences,
   replaceFormulaReferences,
   usesFormula,
-} from "./formula";
-import { visibleByRules, parseVisibilityRules } from "./visibility";
-import { choiceConversion, parseChoiceConversion } from "./conditionValues";
+} from "@platform/contracts";
+import { visibleByRules, parseVisibilityRules } from "@platform/contracts";
+import { choiceConversion, parseChoiceConversion } from "@platform/contracts";
 import { addressValueIssue } from "./address";
 import { hasRichTextContent, richTextValueIssue } from "./richText";
 import {

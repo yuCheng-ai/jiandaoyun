@@ -25,7 +25,7 @@ import {
 import {
   evaluateFieldFormula,
   formulaExpressionErrors,
-} from "../src/domain/formula";
+} from "@platform/contracts";
 import {
   applyFieldChange,
   displayValue,

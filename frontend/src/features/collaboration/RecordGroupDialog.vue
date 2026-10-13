@@ -14,7 +14,7 @@ import {
 import BaseDialog from "../../components/BaseDialog.vue";
 import { platformApi, PlatformError } from "../../repositories/platformApi";
 import { useDraftDismiss } from "../../composables/useDraftDismiss";
-const props = defineProps<{ definition: ServerDefinition }>();
+const props = defineProps<{ definition: ServerDefinition; inline?: boolean }>();
 const emit = defineEmits<{ close: []; saved: [] }>();
 const state = ref<RecordGroupConfiguration>({
     revision: 0,
@@ -185,11 +185,13 @@ async function save() {
 }
 </script>
 <template>
-  <BaseDialog
+  <component
+    :is="inline ? 'div' : BaseDialog"
     :open="true"
     title="权限组管理"
     width="850px"
     :busy="busy"
+    :class="{ 'publish-card': inline }"
     @close="requestClose"
   >
     <p class="collab-help">
@@ -218,12 +220,6 @@ async function save() {
       ><button class="button" @click="discard">放弃修改</button>
     </p>
     <template v-if="loaded">
-      <label class="checkbox-line"
-        ><input
-          v-model="state.allowMerged"
-          type="checkbox"
-        />允许成员选择合并适用的权限组</label
-      >
       <div class="collab-toolbar">
         <label class="collab-field"
           >选择权限组<select v-model="selected">
@@ -481,14 +477,20 @@ async function save() {
         >
       </template>
     </template>
-    <template #footer
+    <div v-if="inline" class="collab-toolbar" style="margin-top: 20px;">
+      <button v-if="!loaded" class="button" @click="load">重新读取</button>
+      <button class="button primary" :disabled="!loaded || busy" @click="save">
+        保存权限组配置
+      </button>
+    </div>
+    <template v-if="!inline" #footer
       ><button class="button" @click="requestClose">取消</button
       ><button v-if="!loaded" class="button" @click="load">重新读取</button
       ><button class="button primary" :disabled="!loaded || busy" @click="save">
         保存权限组配置
       </button></template
     >
-  </BaseDialog>
+  </component>
 </template>
 <style scoped>
 .group-filter-row {

@@ -1,38 +1,46 @@
 import { ForbiddenException, Injectable } from "@nestjs/common";
 import {
+  choiceConditionValue,
+  organizationSubjectMembers,
   type AccessGrant,
+  type DataFilter,
+  type FieldPermission,
   type FormSchema,
+  type FormValues,
+  type RecordGroupAction,
   type RecordGroupConfiguration,
+  type RecordPermissionGroup,
   type ServerOrganization,
 } from "@platform/contracts";
 import type { Actor } from "../../core/auth/auth.service";
 import { Database } from "../../core/database/database";
-import { allFields } from "../../core/database/schema";
+import { allFields, permission } from "../../core/database/schema";
 import { OrganizationService } from "../directory/organization.service";
-import {
-  directGroupConfiguration,
-  eligibleRecordGroups,
-  groupedRecordAccess,
-  groupRecordSql,
-  selectRecordGroups,
-  type GroupRecordContext,
-} from "./group-access";
 
 /**
  * ============================================================================
- * 【表单与记录权限服务（统一简道云“权限组”模式）】
+ * 【一分钟看懂本文件：表单与记录权限服务（简道云“权限组”模式）】
  *
- * 所有表单统一通过 `record_permission_groups` 表中的“权限组”控制访问权限。
- * 本文件对外提供 5 个核心方法：
- * 1. `context()`      ：从数据库加载当前组织架构与表单的权限组配置；
- * 2. `effective()`    ：计算打开表单或单条记录时的按钮权限（增删改查/导出/打印）与字段掩码（可改/只读/隐藏）；
- * 3. `readers()`      ：计算查看“正式记录列表”时的 SQL 过滤条件；
- * 4. `draftReaders()` ：计算查看“草稿箱列表”时的过滤条件（仅本人草稿）；
- * 5. `definitions()`  ：计算应用首页左侧菜单树中当前用户有权看到的表单 ID 列表。
+ * 所有表单统一通过 `record_permission_groups` 表中的“权限组”控制访问权限；
+ * 当用户同时命中多个权限组时，默认自动合并所有命中权限组（取最大权限并集）。
+ *
+ * 文件结构：
+ * - 第一部分：权限组匹配、数据范围过滤与 SQL 条件生成（纯函数）
+ * - 第二部分：`AccessService` 对外提供的 5 个核心查询方法
  * ============================================================================
  */
 
 type Queryable = Pick<Database, "query">;
+
+/** 单条记录权限计算上下文 */
+export interface GroupRecordContext {
+  createdBy?: string;
+  createdDepartmentIds?: string[] | null;
+  values?: FormValues;
+  operation?: "create" | "export" | "print";
+}
+
+export interface AccessContext extends GroupRecordContext {}
 
 /** 权限计算上下文：包含组织架构、目标表单 ID 与权限组配置 */
 export interface PolicyContext {
@@ -41,19 +49,156 @@ export interface PolicyContext {
   config: RecordGroupConfiguration;
 }
 
-export interface AccessContext extends GroupRecordContext {}
-
-/** 记录列表的可见范围（用于生成 SQL 过滤条件，creators 为 null 表示不限制创建人） */
+/** 记录列表的可见范围（用于生成 SQL 过滤条件） */
 export interface ReadScope {
   creators: string[] | null;
   createdDepartments: string[];
   sql?: (alias: string, parameters: unknown[]) => string;
 }
 
+// ============================================================================
+// 1. 权限组匹配、数据范围过滤与字段权限合并（纯函数）
+// ============================================================================
+
+const PERMISSION_RANK: Record<FieldPermission, number> = { hidden: 0, read: 1, edit: 2 };
+
+/** 生成默认的空权限组配置（默认允许自动合并多个权限组） */
+export const directGroupConfiguration = (): RecordGroupConfiguration => ({
+  revision: 0,
+  mode: "groups",
+  allowMerged: true,
+  groups: [],
+});
+
+/** 获取指定成员所属的部门 ID 列表 */
+function userDepartmentIds(org: ServerOrganization, userId: string): string[] {
+  return org.spec.assignments.find((item) => item.userId === userId)?.departmentIds || [];
+}
+
+/** 筛选当前在职用户在组织架构下命中的全部启用态权限组 */
+export function eligibleRecordGroups(
+  actor: Actor,
+  org: ServerOrganization,
+  config: RecordGroupConfiguration,
+): RecordPermissionGroup[] {
+  const isActiveMember = org.users.some((user) => user.id === actor.id && user.active);
+  if (!isActiveMember) return [];
+
+  return config.groups.filter(
+    (group) =>
+      group.enabled &&
+      !group.archived &&
+      group.subjects.some((subject) => {
+        if (subject.kind === "member") return subject.id === actor.id;
+        return organizationSubjectMembers(org.spec, {
+          kind: subject.kind,
+          id: subject.id,
+          includeChildren: subject.includeChildren,
+        }).includes(actor.id);
+      }),
+  );
+}
+
 /**
- * 计算单条记录或单个表单的最终权限：
- * - 系统管理员直接拥有全部权限（所有字段可编辑）；
- * - 普通成员统一按简道云“权限组”计算操作权限与字段级读写掩码。
+ * 解析当前请求在目标表单下生效的权限组集合：
+ * - 默认自动合并用户命中的全部权限组（取最大权限并集）；
+ * - 若前端显式指定了某个具体权限组 ID，则仅使用该组。
+ */
+export function selectRecordGroups(
+  actor: Actor,
+  definitionId: string,
+  org: ServerOrganization,
+  config: RecordGroupConfiguration,
+): RecordPermissionGroup[] {
+  const groups = eligibleRecordGroups(actor, org, config);
+  if (!groups.length) {
+    throw new ForbiddenException("没有此数据对象的权限组");
+  }
+
+  const selected = actor.accessGroups?.[definitionId];
+  if (!selected || selected === "*") {
+    return groups;
+  }
+
+  const group = groups.find((item) => item.id === selected);
+  if (!group) {
+    throw new ForbiddenException("所选权限组已不可用，请重新选择");
+  }
+  return [group];
+}
+
+/** 解析自定义筛选条件右侧的对比值（固定常量 / 当前用户 ID / 当前用户主部门 ID） */
+export function filterExpected(
+  filter: DataFilter,
+  actor: Actor,
+  organization: ServerOrganization,
+): string {
+  if (filter.source === "currentUser") return actor.id;
+  if (filter.source === "currentDepartment") {
+    const assignment = organization.spec.assignments.find((a) => a.userId === actor.id);
+    return assignment?.primaryDepartmentId || "";
+  }
+  return filter.value;
+}
+
+/** 在内存中判断记录字段值是否满足权限组的自定义筛选条件 */
+export function matchesGroupFilters(
+  filters: DataFilter[],
+  values: FormValues,
+  actor: Actor,
+  organization: ServerOrganization,
+): boolean {
+  return filters.every((filter) => {
+    const actual = choiceConditionValue(values[filter.sourceFieldId]);
+    const expected = filterExpected(filter, actor, organization);
+    const actualIds = (Array.isArray(actual) ? actual : [actual])
+      .filter((v) => v !== null && v !== undefined && v !== "")
+      .map(String);
+
+    if (filter.operator === "notEmpty") return actualIds.length > 0;
+    if (!expected && filter.source !== "constant") return false;
+    if (filter.operator === "equals") return actualIds.includes(expected);
+    if (filter.operator === "notEquals") return !actualIds.includes(expected);
+
+    if (filter.operator === "contains") {
+      return Array.isArray(actual)
+        ? actualIds.includes(expected)
+        : String(actual ?? "").includes(expected);
+    }
+
+    if (
+      typeof actual !== "number" ||
+      !Number.isFinite(actual) ||
+      !Number.isFinite(Number(expected))
+    ) {
+      return false;
+    }
+
+    return filter.operator === "greater" ? actual > Number(expected) : actual < Number(expected);
+  });
+}
+
+/** 判断单个权限组的数据范围（全部 / 本人 / 本部门 / 自定义条件）是否覆盖目标记录 */
+export function groupMatches(
+  group: RecordPermissionGroup,
+  actor: Actor,
+  org: ServerOrganization,
+  record: GroupRecordContext,
+): boolean {
+  if (!record.createdBy) return true; // 仅打开表单外壳（尚未指定具体记录）时先放行
+  if (group.scope === "all") return true;
+  if (group.scope === "self") return record.createdBy === actor.id;
+  if (group.scope === "department") {
+    const ownDepts = userDepartmentIds(org, actor.id);
+    return (record.createdDepartmentIds || []).some((id) => ownDepts.includes(id));
+  }
+  return Boolean(record.values) && matchesGroupFilters(group.filters, record.values!, actor, org);
+}
+
+/**
+ * 计算单条记录或单个表单的最终权限（按钮权限 + 每个字段是 edit / read / hidden）：
+ * - 系统管理员直接拥有全部权限；
+ * - 普通成员合并其命中的权限组，字段权限按 `edit > read > hidden` 取最大并集。
  */
 export function effectiveAccess(
   actor: Actor,
@@ -61,6 +206,7 @@ export function effectiveAccess(
   context: PolicyContext,
   target: AccessContext = {},
 ): AccessGrant {
+  // 1. 管理员拥有全部权限
   if (actor.role === "admin") {
     const fields = Object.fromEntries(allFields(schema).map((f) => [f.id, "edit" as const]));
     return {
@@ -76,15 +222,153 @@ export function effectiveAccess(
     };
   }
 
-  return groupedRecordAccess(
+  // 2. 筛选出当前用户对本次操作生效的权限组
+  const selected = selectRecordGroups(
     actor,
     context.definitionId,
-    schema,
     context.organization,
     context.config,
-    target,
   );
+
+  let action: RecordGroupAction = "view";
+  if (target.operation === "create" && selected.some((group) => group.actions.includes("create"))) {
+    action = "create";
+  } else if (target.operation === "export" || target.operation === "print") {
+    action = target.operation;
+  }
+
+  const groups = selected.filter(
+    (group) =>
+      group.actions.includes(action) &&
+      (action === "create" || groupMatches(group, actor, context.organization, target)),
+  );
+
+  if (target.operation === "create" && target.createdBy && action !== "create") {
+    throw new ForbiddenException("当前没有继续填写此草稿的权限");
+  }
+  if (!groups.length) {
+    throw new ForbiddenException("所选权限组没有此记录或操作的权限");
+  }
+
+  // 3. 汇总表级按钮权限与字段级读写掩码（取最大权限并集）
+  const can = (act: RecordGroupAction) => groups.some((group) => group.actions.includes(act));
+  const access: AccessGrant = {
+    userId: actor.id,
+    read: action === "create" ? selected.some((group) => group.actions.includes("view")) : true,
+    create: action === "create",
+    edit: action === "view" && target.operation !== "create" && can("edit"),
+    remove: action === "view" && target.operation !== "create" && can("delete"),
+    export: action !== "create" && can("export"),
+    print: action !== "create" && can("print"),
+    scope: "all",
+    fields: {},
+    relations: {},
+    groupSelection: {
+      definitionId: context.definitionId,
+      revision: context.config.revision,
+      selection: actor.accessGroups?.[context.definitionId] || groups[0]!.id,
+    },
+  };
+
+  const upgrade = (bag: Record<string, FieldPermission>, id: string, level: FieldPermission) => {
+    if (PERMISSION_RANK[level] > PERMISSION_RANK[bag[id] || "hidden"]) {
+      bag[id] = level;
+    }
+  };
+
+  for (const group of groups) {
+    const canWrite =
+      action === "create" ||
+      (action === "view" && target.operation !== "create" && group.actions.includes("edit"));
+    const grant = { ...access, fields: group.fields };
+
+    const applyField = (
+      field: FormSchema["fields"][number],
+      parent?: FormSchema["fields"][number],
+    ) => {
+      let level = permission(grant, field, parent) as FieldPermission;
+      if (level === "edit" && !canWrite) level = "read";
+      upgrade(access.fields, field.id, level);
+    };
+
+    for (const field of schema.fields) {
+      applyField(field);
+      for (const child of field.children) applyField(child, field);
+    }
+
+    for (const [id, level] of Object.entries(group.relations || {})) {
+      upgrade(access.relations!, id, level === "edit" && !canWrite ? "read" : level);
+    }
+  }
+
+  return access;
 }
+
+/** 将生效权限组的数据范围编译为数据库 SQL WHERE 条件片段 */
+export function groupRecordSql(
+  groups: RecordPermissionGroup[],
+  actor: Actor,
+  org: ServerOrganization,
+  alias: string,
+  parameters: unknown[],
+): string {
+  if (!/^[a-z][a-z_]*$/.test(alias)) {
+    throw new Error("Invalid record alias");
+  }
+
+  const bind = (value: unknown) => {
+    parameters.push(value);
+    return `$${parameters.length}`;
+  };
+
+  const filterSql = (filter: DataFilter) => {
+    const expected = filterExpected(filter, actor, org);
+    if (filter.operator !== "notEmpty" && filter.source !== "constant" && !expected) {
+      return "false";
+    }
+
+    const field = `${alias}.values -> ${bind(filter.sourceFieldId)}::text`;
+    const list = `CASE WHEN jsonb_typeof(${field})='array' THEN ${field} ELSE jsonb_build_array(${field}) END`;
+    const textValue = (value: string) =>
+      `CASE WHEN jsonb_typeof(${value})='object' THEN COALESCE(${value}->>'optionId',${value}->>'text') ELSE ${value} #>> '{}' END`;
+    const elements = `(SELECT ${textValue("item.value")} AS value FROM jsonb_array_elements(${list}) item(value)) v`;
+    const nonempty = `(v.value IS NOT NULL AND v.value<>'')`;
+
+    if (filter.operator === "notEmpty") {
+      return `EXISTS(SELECT 1 FROM ${elements} WHERE ${nonempty})`;
+    }
+
+    const value = bind(expected);
+    const same = `EXISTS(SELECT 1 FROM ${elements} WHERE ${nonempty} AND v.value=${value}::text)`;
+    if (filter.operator === "equals") return same;
+    if (filter.operator === "notEquals") return `NOT (${same})`;
+
+    if (filter.operator === "contains") {
+      return `(CASE WHEN jsonb_typeof(${field})='array' THEN ${same} ELSE position(${value}::text in COALESCE((${textValue(field)}),''))>0 END)`;
+    }
+
+    const op = filter.operator === "greater" ? ">" : "<";
+    return `(CASE WHEN jsonb_typeof(${field})='number' THEN (${field} #>> '{}')::numeric ${op} ${value}::numeric ELSE false END)`;
+  };
+
+  const clauses = groups
+    .filter((group) => group.actions.includes("view"))
+    .map((group) => {
+      if (group.scope === "all") return "true";
+      if (group.scope === "self") return `${alias}.created_by=${bind(actor.id)}::uuid`;
+      if (group.scope === "department") {
+        return `${alias}.created_department_ids && ${bind(userDepartmentIds(org, actor.id))}::uuid[]`;
+      }
+      return group.filters.length ? `(${group.filters.map(filterSql).join(" AND ")})` : "false";
+    })
+    .map((sql) => `(${sql})`);
+
+  return clauses.join(" OR ") || "false";
+}
+
+// ============================================================================
+// 2. 权限服务类（对外提供 5 个核心方法）
+// ============================================================================
 
 @Injectable()
 export class AccessService {
@@ -106,7 +390,7 @@ export class AccessService {
     );
     const row = rows[0];
     const config = row
-      ? { ...row.config, mode: "groups" as const, revision: row.revision }
+      ? { ...row.config, mode: "groups" as const, allowMerged: true, revision: row.revision }
       : directGroupConfiguration();
 
     return { organization, definitionId, config };
@@ -187,12 +471,14 @@ export class AccessService {
           eligibleRecordGroups(actor, organization, {
             ...r.config,
             mode: "groups",
+            allowMerged: true,
             revision: r.revision,
           }).length > 0,
       )
       .map((r) => r.definition_id);
   }
 }
+
 
 
 

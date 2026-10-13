@@ -8,7 +8,6 @@ import { RecordsModule } from "./modules/records/records.module";
 import { PagesModule } from "./modules/pages/pages.module";
 import { ProcessesModule } from "./modules/processes/processes.module";
 import { RelationsModule } from "./modules/relations/relations.module";
-import { MigrationsModule } from "./modules/migrations/migrations.module";
 
 /** 服务端根模块：聚合基础设施模块与各业务域模块 */
 @Module({
@@ -22,7 +21,6 @@ import { MigrationsModule } from "./modules/migrations/migrations.module";
     PagesModule,
     ProcessesModule,
     RelationsModule,
-    MigrationsModule,
   ],
 })
 export class AppModule {}

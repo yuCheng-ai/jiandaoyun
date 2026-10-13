@@ -15,7 +15,6 @@ import { ruleFieldVisible, formValidationResults, changedValidationRules, displa
 import ServerFieldControl from "./ServerFieldControl.vue";
 import BaseDialog from "../../components/BaseDialog.vue";
 import RecordRelations from "../data/RecordRelations.vue";
-import RecordOriginDialog from "./RecordOriginDialog.vue";
 import { useDraftDismiss } from "../../composables/useDraftDismiss";
 import {
   canEditField,
@@ -42,7 +41,6 @@ async function checkCollection() {
   catch (cause) { error.value = (cause as Error).message; }
   finally { busy.value = false; }
 }
-const showOrigin = ref(false);
 const active = computed(() => current.value || props.published);
 const values = ref<FormValues>(
   JSON.parse(
@@ -308,7 +306,6 @@ function relationUpdated(result: RecordDetail) {
     <p v-if="current?.record.state === 'draft'" class="collab-notice">这是尚未提交的草稿，提交后才进入正式记录及业务协作。可以先保存未填完的内容。</p>
     <p v-if="collecting && collection && !collection.accepting" class="collab-notice" role="status">{{ collection.reason }}。可以先保存草稿，开放收集后再提交。<button class="text-button" :disabled="busy" @click="checkCollection">重新检查收集状态</button></p>
     <p v-if="current?.creator" class="collab-help">创建人：{{ organizationIdentityLabel(current.creator) }}</p>
-    <button v-if="current?.canReadOrigin && !current.task" class="text-button" @click="showOrigin = true">原始记录与处理轨迹</button>
     <div v-if="error" class="collab-error" role="alert">
       {{ error
       }}<button
@@ -432,5 +429,4 @@ function relationUpdated(result: RecordDetail) {
     <p v-if="!busy && !deletedRows.some(row => row.subformId === historyField?.id)" class="collab-help">没有可查看的已删除明细。</p>
     <template #footer><button class="button" @click="historyField = undefined">关闭</button></template>
   </BaseDialog>
-  <RecordOriginDialog v-if="showOrigin && current?.canReadOrigin && !current.task" :record-id="current.record.id" @close="showOrigin = false" />
 </template>

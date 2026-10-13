@@ -43,7 +43,6 @@ export async function createApp() {
     next();
   });
 
-  app.use("/api/migration-batches", json({ limit: "16mb" }));
   app.use(json({ limit: "1mb" }));
 
   try {

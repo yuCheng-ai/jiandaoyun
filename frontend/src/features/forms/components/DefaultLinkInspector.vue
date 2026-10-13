@@ -9,7 +9,7 @@ import { useRuntimeData } from "../../../composables/useRuntimeData";
 import { copy, fieldDefinition } from "../../../domain/form";
 import { emptyDefaultLink, linkTypesMatch } from "../../../domain/fieldConfig";
 import { defaultLinkErrors } from "../../../domain/fieldValidation";
-import { formulaTypes } from "../../../domain/formula";
+import { formulaTypes } from "@platform/contracts";
 import {
   defaultLinkLocalFields,
   defaultLinkSourceFields,

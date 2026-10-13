@@ -15,7 +15,7 @@ import {
   formulaExpressionErrors,
   formulaFunctions,
   formulaValue,
-} from "../src/domain/formula";
+} from "@platform/contracts";
 import { applyFieldChange, runtimeDefaults } from "../src/domain/relations";
 import { validateFieldConfiguration } from "../src/domain/fieldValidation";
 import { seedWorkspace } from "../src/domain/workspace";

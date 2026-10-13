@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { copy, createField, fieldTypePatch, isFieldVisible, parseSchema } from "../src/domain/form";
 import { newForm, seedWorkspace, type FormEntry } from "../src/domain/workspace";
 import { defaultAccess, groupsForEntry, newAccessGroup } from "../src/domain/access";
-import { conditionValues } from "../src/domain/conditionValues";
+import { conditionValues } from "@platform/contracts";
 import { matchesFilters, relationCandidates } from "../src/domain/relations";
 import { parseFilters } from "../src/domain/fieldConfig";
 import { parseWorkspace } from "../src/repositories/workspaceRepository";

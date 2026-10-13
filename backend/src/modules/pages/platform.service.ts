@@ -51,12 +51,13 @@ import {
 } from "../../core/database/schema";
 import { AccessService, AccessContext, effectiveAccess } from "../access/access.service";
 import { applicationId } from "../applications/applications.service";
-import { historicalLabels, recordCreator } from "../directory/historical-identities";
 import {
+  historicalLabels,
   organizationCandidates,
   organizationDefault,
   organizationDefaultResolver,
   organizationLabels,
+  recordCreator,
   validateOrganizationDefinition,
   validateOrganizationValues,
 } from "../directory/organization-fields";
@@ -808,18 +809,8 @@ export class PlatformService {
       access,
     );
 
-    const hasOrigin =
-      actor.role === "admin" &&
-      (
-        await tx.query(
-          "SELECT 1 FROM record_origins WHERE record_id = $1 AND workspace_id = $2",
-          [id, actor.workspaceId],
-        )
-      ).rowCount;
-
     return {
       ...(page ? { page: { id: page.id, version: page.version, title: page.title } } : {}),
-      ...(hasOrigin ? { canReadOrigin: true } : {}),
       creator: await recordCreator(tx, actor, row.created_by),
       identities: await this.identityLabels(tx, actor, visible.schema, visible.values),
       definition: { ...definitionDto(version), schema: visible.schema },

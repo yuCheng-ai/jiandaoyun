@@ -4,7 +4,6 @@ import BaseDialog from "../../../components/BaseDialog.vue";
 import QuickFillDialog from "../../forms/components/QuickFillDialog.vue";
 import { useWorkspaceStore } from "../../../stores/workspace";
 import { useDraftDismiss } from "../../../composables/useDraftDismiss";
-import { restoreQuickFillDraft } from "../../../domain/extensionDraftAdapters";
 import { copy, type FormValues } from "../../../domain/form";
 import { runtimeDefaults, displayValue } from "../../../domain/relations";
 import {
@@ -41,25 +40,6 @@ const { confirmDiscard, requestClose, discard, markSaved, draftKey } =
     () => open.value,
     () => ({ config: draft.value, aliasText: aliasText.value }),
     () => (open.value = false),
-    {
-      key: () => `quick-fill:${props.form.id}`,
-      title: () => `快捷填报 · ${props.form.title}`,
-      context: () => ({
-        schema: schema.value,
-        original: props.form.extensions?.quickFill || null,
-        member: store.data.organization.currentUserId,
-      }),
-      restore: (value) => {
-        const restored = restoreQuickFillDraft(value);
-        draft.value = restored.config;
-        aliasText.value = restored.aliasText;
-        errors.value = [];
-        query.value = "";
-        previewValues.value = {};
-        previewOpen.value = false;
-        confirmDiscard.value = false;
-      },
-    },
   );
 function edit() {
   draft.value = parseQuickFill(

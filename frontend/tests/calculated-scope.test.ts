@@ -17,7 +17,7 @@ import {
   formulaReferences,
   formulaSyntaxError,
   formulaValue,
-} from "../src/domain/formula";
+} from "@platform/contracts";
 import {
   validateFieldConfiguration,
   validateDynamicValues,

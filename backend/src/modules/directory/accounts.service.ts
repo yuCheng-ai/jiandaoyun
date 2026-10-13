@@ -169,26 +169,7 @@ export class AccountService {
       throw new ConflictException("该成员已保留为独立历史身份，不能改为登录账号");
     }
 
-    // 5. 校验与已确认的迁移批次身份映射决议一致
-    const { rows: batches } = await tx.query(
-      "SELECT choices FROM migration_batches WHERE workspace_id = $1 AND source_namespace = $2 AND state = 'identities_confirmed'",
-      [actor.workspaceId, source.namespace],
-    );
-    for (const batch of batches) {
-      for (const choice of batch.choices) {
-        if (choice.kind !== "member") continue;
-        const mismatchSameMember =
-          choice.sourceId === source.memberId &&
-          (choice.mode !== "existing" || choice.targetId !== accountId);
-        const mismatchOtherMember =
-          choice.sourceId !== source.memberId && choice.targetId === accountId;
-        if (mismatchSameMember || mismatchOtherMember) {
-          throw new ConflictException("关联与已确认的成员身份不同，不能覆盖历史对应");
-        }
-      }
-    }
-
-    // 6. 保存关联关系并写入审计事件
+    // 5. 保存关联关系并写入审计事件
     let row: any;
     if (current) {
       const { rows } = await tx.query(

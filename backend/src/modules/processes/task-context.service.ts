@@ -1,7 +1,7 @@
 import { requireActiveRecord } from "../records/record-state";
 import { BadRequestException, ForbiddenException, Injectable } from "@nestjs/common";
 import type { FormField, FormSchema, FormValues, RecordDetail, TaskSpec } from "@platform/contracts";
-import { recordCreator } from "../directory/historical-identities";
+import { recordCreator } from "../directory/organization-fields";
 import type { Actor } from "../../core/auth/auth.service";
 import type { Transaction } from "../../core/database/database";
 import { PageService } from "../pages/pages.service";

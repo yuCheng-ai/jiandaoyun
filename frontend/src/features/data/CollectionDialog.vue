@@ -16,7 +16,7 @@ import {
   localCollectionTime,
   mergeCollectionRules,
 } from "../../domain/collectionRules";
-const props = defineProps<{ definitionId: string; title: string }>();
+const props = defineProps<{ definitionId: string; title: string; inline?: boolean }>();
 const emit = defineEmits<{
   close: [];
   saved: [configuration: CollectionConfiguration];
@@ -146,11 +146,13 @@ function merge() {
 onMounted(load);
 </script>
 <template>
-  <BaseDialog
+  <component
+    :is="inline ? 'div' : BaseDialog"
     :open="true"
     :title="`收集设置 · ${title}`"
     width="650px"
     :busy="busy"
+    :class="{ 'publish-card': inline }"
     @close="requestClose"
   >
     <p class="collab-help">
@@ -260,7 +262,19 @@ onMounted(load);
         合并到当前设置
       </button>
     </section>
-    <template #footer
+    <div v-if="inline" class="collab-toolbar" style="margin-top: 20px;">
+      <button v-if="!base" class="button" :disabled="busy" @click="load">
+        重新读取
+      </button>
+      <button
+        class="button primary"
+        :disabled="busy || !base || stale"
+        @click="save"
+      >
+        保存收集设置
+      </button>
+    </div>
+    <template v-if="!inline" #footer
       ><button class="button" :disabled="busy" @click="requestClose">
         取消</button
       ><button v-if="!base" class="button" :disabled="busy" @click="load">
@@ -273,7 +287,7 @@ onMounted(load);
         保存收集设置
       </button></template
     >
-  </BaseDialog>
+  </component>
 </template>
 <style scoped>
 .collab-check {

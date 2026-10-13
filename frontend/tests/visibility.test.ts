@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createField, emptySchema, isFieldVisible, prepareSubmission, parseSchema, validateValues, copy } from "../src/domain/form";
-import { editableVisibilityRules, visibilityScopes } from "../src/domain/visibility";
+import { editableVisibilityRules, visibilityScopes } from "@platform/contracts";
 import { buildRecordBlocks, defaultDetailSettings } from "../src/domain/presentation";
 import { seedWorkspace } from "../src/domain/workspace";
 import type { ConditionalVisibilityRule, VisibilityCondition } from "@platform/contracts";
