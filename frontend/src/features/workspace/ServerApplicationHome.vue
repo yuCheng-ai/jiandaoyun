@@ -26,7 +26,7 @@ import BaseDialog from "../../components/BaseDialog.vue";
 import UserMenu from "../../components/shared/UserMenu.vue";
 import { usePlatformSession } from "../../stores/platformSession";
 import { useNotices } from "../../stores/notices";
-import { platformApi } from "../../repositories/platformApi";
+import { platformApi, PlatformError } from "../../repositories/platformApi";
 import {
   accessGroupReady,
   accessGroupSelections,
@@ -128,16 +128,18 @@ async function changeRecordView(patch: Partial<RecordViewSettings>) {
     recordList.value.view = result;
     recordPage.value = 1;
     viewConflict.value = false;
-    await loadRecords();
-    notify("列表设置已保存");
-    return true;
   } catch (cause) {
     viewError.value = (cause as Error).message;
-    viewConflict.value = true;
+    viewConflict.value = cause instanceof PlatformError && cause.status === 409;
     return false;
   } finally {
     busy.value = false;
   }
+  // 设置已提交；后续列表读取失败只重试读取，不重复保存或提示版本冲突。
+  notify("列表设置已保存");
+  await run(loadRecords);
+  if (error.value) error.value = `列表设置已保存。${error.value}`;
+  return true;
 }
 async function saveColumns() {
   if (!columnDraft.value.length) {
@@ -227,14 +229,17 @@ let disposedRequest = 0;
 onBeforeUnmount(() => {
   disposedRequest++;
 });
+let retryAction: (() => Promise<void>) | undefined;
 async function run(action: () => Promise<void>) {
   if (busy.value) return;
   busy.value = true;
   error.value = "";
+  retryAction = undefined;
   try {
     await action();
   } catch (cause) {
     error.value = (cause as Error).message;
+    retryAction = action;
   } finally {
     busy.value = false;
   }
@@ -289,8 +294,9 @@ async function loadForm(resetList = true) {
   recordState.value = recordStateForAccess(access.access, recordState.value);
   if (!access.access.create && view.value === "fill") view.value = "records";
   if (
-    access.access.read ||
-    (recordState.value === "draft" && access.access.create)
+    view.value === "records" &&
+    (access.access.read ||
+      (recordState.value === "draft" && access.access.create))
   ) {
     await loadRecords(request);
   }
@@ -403,7 +409,7 @@ async function saved(result: RecordDetail, fromFilling = false) {
   if (
     !fromFilling &&
     detail.value?.record.state === "draft" &&
-    result.processId
+    result.record.state === "active"
   ) {
     detail.value = result;
     return;
@@ -582,7 +588,10 @@ async function permissions() {
     /></template>
     <p v-if="busy" class="server-home-message" role="status">正在读取…</p>
     <p v-if="error" class="field-error server-home-message" role="alert">
-      {{ error }} <button class="text-button" @click="run(load)">重试</button>
+      {{ error }}
+      <button class="text-button" @click="afterLeave(() => run(retryAction || load))">
+        重试
+      </button>
     </p>
     <ProcessWorkspace
       v-if="view === 'processes'"
