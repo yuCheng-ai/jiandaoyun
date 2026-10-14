@@ -3,7 +3,7 @@ import { computed } from "vue";
 import AppIcon from "../../../components/AppIcon.vue";
 import DataFilterEditor from "../../forms/components/DataFilterEditor.vue";
 import FieldControl from "../../forms/components/FieldControl.vue";
-import { useWorkspaceStore } from "../../../stores/workspace";
+import { useRuntimeData } from "../../../composables/useRuntimeData";
 import {
   automationActions,
   automationDefinition,
@@ -19,9 +19,9 @@ const props = defineProps<{
   total: number;
 }>();
 const emit = defineEmits<{ move: [direction: number]; remove: [] }>();
-const store = useWorkspaceStore();
+const runtimeData = useRuntimeData();
 const forms = computed(() =>
-  store.data.forms.filter((f) => !f.archived && f.published),
+  runtimeData.value.forms.filter((f) => !f.archived && f.published),
 );
 const form = computed(() =>
   forms.value.find((f) => f.id === props.step.targetFormId),
@@ -48,7 +48,7 @@ const targets = computed(() =>
 );
 const context = computed(() => ({
   ...(definition.value
-    ? runtimeDefaults(definition.value.schema.fields, store.data)
+    ? runtimeDefaults(definition.value.schema.fields, runtimeData.value)
     : {}),
   ...Object.fromEntries(
     props.step.mappings

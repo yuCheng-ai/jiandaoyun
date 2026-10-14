@@ -1,5 +1,20 @@
-import type { DataFilter } from "./form";
+import type { DataFilter, FormField } from "./form";
 import type { FieldPermission } from "./index";
+import { hasFieldValue } from "./field-runtime";
+import { isNumericField } from "./numbers";
+
+/** 权限筛选以字段的真实值类型为准，复合结构仅支持是否填写。 */
+export function groupFilterOperators(field?: FormField): DataFilter["operator"][] {
+  if (!field || !hasFieldValue(field) || field.type === "subform") return [];
+  const structured = [
+    "image", "file", "address", "location", "signature",
+    "query", "lookup", "relation", "relationTable",
+  ];
+  if (structured.includes(field.type)) return ["notEmpty"];
+  const operators: DataFilter["operator"][] = ["equals", "notEquals", "contains", "notEmpty"];
+  if (isNumericField(field)) operators.push("greater", "less");
+  return operators;
+}
 
 export type GroupSubjectKind = "member" | "department" | "role";
 
@@ -76,4 +91,25 @@ export interface RecordGroupOptions {
   revision: number;
   allowMerged: boolean;
   groups: Pick<RecordPermissionGroup, 'id' | 'name' | 'actions'>[];
+}
+
+/** 授权范围摘要，不代表任意一条记录均满足字段、页面或收集规则。 */
+export interface OrganizationFormPermission {
+  applicationId: string;
+  applicationTitle: string;
+  pageId: string;
+  title: string;
+  groups: Pick<RecordPermissionGroup, "id" | "name" | "actions" | "scope">[];
+}
+
+export interface OrganizationPermissionSummary {
+  member?: {
+    id: string;
+    name: string;
+    accountId: string | null;
+    username: string | null;
+    accountStatus: "unlinked" | "disabled" | "active" | "admin";
+  };
+  role?: { id: string; name: string; archived: boolean };
+  forms: OrganizationFormPermission[];
 }

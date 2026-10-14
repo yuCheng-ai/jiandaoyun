@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createApp, defineComponent, h, nextTick } from "vue";
+import { createPinia } from "pinia";
+import { createMemoryHistory, createRouter, RouterView } from "vue-router";
 import { createField, emptySchema } from "../src/domain/form";
 import RecordGroupDialog from "../src/features/collaboration/RecordGroupDialog.vue";
 import RecordGroupSelector from "../src/features/collaboration/RecordGroupSelector.vue";
@@ -15,27 +17,15 @@ import {
   accessGroupReady,
 } from "../src/repositories/accessGroupSelection";
 import { platformApi, PlatformError } from "../src/repositories/platformApi";
-vi.mock("vue-router", () => ({
-  onBeforeRouteLeave: vi.fn(),
-  onBeforeRouteUpdate: vi.fn(),
-  useRoute: () => ({ params: { applicationId: "app" }, query: {} }),
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-  RouterLink: defineComponent({
-    setup(_, { slots }) {
-      return () => h("a", slots.default?.());
-    },
-  }),
-}));
-vi.mock("../src/stores/workspace", () => ({
-  useWorkspaceStore: () => ({ activeForms: [] }),
-}));
 vi.mock("../src/stores/platformSession", () => ({
   usePlatformSession: () => ({
     user: { id: "member", role: "member", name: "办理人" },
     restore: vi.fn(),
   }),
 }));
-vi.mock("../src/components/shared/UserMenu.vue", () => ({ default: { render: () => null } }));
+vi.mock("../src/components/shared/UserMenu.vue", () => ({
+  default: { render: () => null },
+}));
 vi.mock("../src/features/processes/ProcessWorkspace.vue", () => ({
   default: { render: () => null },
 }));
@@ -97,20 +87,30 @@ const org = {
 };
 let app: ReturnType<typeof createApp> | undefined;
 async function settle() {
-  for (let i = 0; i < 20; i++) await nextTick();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  for (let i = 0; i < 5; i++) await nextTick();
 }
 async function mount(component: any, props: any = {}) {
-  app = createApp({ render: () => h(component, props) });
-  app.component(
-    "RouterLink",
-    defineComponent({
-      setup(_, { slots }) {
-        return () => h("a", slots.default?.());
-      },
-    }),
-  );
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      { path: "/applications/:applicationId", component, props: () => props },
+    ],
+  });
+  app = createApp({
+    render: () =>
+      h(RouterView, null, {
+        default: ({ Component, route }: any) =>
+          h(Component, { key: route.fullPath }),
+      }),
+  });
+  app.use(createPinia());
+  await router.push("/applications/app");
+  app.use(router);
+  await router.isReady();
   app.mount("#mount");
   await settle();
+  return router;
 }
 const button = (text: string) =>
   [...document.querySelectorAll("button")].find(
@@ -138,25 +138,23 @@ afterEach(() => {
   app?.unmount();
   document.body.innerHTML = "";
 });
-it("requires explicit selection for multiple groups, keeps a sole group usable and rejects stale merge choices", async () => {
+it("reads group options without changing the active selection", async () => {
   vi.mocked(platformApi).mockResolvedValue(options());
   let current = await recordGroupOptions("object");
   expect(accessGroupReady("object", current)).toBe(false);
+  expect(accessGroupSelections.value.object).toBeUndefined();
   chooseAccessGroup("object", "*");
   current = await recordGroupOptions("object");
   expect(accessGroupReady("object", current)).toBe(true);
   vi.mocked(platformApi).mockResolvedValue({
     ...options(),
-    allowMerged: false,
-  });
-  await recordGroupOptions("object");
-  expect(accessGroupSelections.value.object).toBeUndefined();
-  vi.mocked(platformApi).mockResolvedValue({
-    ...options(),
     groups: [options().groups[1]],
   });
   await recordGroupOptions("object");
-  expect(accessGroupSelections.value.object).toBe("b");
+  expect(accessGroupSelections.value.object).toBe("*");
+  chooseAccessGroup("object", "removed-group");
+  await recordGroupOptions("object");
+  expect(accessGroupSelections.value.object).toBe("removed-group");
   vi.mocked(platformApi).mockResolvedValue(undefined);
   await expect(recordGroupOptions("object")).rejects.toThrow("正确读取");
 });
@@ -178,7 +176,7 @@ it("the selection control exposes merge only when enabled and tells the parent t
   expect(changed).toHaveBeenCalledOnce();
   expect(accessGroupSelections.value.object).toBe("*");
 });
-it("opening a form does not fetch its record content until a permission group is chosen", async () => {
+it("opening a form uses allowed merged groups without an extra permission selection step", async () => {
   vi.mocked(platformApi).mockImplementation(async (path) => {
     if (path === "/applications") return [{ id: "app", title: "业务应用" }];
     if (path === "/data-objects?applicationId=app")
@@ -193,7 +191,23 @@ it("opening a form does not fetch its record content until a permission group is
         },
       ];
     if (path.endsWith("/options")) return options();
-    if (path.includes("/record-list?")) return { records: [], total: 0, page: 1, pageSize: 20, fields: [], view: { revision: 1, settings: { fieldIds: [], sortField: "$createdAt", descending: true, pageSize: 20 } } };
+    if (path.includes("/record-list?"))
+      return {
+        records: [],
+        total: 0,
+        page: 1,
+        pageSize: 20,
+        fields: [],
+        view: {
+          revision: 1,
+          settings: {
+            fieldIds: [],
+            sortField: "$createdAt",
+            descending: true,
+            pageSize: 20,
+          },
+        },
+      };
     if (path === "/pages/page/form?version=1")
       return {
         page: { id: "page", version: 1 },
@@ -210,24 +224,25 @@ it("opening a form does not fetch its record content until a permission group is
       .mock.calls.some(
         (c) => c[0].includes("/form?") || c[0].includes("/record-list?"),
       ),
-  ).toBe(false);
-  expect(vi.mocked(platformApi).mock.calls.at(-1)?.[0]).toBe(
-    "/definitions/object/permission-groups/options",
-  );
+  ).toBe(true);
+  expect(accessGroupSelections.value.object).toBe("*");
   await input(".record-group-choice select", "a");
   expect(
     vi
       .mocked(platformApi)
       .mock.calls.some(
-        (c) => c[0] === "/pages/page/record-list?version=1&state=active&page=1",
+        (c) => c[0] === "/pages/page/record-list?version=1&state=active&page=1&keyword=",
       ),
   ).toBe(true);
   expect(accessGroupSelections.value.object).toBe("a");
   await input(".record-group-choice select", "");
-  expect(document.body.textContent).toContain("请先选择本次办理使用的权限组");
+  expect(accessGroupSelections.value.object).toBe("*");
+  expect(document.body.textContent).not.toContain(
+    "请先选择本次办理使用的权限组",
+  );
   expect(
-    document.querySelector(".collab-table tbody tr button")?.textContent,
-  ).not.toBe("打开记录");
+    document.querySelector(".record-state-tab.active")?.textContent?.trim(),
+  ).toBe("正式记录");
 });
 it("group configuration conflicts keep edits and require an explicit discard before rereading", async () => {
   const saved = vi.fn();
@@ -289,6 +304,7 @@ it("closing an edited group uses the shared unsaved-change decision without savi
 });
 
 it("a create-only form opens its own drafts without requesting submitted records, then can switch to a viewing group", async () => {
+  chooseAccessGroup("object", "register");
   const allowed = {
     ...options(),
     groups: [
@@ -325,13 +341,33 @@ it("a create-only form opens its own drafts without requesting submitted records
           },
         },
       };
-    if (path.includes("/record-list?")) return { records: [], total: 0, page: 1, pageSize: 20, fields: [], view: { revision: 1, settings: { fieldIds: [], sortField: "$createdAt", descending: true, pageSize: 20 } } };
+    if (path.includes("/record-list?"))
+      return {
+        records: [],
+        total: 0,
+        page: 1,
+        pageSize: 20,
+        fields: [],
+        view: {
+          revision: 1,
+          settings: {
+            fieldIds: [],
+            sortField: "$createdAt",
+            descending: true,
+            pageSize: 20,
+          },
+        },
+      };
     throw new Error(path);
   });
-  await mount(ServerApplicationHome);
-
-  await input(".record-group-choice select", "register");
+  const router = await mount(ServerApplicationHome);
+  expect(accessGroupSelections.value.object).toBe("register");
+  vi.mocked(platformApi).mockClear();
   await click("数据管理");
+  expect(router.currentRoute.value.query).toEqual({
+    form: "page",
+    view: "records",
+  });
   expect(document.body.textContent).toContain("提交后由有查看权限的成员处理");
   expect(button("新增记录")).toBeDefined();
   expect(
@@ -339,15 +375,14 @@ it("a create-only form opens its own drafts without requesting submitted records
       .mocked(platformApi)
       .mock.calls.filter((c) => c[0].includes("/record-list?"))
       .map((c) => c[0]),
-  ).toEqual(["/pages/page/record-list?version=1&state=draft&page=1"]);
+  ).toEqual(["/pages/page/record-list?version=1&state=draft&page=1&keyword="]);
+  expect(button("正式记录")).toBeUndefined();
   expect(
-    [...document.querySelectorAll("option")].some(
-      (el) => el.value === "active",
-    ),
-  ).toBe(false);
+    document.querySelector(".record-state-tab.active")?.textContent?.trim(),
+  ).toBe("草稿箱");
   await input(".record-group-choice select", "review");
   expect(vi.mocked(platformApi).mock.calls.at(-1)![0]).toBe(
-    "/pages/page/record-list?version=1&state=active&page=1",
+    "/pages/page/record-list?version=1&state=active&page=1&keyword=",
   );
 });
 

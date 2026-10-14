@@ -2,23 +2,78 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import type { ProcessTemplateSpec } from "@platform/contracts";
-import { field, harness, schema } from "./helpers";
+import { field, harness, schema, type TestPermissionGroup } from "./helpers";
 const h = harness();
 let main: any, auxiliary: any, mainPage: any, auxiliaryPage: any, mainRecord: any, auxiliaryRecord: any, editor: any, reviewer: any, appId: string, published: any, processView: any, secondaryProcess: any;
 const mainSchema = schema(field("name"), field("decision"), field("private"), field("lines", "subform", { children: [field("item"), field("quantity", "number"), field("outcome")] }));
 const auxiliarySchema = schema(field("name"), field("state"));
-const grant = (user: any, fields: any) => ({ userId: user.id, read: true, create: false, edit: true, scope: "all", fields });
+const grant = (user: any, fields: any): TestPermissionGroup => ({
+  id: "member_" + user.id,
+  subjects: [{ kind: "member", id: user.id }],
+  scope: "all",
+  fields,
+  actions: ["view", "edit"],
+});
 const editorFields = { name: "read", decision: "hidden", private: "hidden", lines: "edit", item: "read", quantity: "edit", outcome: "edit" };
 const reviewerFields = { name: "read", decision: "edit", private: "hidden", lines: "read", item: "read", quantity: "read", outcome: "read" };
 function spec(): ProcessTemplateSpec {
-  return { title: "明细办理与资料核对", bindings: [
-    { id: "business", title: "业务单据", definitionId: main.id, definitionVersion: 1 },
-    { id: "support", title: "辅助资料", definitionId: auxiliary.id, definitionVersion: 1 },
-  ], tasks: [
-    { id: "lines", title: "办理明细", recordBinding: "business", assigneeId: editor.id, pageId: mainPage.id, pageVersion: 1, subformId: "lines", requiredFields: ["outcome"], dependsOn: [] },
-    { id: "check", title: "核对资料", recordBinding: "support", assigneeId: reviewer.id, pageId: auxiliaryPage.id, pageVersion: 1, requiredFields: [], dependsOn: [] },
-    { id: "finish", title: "汇总确认", recordBinding: "business", assigneeId: reviewer.id, pageId: mainPage.id, pageVersion: 1, requiredFields: ["decision"], dependsOn: ["lines", "check"], waitFor: { recordBinding: "support", fieldId: "state", equals: "可确认" } },
-  ] };
+  return {
+    title: "明细办理与资料核对",
+    startTaskIds: ["lines", "check"],
+    endTaskIds: ["finish"],
+    bindings: [
+      {
+        id: "business",
+        title: "业务单据",
+        definitionId: main.id,
+        definitionVersion: 1,
+      },
+      {
+        id: "support",
+        title: "辅助资料",
+        definitionId: auxiliary.id,
+        definitionVersion: 1,
+      },
+    ],
+    tasks: [
+      {
+        id: "lines",
+        title: "办理明细",
+        recordBinding: "business",
+        assigneeId: editor.id,
+        pageId: mainPage.id,
+        pageVersion: 1,
+        subformId: "lines",
+        requiredFields: ["outcome"],
+        dependsOn: [],
+      },
+      {
+        id: "check",
+        title: "核对资料",
+        recordBinding: "support",
+        assigneeId: reviewer.id,
+        pageId: auxiliaryPage.id,
+        pageVersion: 1,
+        requiredFields: [],
+        dependsOn: [],
+      },
+      {
+        id: "finish",
+        title: "汇总确认",
+        recordBinding: "business",
+        assigneeId: reviewer.id,
+        pageId: mainPage.id,
+        pageVersion: 1,
+        requiredFields: ["decision"],
+        dependsOn: ["lines", "check"],
+        waitFor: {
+          recordBinding: "support",
+          fieldId: "state",
+          equals: "可确认",
+        },
+      },
+    ],
+  };
 }
 async function save(specification: ProcessTemplateSpec) { return h.request("/process-templates", "POST", { requestId: randomUUID(), applicationId: appId, spec: specification }, "admin", 201); }
 async function publish(specification: ProcessTemplateSpec) {
@@ -39,9 +94,12 @@ before(async () => {
   appId = (await h.request(`/data-objects/${main.id}/draft`)).applicationId;
   mainRecord = await h.record(main.id, { name: "协作业务", decision: "", private: "不应泄露", lines: [{ item: "A", quantity: 1, outcome: "" }, { item: "B", quantity: 2, outcome: "" }] });
   auxiliaryRecord = await h.record(auxiliary.id, { name: "辅助单据", state: "待核对" });
-  await h.grant(main.id, grant(editor, editorFields));
-  await h.grant(main.id, grant(reviewer, reviewerFields));
-  await h.grant(auxiliary.id, grant(reviewer, { name: "read", state: "edit" }));
+  await h.permissionGroup(main.id, grant(editor, editorFields));
+  await h.permissionGroup(main.id, grant(reviewer, reviewerFields));
+  await h.permissionGroup(
+    auxiliary.id,
+    grant(reviewer, { name: "read", state: "edit" }),
+  );
 });
 after(() => h.close());
 
@@ -123,10 +181,13 @@ test("references prevent row deletion and waiting tasks are read-only", async ()
   await h.request(`${taskPath(finish)}/record`, "PATCH", { requestId: randomUUID(), changes: [{ fieldId: "decision", value: "提前完成", expectedRevision: 1 }] }, "reviewer", 409);
 });
 test("permission loss blocks pending task and current authorization recovery unblocks it", async () => {
-  await h.grant(main.id, grant(editor, { ...editorFields, outcome: "hidden" }));
+  await h.permissionGroup(
+    main.id,
+    grant(editor, { ...editorFields, outcome: "hidden" }),
+  );
   let result = await h.request(`/processes/${processView.id}`); assert.equal(result.tasks[1].status, "blocked"); assert.match(result.tasks[1].reason, /无法查看/);
   await h.request(`${taskPath(result.tasks[1])}/record`, "GET", undefined, "editor", 403);
-  await h.grant(main.id, grant(editor, editorFields));
+  await h.permissionGroup(main.id, grant(editor, editorFields));
   result = await h.request(`/processes/${processView.id}`); assert.equal(result.tasks[1].status, "ready");
   assert.ok(result.events.some((e: any) => e.action === "blocked"));
 });
@@ -148,15 +209,23 @@ test("parallel work joins before a cross-record condition, and background worker
   assert.equal((await h.db.query("SELECT count(*)::int AS n FROM process_events WHERE process_id=$1 AND action='completed'", [view.id])).rows[0].n, 4);
 });
 test("a second configuration handles same-row waits independently and never grants assignment-based access", async () => {
-  const config = spec(); config.title = "逐项核验"; config.bindings = [config.bindings[0]!]; config.tasks = [config.tasks[0]!];
+  const config = spec();
+  config.title = "逐项核验";
+  config.bindings = [config.bindings[0]!];
+  config.tasks = [config.tasks[0]!];
+  config.startTaskIds = ["lines"];
+  config.endTaskIds = ["lines"];
   config.tasks[0]!.waitFor = { recordBinding: "business", subformId: "lines", fieldId: "quantity", equals: 5 };
   const template = await publish(config);
   const preview = await h.request(`${path(template)}/preview`, "POST", { bindings: { business: mainRecord.record.id } }, "admin", 201);
   const result = await h.request(`${path(template)}/start`, "POST", { ...preview, requestId: randomUUID() }, "admin", 201);
   secondaryProcess = result; assert.deepEqual(result.tasks.map((t: any) => t.status), ["ready", "waiting"]);
-  await h.grant(main.id, { ...grant(editor, editorFields), read: false, edit: false });
+  await h.permissionGroup(main.id, {
+    ...grant(editor, editorFields),
+    enabled: false,
+  });
   await h.request(`${path(template)}/preview`, "POST", { bindings: { business: mainRecord.record.id } }, "admin", 403);
-  await h.grant(main.id, grant(editor, editorFields));
+  await h.permissionGroup(main.id, grant(editor, editorFields));
 });
 test("a transient background reconciliation failure is persisted and the next successful check clears it", async () => {
   await h.db.query("CREATE FUNCTION test_process_refresh_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected refresh failure'; END $$");
@@ -181,6 +250,8 @@ test("runtime task order follows the configured node order beyond nine nodes", a
   const source = spec(), first = source.tasks[0]!;
   source.bindings = [source.bindings[0]!];
   source.tasks = Array.from({ length: 12 }, (_, index) => ({ ...first, id: `node_${index + 1}`, title: `步骤 ${index + 1}`, subformId: undefined, requiredFields: [], dependsOn: [] }));
+  source.startTaskIds = source.tasks.map((task) => task.id);
+  source.endTaskIds = source.tasks.map((task) => task.id);
   const template = await publish(source), bindings = { business: mainRecord.record.id };
   const preview = await h.request(`${path(template)}/preview`, "POST", { bindings }, "admin", 201);
   const process = await h.request(`${path(template)}/start`, "POST", { ...preview, requestId: randomUUID() }, "admin", 201);

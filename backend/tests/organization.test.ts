@@ -1,19 +1,64 @@
 import { after, before, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import type { AccessPolicy, OrganizationSpec } from "@platform/contracts";
+import type {
+  RecordPermissionGroup,
+  OrganizationSpec,
+} from "@platform/contracts";
 import { harness, field, schema } from "./helpers";
 const h = harness(); let editor: any, reviewer: any, admin: any, organization: any, base: OrganizationSpec;
 const parent = randomUUID(), child = randomUUID(), other = randomUUID(), group = randomUUID(), role = randomUUID();
 const content = schema(field("name"), field("quantity", "number"), field("secret"), field("lines", "subform", { children: [field("item"), field("count", "number")] }));
-const readable = { name: "read", quantity: "read", secret: "read", lines: "read", item: "read", count: "read" };
-const policy = (extra: any = {}): AccessPolicy => ({ read: true, create: false, edit: false, scope: "all", fields: readable, ...extra });
+const readable: RecordPermissionGroup["fields"] = {
+  name: "read",
+  quantity: "read",
+  secret: "read",
+  lines: "read",
+  item: "read",
+  count: "read",
+};
+const policy = (
+  extra: any = {},
+): Pick<RecordPermissionGroup, "fields" | "actions"> &
+  Partial<RecordPermissionGroup> => ({
+  scope: "all",
+  fields: readable,
+  actions: ["view"],
+  ...extra,
+});
 async function save(spec: OrganizationSpec) { organization = await h.request("/organization", "PUT", { expectedRevision: organization.revision, spec }); return organization; }
-async function subject(definitionId: string, kind: string, id: string, grant: AccessPolicy, includeChildren = false) {
-  const current = (await h.request(`/definitions/${definitionId}/subject-grants`)).find((item: any) => item.subject.kind === kind && item.subject.id === id);
-  return h.request(`/definitions/${definitionId}/subject-grants`, "PUT", { ...grant, subject: { kind, id, includeChildren }, expectedRevision: current?.revision || 0 });
+async function subject(
+  definitionId: string,
+  kind: string,
+  id: string,
+  grant: Pick<RecordPermissionGroup, "fields" | "actions"> &
+    Partial<RecordPermissionGroup>,
+  includeChildren = false,
+) {
+  return h.permissionGroup(definitionId, {
+    id: `${kind}_${id}`,
+    subjects: [
+      {
+        kind: kind as "department" | "role",
+        id,
+        ...(kind === "department" ? { includeChildren } : {}),
+      },
+    ],
+    ...grant,
+  });
 }
-async function direct(definitionId: string, userId: string, grant: AccessPolicy) { return h.request(`/definitions/${definitionId}/grants`, "PUT", { ...grant, userId }); }
+async function direct(
+  definitionId: string,
+  userId: string,
+  grant: Pick<RecordPermissionGroup, "fields" | "actions"> &
+    Partial<RecordPermissionGroup>,
+) {
+  return h.permissionGroup(definitionId, {
+    id: "member_" + userId,
+    subjects: [{ kind: "member", id: userId }],
+    ...grant,
+  });
+}
 before(async () => {
   await h.start(); const users = await h.request("/users"); [admin, editor, reviewer] = ["admin", "editor", "reviewer"].map(username => users.find((u: any) => u.username === username));
   organization = await h.request("/organization");
@@ -46,16 +91,53 @@ test("department and role grants expose application, data and page entries to ma
   const draft = await h.request(`/data-objects/${definition.id}/draft`);
   assert.ok((await h.request("/applications", "GET", undefined, "reviewer")).some((a: any) => a.id === draft.applicationId));
   assert.ok((await h.request(`/pages?definitionId=${definition.id}`, "GET", undefined, "reviewer")).length);
-  await subject(definition.id, "department", parent, policy({ read: false }), true);
+  await subject(
+    definition.id,
+    "department",
+    parent,
+    policy({ enabled: false }),
+    true,
+  );
   await subject(definition.id, "role", role, policy());
   assert.ok((await h.request(`/pages?definitionId=${definition.id}`, "GET", undefined, "reviewer")).length);
-  await h.request(`/definitions/${definition.id}/subject-grants`, "PUT", { ...policy(), subject: { kind: "role", id: randomUUID() }, expectedRevision: 0 }, "admin", 400);
-  await h.request(`/definitions/${definition.id}/subject-grants`, "PUT", { ...policy(), subject: { kind: "role", id: role }, expectedRevision: 0 }, "admin", 409);
-  await h.request(`/definitions/${definition.id}/subject-grants`, "GET", undefined, "reviewer", 403);
+  const configuration = await h.request(
+    `/definitions/${definition.id}/permission-groups`,
+  );
+  const invalid = structuredClone(configuration);
+  invalid.groups[0].subjects = [{ kind: "role", id: randomUUID() }];
+  await h.request(
+    `/definitions/${definition.id}/permission-groups`,
+    "PUT",
+    { expectedRevision: configuration.revision, groups: invalid.groups },
+    "admin",
+    400,
+  );
+  await h.request(
+    `/definitions/${definition.id}/permission-groups`,
+    "PUT",
+    { expectedRevision: 0, groups: configuration.groups },
+    "admin",
+    409,
+  );
+  await h.request(
+    `/definitions/${definition.id}/permission-groups`,
+    "GET",
+    undefined,
+    "reviewer",
+    403,
+  );
 });
 test("self edit and global read remain separate per record and hidden does not deny another valid grant", async () => {
   const definition = await h.definition("多授权范围", content);
-  await direct(definition.id, editor.id, policy({ create: true, edit: true, scope: "self", fields: { name: "edit", quantity: "edit", secret: "hidden" } }));
+  await direct(
+    definition.id,
+    editor.id,
+    policy({
+      scope: "self",
+      fields: { name: "edit", quantity: "edit", secret: "hidden" },
+      actions: ["view", "create", "edit"],
+    }),
+  );
   await subject(definition.id, "role", role, policy());
   const own = await h.record(definition.id, { name: "本人", quantity: 2 }, "editor");
   const another = await h.record(definition.id, { name: "别人", quantity: 3, secret: "只读内容" });
@@ -68,40 +150,68 @@ test("self edit and global read remain separate per record and hidden does not d
 });
 test("parent restrictions are applied within each grant before child-column permissions are combined", async () => {
   const definition = await h.definition("父子列授权组合", content), record = await h.record(definition.id, { name: "A", lines: [{ item: "物料", count: 2 }] });
-  await direct(definition.id, editor.id, policy({ edit: true, fields: { name: "read", lines: "read", count: "edit" } }));
-  await subject(definition.id, "role", role, policy({ edit: true, fields: { lines: "edit", item: "edit", count: "hidden" } }));
+  await direct(
+    definition.id,
+    editor.id,
+    policy({
+      fields: { name: "read", lines: "read", count: "edit" },
+      actions: ["view", "edit"],
+    }),
+  );
+  await subject(
+    definition.id,
+    "role",
+    role,
+    policy({
+      fields: { lines: "edit", item: "edit", count: "hidden" },
+      actions: ["view", "edit"],
+    }),
+  );
   const detail = await h.request(`/records/${record.record.id}`, "GET", undefined, "editor");
   assert.equal(detail.access.fields.lines, "edit"); assert.equal(detail.access.fields.count, "read"); assert.equal(detail.access.fields.item, "edit");
   await h.request(`/records/${record.record.id}`, "PATCH", { requestId: randomUUID(), changes: [{ fieldId: "count", subformId: "lines", rowId: record.record.values.lines[0]._rowId, value: 10, expectedRevision: 1 }] }, "editor", 403);
 });
 test("create-only permissions cannot borrow editable fields from a separate edit-only grant", async () => {
   const definition = await h.definition("新增与修改分别授权", content);
-  await direct(definition.id, editor.id, policy({ create: true, fields: { name: "edit" } }));
-  await subject(definition.id, "role", role, policy({ edit: true, fields: { secret: "edit" } }));
+  await direct(
+    definition.id,
+    editor.id,
+    policy({ fields: { name: "edit" }, actions: ["view", "create"] }),
+  );
+  await subject(
+    definition.id,
+    "role",
+    role,
+    policy({ fields: { secret: "edit" }, actions: ["view", "edit"] }),
+  );
   await h.request(`/definitions/${definition.id}/records`, "POST", { requestId: randomUUID(), version: 1, values: { name: "合法", secret: "不应通过" } }, "editor", 403);
   const created = await h.record(definition.id, { name: "可创建" }, "editor"); assert.equal(created.record.values.secret, "");
   const page = (await h.request(`/pages?definitionId=${definition.id}`))[0];
   const form = await h.request(`/pages/${page.id}/form`, "GET", undefined, "editor"); assert.equal(form.access.fields.secret, undefined); assert.equal(form.access.fields.name, "edit");
   assert.equal((await h.request(`/definitions/${definition.id}/records`)).length, 1);
 });
-test("department scope follows membership changes without a new login and includes descendant creators", async () => {
-  const definition = await h.definition("部门范围", content);
-  await direct(definition.id, editor.id, policy({ create: true, edit: true, scope: "department", fields: { name: "edit" } }));
-  await direct(definition.id, reviewer.id, policy({ create: true, fields: { name: "edit" } }));
-  const own = await h.record(definition.id, { name: "本部门" }, "editor"), descendant = await h.record(definition.id, { name: "下级部门" }, "reviewer"), outside = await h.record(definition.id, { name: "其他部门" });
-  assert.deepEqual(new Set((await h.request(`/definitions/${definition.id}/records`, "GET", undefined, "editor")).map((r: any) => r.id)), new Set([own.record.id, descendant.record.id]));
-  await h.request(`/records/${outside.record.id}`, "GET", undefined, "editor", 403);
-  const moved = structuredClone(base); moved.assignments[1]!.departmentIds = [other]; moved.assignments[1]!.primaryDepartmentId = other; await save(moved);
-  await h.request(`/records/${descendant.record.id}`, "GET", undefined, "editor", 403);
-  assert.equal((await h.request(`/definitions/${definition.id}/records`, "GET", undefined, "editor")).length, 1);
-  await save(base); assert.equal((await h.request(`/records/${descendant.record.id}`, "GET", undefined, "editor")).record.id, descendant.record.id);
-});
 test("candidate filters and response fields use the target record's own eligible grants", async () => {
   const source = await h.definition("关联来源", schema(field("name"))), target = await h.definition("关联候选", content);
   const sourceRecord = await h.record(source.id, { name: "来源" });
   const relation = await h.relation({ title: "按秘密筛选", sourceDefinitionId: source.id, targetDefinitionId: target.id, cardinality: "many", inverseCardinality: "many", labelFieldId: "name", columns: ["name", "secret"], filters: [{ id: "secret_filter", sourceFieldId: "secret", operator: "equals", source: "constant", value: "匹配" }], mappings: [], valueMode: "live" });
-  await direct(source.id, editor.id, policy({ edit: true, fields: { name: "edit" }, relations: { [relation.id]: "edit" } }));
-  await direct(target.id, editor.id, policy({ create: true, scope: "self", fields: { name: "edit", secret: "edit" } }));
+  await direct(
+    source.id,
+    editor.id,
+    policy({
+      fields: { name: "edit" },
+      relations: { [relation.id]: "edit" },
+      actions: ["view", "edit"],
+    }),
+  );
+  await direct(
+    target.id,
+    editor.id,
+    policy({
+      scope: "self",
+      fields: { name: "edit", secret: "edit" },
+      actions: ["view", "create"],
+    }),
+  );
   await subject(target.id, "role", role, policy({ fields: { name: "read", secret: "hidden" } }));
   const own = await h.record(target.id, { name: "可查看候选", secret: "匹配" }, "editor"); await h.record(target.id, { name: "不应泄露候选", secret: "匹配" });
   const candidates = await h.request(`/records/${sourceRecord.record.id}/relations/${relation.id}/candidates`, "GET", undefined, "editor");
@@ -117,10 +227,43 @@ test("group selection expands every member, previews changes, joins all tasks an
   const definition = await h.definition("角色办理", content), object = await h.request(`/data-objects/${definition.id}/draft`), page = (await h.request(`/pages?definitionId=${definition.id}`))[0];
   const record = await h.record(definition.id, { name: "多成员办理", lines: [{ item: "A", count: 1 }, { item: "B", count: 2 }] });
   await subject(definition.id, "role", role, policy());
-  const spec = { title: "角色逐人办理", bindings: [{ id: "business", title: "业务", definitionId: definition.id, definitionVersion: 1 }], tasks: [
-    { id: "group", title: "逐行确认", assigneeId: "", assigneeSelector: { kind: "role", id: role }, recordBinding: "business", pageId: page.id, pageVersion: 1, subformId: "lines", requiredFields: [], dependsOn: [] },
-    { id: "finish", title: "汇总", assigneeId: admin.id, recordBinding: "business", pageId: page.id, pageVersion: 1, requiredFields: [], dependsOn: ["group"] },
-  ] };
+  const spec = {
+    title: "角色逐人办理",
+    startTaskIds: ["group"],
+    endTaskIds: ["finish"],
+    bindings: [
+      {
+        id: "business",
+        title: "业务",
+        definitionId: definition.id,
+        definitionVersion: 1,
+      },
+    ],
+    tasks: [
+      {
+        id: "group",
+        title: "逐行确认",
+        assigneeId: "",
+        assigneeSelector: { kind: "role", id: role },
+        recordBinding: "business",
+        pageId: page.id,
+        pageVersion: 1,
+        subformId: "lines",
+        requiredFields: [],
+        dependsOn: [],
+      },
+      {
+        id: "finish",
+        title: "汇总",
+        assigneeId: admin.id,
+        recordBinding: "business",
+        pageId: page.id,
+        pageVersion: 1,
+        requiredFields: [],
+        dependsOn: ["group"],
+      },
+    ],
+  };
   const template = await h.request("/process-templates", "POST", { requestId: randomUUID(), applicationId: object.applicationId, spec }, "admin", 201);
   await h.request(`/process-templates/${template.id}/publish`, "POST", { expectedRevision: template.revision }, "admin", 201);
   const path = `/process-templates/${template.id}/versions/1`, bindings = { business: record.record.id };
@@ -146,7 +289,36 @@ test("group selection expands every member, previews changes, joins all tasks an
 test("department selection honors descendant choice and an empty role cannot silently generate no work", async () => {
   const definition = await h.definition("部门取人", schema(field("name"))), object = await h.request(`/data-objects/${definition.id}/draft`), page = (await h.request(`/pages?definitionId=${definition.id}`))[0];
   const record = await h.record(definition.id, { name: "部门办理" }); await subject(definition.id, "role", role, policy({ fields: { name: "read" } }));
-  const spec = { title: "部门办理", bindings: [{ id: "business", title: "业务", definitionId: definition.id, definitionVersion: 1 }], tasks: [{ id: "department", title: "部门确认", assigneeId: "", assigneeSelector: { kind: "department", id: parent, includeChildren: false }, recordBinding: "business", pageId: page.id, pageVersion: 1, requiredFields: [], dependsOn: [] }] };
+  const spec = {
+    title: "部门办理",
+    startTaskIds: ["department"],
+    endTaskIds: ["department"],
+    bindings: [
+      {
+        id: "business",
+        title: "业务",
+        definitionId: definition.id,
+        definitionVersion: 1,
+      },
+    ],
+    tasks: [
+      {
+        id: "department",
+        title: "部门确认",
+        assigneeId: "",
+        assigneeSelector: {
+          kind: "department",
+          id: parent,
+          includeChildren: false,
+        },
+        recordBinding: "business",
+        pageId: page.id,
+        pageVersion: 1,
+        requiredFields: [],
+        dependsOn: [],
+      },
+    ],
+  };
   const template = await h.request("/process-templates", "POST", { requestId: randomUUID(), applicationId: object.applicationId, spec }, "admin", 201);
   await h.request(`/process-templates/${template.id}/publish`, "POST", { expectedRevision: template.revision }, "admin", 201);
   const path = `/process-templates/${template.id}/versions/1`;
@@ -178,13 +350,27 @@ test("page publication counts active group members once and reflects membership 
 
 for (const mode of ['record-update', 'page-update', 'record-create', 'page-create', 'record-link', 'page-link', 'record-unlink', 'page-unlink']) test(`organization changes serialize with ${mode} and revoke the next write`, async () => {
   const definition = await h.definition('调动并发边界', schema(field('name'))), record = await h.record(definition.id, { name: '原值' });
-  await subject(definition.id, 'role', role, policy({ create: true, edit: true, fields: { name: 'edit' } }));
+  await subject(
+    definition.id,
+    "role",
+    role,
+    policy({ fields: { name: "edit" }, actions: ["view", "create", "edit"] }),
+  );
   const page = (await h.request(`/pages?definitionId=${definition.id}`))[0], creating = mode.endsWith('create'), paged = mode.startsWith('page');
   let relationPath = '', targetId = '';
   if (mode.endsWith('link')) {
     const target = await h.definition('关联目标', schema(field('name'))); targetId = (await h.record(target.id, { name: '参考数据' })).record.id;
     const relation = await h.relation({ title: '并发关联', sourceDefinitionId: definition.id, targetDefinitionId: target.id, cardinality: 'many', inverseCardinality: 'many', labelFieldId: 'name', columns: ['name'], filters: [], mappings: [], valueMode: 'live' });
-    await subject(definition.id, 'role', role, policy({ edit: true, fields: { name: 'edit' }, relations: { [relation.id]: 'edit' } }));
+    await subject(
+      definition.id,
+      "role",
+      role,
+      policy({
+        fields: { name: "edit" },
+        relations: { [relation.id]: "edit" },
+        actions: ["view", "edit"],
+      }),
+    );
     await subject(target.id, 'role', role, policy({ fields: { name: 'read' } }));
     relationPath = `${paged ? `/pages/${page.id}` : ''}/records/${record.record.id}/relations/${relation.id}/links`;
     if (mode.endsWith('unlink')) {

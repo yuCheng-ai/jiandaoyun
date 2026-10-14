@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createApp, h, shallowRef } from "vue";
 import { createPinia, setActivePinia } from "pinia";
@@ -32,12 +33,6 @@ import {
 } from "../src/domain/workspace";
 import { useFormDesigner } from "../src/features/forms/useFormDesigner";
 
-import { useWorkspaceStore } from "../src/stores/workspace";
-import {
-  LocalWorkspaceRepository,
-  WORKSPACE_KEY,
-} from "../src/repositories/workspaceRepository";
-
 const apps: ReturnType<typeof createApp>[] = [];
 
 beforeEach(() => {
@@ -58,15 +53,6 @@ function mount(component: Parameters<typeof createApp>[0]) {
   app.mount(host);
   apps.push(app);
   return app;
-}
-
-function seed(form: FormRecord) {
-  const data = seedWorkspace();
-  data.forms = [form];
-  data.entries = [];
-  data.recentFormIds = [];
-  localStorage.setItem(WORKSPACE_KEY, JSON.stringify(data));
-  return data;
 }
 function publish(form: FormRecord) {
   form.published = {
@@ -258,30 +244,4 @@ it("preserves legacy over-limit definitions without allowing growth", () => {
   ).toContain("10 个富文本");
   schema.fields = legacy;
   expect(parseSchema(schema).fields).toHaveLength(11);
-});
-it("checks both count and default value on repository writes and retains rejected inputs", async () => {
-  const form = newForm("oa", "保存限制");
-  form.schema.fields = richFields(10);
-  seed(form);
-  const store = useWorkspaceStore(),
-    draft = store.openForm(form.id)!;
-  const original = copy(new LocalWorkspaceRepository().load()!);
-  draft.schema.fields.push(createField("richtext"));
-  expect(await store.saveForm(form.id)).toBe(false);
-  expect(await store.publishForm(form.id)).toBe(false);
-  expect(new LocalWorkspaceRepository().load()!).toEqual(original);
-  expect(draft.schema.fields).toHaveLength(11);
-  draft.schema.fields.pop();
-  draft.schema.fields[0]!.defaultValue = "超".repeat(30001);
-  expect(await store.saveForm(form.id)).toBe(false);
-  expect(await store.publishForm(form.id)).toBe(false);
-  expect(String(draft.schema.fields[0]!.defaultValue)).toHaveLength(30001);
-  draft.schema.fields[0]!.defaultValue = "<h2>默认内容</h2>";
-  expect(await store.saveForm(form.id)).toBe(true);
-  expect(await store.publishForm(form.id)).toBe(true);
-  const saved = new LocalWorkspaceRepository().load()!.forms[0]!;
-  expect(saved.versions).toHaveLength(1);
-  expect(saved.published!.schema.fields[0]!.defaultValue).toBe(
-    "<h2>默认内容</h2>",
-  );
 });

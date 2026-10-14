@@ -151,11 +151,23 @@ export function matchesGroupFilters(
   return filters.every((filter) => {
     const actual = choiceConditionValue(values[filter.sourceFieldId]);
     const expected = filterExpected(filter, actor, organization);
-    const actualIds = (Array.isArray(actual) ? actual : [actual])
-      .filter((v) => v !== null && v !== undefined && v !== "")
+    const items = Array.isArray(actual) ? actual : [actual];
+
+    // 结构字段只判断是否有内容，不能把地址、附件等对象当选项或字符串比较。
+    if (filter.operator === "notEmpty") {
+      return items.some((value) => {
+        if (value === null || value === undefined || value === "") return false;
+        if (typeof value === "object") return Object.keys(value).length > 0;
+        return true;
+      });
+    }
+    if (items.some((value) => value !== null && typeof value === "object")) {
+      return false;
+    }
+    const actualIds = items
+      .filter((value) => value !== null && value !== undefined && value !== "")
       .map(String);
 
-    if (filter.operator === "notEmpty") return actualIds.length > 0;
     if (!expected && filter.source !== "constant") return false;
     if (filter.operator === "equals") return actualIds.includes(expected);
     if (filter.operator === "notEquals") return !actualIds.includes(expected);
@@ -329,22 +341,36 @@ export function groupRecordSql(
 
     const field = `${alias}.values -> ${bind(filter.sourceFieldId)}::text`;
     const list = `CASE WHEN jsonb_typeof(${field})='array' THEN ${field} ELSE jsonb_build_array(${field}) END`;
-    const textValue = (value: string) =>
-      `CASE WHEN jsonb_typeof(${value})='object' THEN COALESCE(${value}->>'optionId',${value}->>'text') ELSE ${value} #>> '{}' END`;
-    const elements = `(SELECT ${textValue("item.value")} AS value FROM jsonb_array_elements(${list}) item(value)) v`;
-    const nonempty = `(v.value IS NOT NULL AND v.value<>'')`;
+
+    // 与 choiceConditionValue 的选项对象识别一致，其他 JSON 对象保留原形。
+    const normalized = `CASE WHEN jsonb_typeof(item.value)='object' THEN
+      CASE WHEN jsonb_typeof(item.value->'text')='string'
+        AND length(item.value->>'text') <= 10000
+        AND (item.value - 'text' - 'optionId')='{}'::jsonb
+        AND (NOT (item.value ? 'optionId') OR (
+          jsonb_typeof(item.value->'optionId')='string'
+          AND length(item.value->>'optionId') BETWEEN 1 AND 100
+        ))
+      THEN COALESCE(item.value->'optionId',item.value->'text')
+      ELSE item.value END
+      ELSE item.value END`;
+    const elements = `(SELECT ${normalized} AS value FROM jsonb_array_elements(${list}) item(value)) v`;
+    const nonempty = `(v.value IS NOT NULL AND v.value NOT IN ('null'::jsonb,'""'::jsonb,'[]'::jsonb,'{}'::jsonb))`;
 
     if (filter.operator === "notEmpty") {
       return `EXISTS(SELECT 1 FROM ${elements} WHERE ${nonempty})`;
     }
 
+    // 旧配置即便曾允许对象比较，也不能靠“不等于”将不支持的值放行。
+    const comparable = `NOT EXISTS(SELECT 1 FROM ${elements} WHERE jsonb_typeof(v.value) IN ('object','array'))`;
     const value = bind(expected);
-    const same = `EXISTS(SELECT 1 FROM ${elements} WHERE ${nonempty} AND v.value=${value}::text)`;
-    if (filter.operator === "equals") return same;
-    if (filter.operator === "notEquals") return `NOT (${same})`;
+    const same = `EXISTS(SELECT 1 FROM ${elements} WHERE ${nonempty} AND v.value #>> '{}'=${value}::text)`;
+    if (filter.operator === "equals") return `(${comparable} AND ${same})`;
+    if (filter.operator === "notEquals") return `(${comparable} AND NOT (${same}))`;
 
     if (filter.operator === "contains") {
-      return `(CASE WHEN jsonb_typeof(${field})='array' THEN ${same} ELSE position(${value}::text in COALESCE((${textValue(field)}),''))>0 END)`;
+      const contains = `EXISTS(SELECT 1 FROM ${elements} WHERE position(${value}::text in COALESCE(v.value #>> '{}',''))>0)`;
+      return `(${comparable} AND CASE WHEN jsonb_typeof(${field})='array' THEN ${same} ELSE ${contains} END)`;
     }
 
     const op = filter.operator === "greater" ? ">" : "<";

@@ -1,3 +1,4 @@
+import { separateFormSchema, type FormSchema } from "@platform/contracts";
 import { before, after, test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -28,13 +29,12 @@ async function setup() {
     ),
   );
   for (const userId of [editor, reviewer])
-    await h.grant(def.id, {
-      userId,
-      read: true,
-      create: true,
-      edit: true,
+    await h.permissionGroup(def.id, {
+      id: "member_" + userId,
+      subjects: [{ kind: "member", id: userId }],
       scope: "self",
       fields: { name: "edit", quantity: "edit" },
+      actions: ["view", "create", "edit"],
     });
   const page = (await h.request(`/pages?definitionId=${def.id}`))[0];
   return { def, page };
@@ -200,16 +200,16 @@ test("all versions and pages share one atomic quota across concurrent users; dra
     "admin",
     201,
   );
-  const draft = await h.request(`/definitions/${def.id}`, "PUT", {
+  const draft = await h.request(`/data-objects/${def.id}`, "PUT", {
     expectedRevision: def.revision,
     title: "收集规则验收新版",
-    schema: schema(
+    model: separateFormSchema(schema(
       field("name", "text", { required: true }),
       field("quantity", "number"),
-    ),
+    ) as unknown as FormSchema).model,
   });
   await h.request(
-    `/definitions/${def.id}/publish`,
+    `/data-objects/${def.id}/publish`,
     "POST",
     { expectedRevision: draft.revision },
     "admin",
@@ -273,7 +273,9 @@ test("all versions and pages share one atomic quota across concurrent users; dra
 test("repeat limits use the original filling member, across permission groups, drafts and administrator submission", async () => {
   const { def, page } = await setup();
   await h.request(`/definitions/${def.id}/permission-groups`, "PUT", {
-    expectedRevision: 0,
+    expectedRevision: (
+      await h.request(`/definitions/${def.id}/permission-groups`)
+    ).revision,
     mode: "groups",
     allowMerged: false,
     groups: ["a", "b"].map((id) => ({
@@ -565,13 +567,12 @@ test("concurrent configuration changes require a new revision; immutable audit a
 
 test("status does not bypass creation permission or workspace boundaries, and configured rules survive restart without touching records", async () => {
   const { def } = await setup();
-  await h.grant(def.id, {
-    userId: reviewer,
-    read: true,
-    create: false,
-    edit: false,
+  await h.permissionGroup(def.id, {
+    id: "member_" + reviewer,
+    subjects: [{ kind: "member", id: reviewer }],
     scope: "self",
     fields: { name: "read" },
+    actions: ["view"],
   });
   await h.request(
     `/definitions/${def.id}/collection-status`,

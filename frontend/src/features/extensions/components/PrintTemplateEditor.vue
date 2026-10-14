@@ -10,7 +10,7 @@ import {
   type PrintTemplate,
 } from "../../../domain/presentation";
 import { sampleValues } from "../../../domain/extensions";
-import { useWorkspaceStore } from "../../../stores/workspace";
+import { useRuntimeData } from "../../../composables/useRuntimeData";
 import { useDraftDismiss } from "../../../composables/useDraftDismiss";
 import PresentationFields from "./PresentationFields.vue";
 import SampleEditor from "./SampleEditor.vue";
@@ -26,12 +26,10 @@ const props = defineProps<{
   title: string;
 }>();
 const emit = defineEmits<{ close: [] }>();
-const store = useWorkspaceStore(),
-  config = ref(newPrintTemplate(props.schema, props.title)),
+const runtimeData = useRuntimeData();
+const config = ref(newPrintTemplate(props.schema, props.title)),
   values = ref(sampleValues(props.schema)),
-  errors = ref<string[]>([]),
-  tab = ref("layout"),
-  saving = ref(false);
+  tab = ref("layout");
 watch(
   () => props.open,
   (open) => {
@@ -41,24 +39,25 @@ watch(
       );
       config.value.fileName ||= { mode: "default", value: "" };
       values.value = sampleValues(props.schema);
-      errors.value = [];
       tab.value = "layout";
     }
   },
   { immediate: true },
 );
-const { confirmDiscard, requestClose, discard, markSaved, draftKey } =
-  useDraftDismiss(
-    () => props.open,
-    () => config.value,
-    () => emit("close"),
-  );
+const { confirmDiscard, requestClose, discard } = useDraftDismiss(
+  () => props.open,
+  () => config.value,
+  () => emit("close"),
+);
+const errors = computed(() =>
+  printTemplateIssues(config.value, props.schema, runtimeData.value),
+);
 const sizeLabel = computed(
   () =>
     `${config.value.paper} · ${config.value.orientation === "portrait" ? "纵向" : "横向"}`,
 );
 const fieldChoices = computed(() =>
-  printFieldChoices(props.schema, store.data),
+  printFieldChoices(props.schema, runtimeData.value),
 );
 const fieldIds = computed({
   get: () => expandedPrintFieldIds(props.schema, config.value.fieldIds),
@@ -76,35 +75,13 @@ const fileNameBinding = computed({
     fileName.value.value = binding.value;
   },
 });
-async function save() {
-  if (saving.value) return;
-  errors.value = printTemplateIssues(config.value, props.schema, store.data);
-  if (errors.value.length) return;
-  saving.value = true;
-  try {
-    if (await store.savePrintTemplate(props.formId, copy(config.value))) {
-      markSaved();
-      store.notify("打印模板已保存，发布新版本后生效");
-      emit("close");
-    } else
-      errors.value = [
-        store.storageError || "保存未完成，模板修改已保留，请重试。",
-      ];
-  } catch {
-    errors.value = ["保存失败，模板修改已保留，请重试。"];
-  } finally {
-    saving.value = false;
-  }
-}
 </script>
 <template>
   <BaseDialog
     :open="open"
-    :draft-key="draftKey"
-    :busy="saving"
     :title="modelValue ? '编辑打印模板' : '新建打印模板'"
     width="1180px"
-    @close="!saving && requestClose()"
+    @close="requestClose"
   >
     <div v-if="confirmDiscard" class="config-discard" tabindex="-1">
       <span>模板尚未保存，关闭后会丢失修改。</span
@@ -280,7 +257,9 @@ async function save() {
     </div>
     <template #footer
       ><button class="button" @click="requestClose">取消</button
-      ><button class="button primary" @click="save">保存模板</button></template
+      ><button class="button primary" disabled title="暂未开放保存">
+        保存模板
+      </button></template
     >
   </BaseDialog>
 </template>

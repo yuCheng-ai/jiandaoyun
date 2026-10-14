@@ -1,22 +1,20 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import AppIcon from "../../../components/AppIcon.vue";
-import { copy, type FormValues } from "../../../domain/form";
+import type { FormValues } from "../../../domain/form";
 import type { FormRecord } from "../../../domain/workspace";
 import {
   defaultCollaboration,
   newTitlePart,
   titleFields,
-  collaborationIssues,
   renderDataTitle,
 } from "../../../domain/collaboration";
 import { sampleValues } from "../../../domain/extensions";
-import { useWorkspaceStore } from "../../../stores/workspace";
+import { useRuntimeData } from "../../../composables/useRuntimeData";
 import SampleEditor from "./SampleEditor.vue";
 const props = defineProps<{ form: FormRecord }>();
-const store = useWorkspaceStore(),
-  errors = ref<string[]>([]),
-  sample = ref<FormValues>({});
+const runtimeData = useRuntimeData();
+const sample = ref<FormValues>({});
 watch(
   () => props.form,
   (form) => {
@@ -33,7 +31,7 @@ const preview = computed(() =>
     settings.value,
     props.form.schema,
     sample.value,
-    store.data,
+    runtimeData.value,
     props.form.title + " · 示例记录",
   ),
 );
@@ -45,14 +43,6 @@ function move(index: number, direction: number) {
     next = index + direction;
   if (next < 0 || next >= parts.length) return;
   [parts[index], parts[next]] = [parts[next]!, parts[index]!];
-}
-async function save() {
-  errors.value = collaborationIssues(settings.value, props.form.schema);
-  if (
-    !errors.value.length &&
-    (await store.saveCollaboration(props.form.id, copy(settings.value)))
-  )
-    store.notify("数据协作设置已保存，发布后用于新记录");
 }
 </script>
 <template>
@@ -154,12 +144,9 @@ async function save() {
           仍遵循字段可见/可编辑、必填、唯一性和联动规则。保存前展示实际变更，更新不会重新发起流程。
         </p>
       </div>
-      <ul v-if="errors.length" class="config-errors" role="alert">
-        <li v-for="error in errors" :key="error">{{ error }}</li>
-      </ul>
       <div class="submission-save">
         <span>发布后用于新记录，旧记录保留原版本设置</span
-        ><button type="button" class="button primary" @click="save">
+        ><button type="button" class="button primary" disabled>
           保存协作设置
         </button>
       </div>

@@ -3,7 +3,11 @@ import { computed, ref } from "vue";
 import type { FormField, ProcessTemplateTask } from "@platform/contracts";
 import AppIcon from "./AppIcon.vue";
 
-const props = defineProps<{ task: ProcessTemplateTask; fields: FormField[] }>();
+const props = defineProps<{
+  task: ProcessTemplateTask;
+  fields: FormField[];
+  readonly?: boolean;
+}>();
 const search = ref("");
 const rows = computed(() =>
   props.fields
@@ -69,7 +73,7 @@ function disabled(row: Row, column: Column): boolean {
   );
 }
 function change(row: Row, column: Column, enabled: boolean) {
-  if (disabled(row, column)) return;
+  if (props.readonly || disabled(row, column)) return;
   const task = props.task;
   const id = row.field.id;
   if (column === "required") {
@@ -131,6 +135,7 @@ function toggleAll(column: Column, enabled: boolean) {
           <input
             type="checkbox"
             :aria-label="`全部字段 ${column.label}`"
+            :disabled="readonly"
             :checked="allChecked(column.id)"
             :indeterminate="
               !allChecked(column.id) &&
@@ -149,7 +154,7 @@ function toggleAll(column: Column, enabled: boolean) {
             type="checkbox"
             :aria-label="`${row.label} ${column.label}`"
             :checked="checked(row, column.id)"
-            :disabled="disabled(row, column.id)"
+            :disabled="readonly || disabled(row, column.id)"
             @change="
               change(
                 row,

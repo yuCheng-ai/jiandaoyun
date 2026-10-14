@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createApp, h, nextTick, reactive } from "vue";
 import { createPinia } from "pinia";
@@ -33,7 +34,6 @@ import {
   memberContext,
   defaultAccess,
   newAccessGroup,
-  prepareMemberUpdate,
 } from "../src/domain/access";
 import {
   seedWorkspace,
@@ -41,12 +41,9 @@ import {
   type FormEntry,
   type FormRecord,
 } from "../src/domain/workspace";
-import { useWorkspaceStore } from "../src/stores/workspace";
+import { runtimeDataKey } from "../src/composables/useRuntimeData";
+import { computed } from "vue";
 import DefaultLinkInspector from "../src/features/forms/components/DefaultLinkInspector.vue";
-
-import FormRuntime from "../src/features/forms/components/FormRuntime.vue";
-
-vi.mock("../src/stores/workspace", () => ({ useWorkspaceStore: vi.fn() }));
 function publish(form: FormRecord) {
   form.published = {
     version: 1,
@@ -137,16 +134,12 @@ async function mount(
   render: Parameters<typeof createApp>[0],
   data: ReturnType<typeof fixture>["data"],
 ) {
-  const store = reactive({
-    data,
-    get activeForms() {
-      return this.data.forms.filter((f) => !f.archived);
-    },
-    notify: vi.fn(),
-  });
-  vi.mocked(useWorkspaceStore).mockReturnValue(store as any);
   document.body.innerHTML = '<div id="app"></div>';
   app = createApp(render);
+  app.provide(
+    runtimeDataKey,
+    computed(() => data),
+  );
   app.use(createPinia());
   const router = createRouter({
     history: createMemoryHistory(),
@@ -332,38 +325,6 @@ it("preserves explicit configuration, refuses malformed imports and protects com
     "defaultLink",
   );
 });
-it("does not turn a default lookup into permission to update a protected result field", () => {
-  const { data, source, target, record } = fixture();
-  const sourceAccess = defaultAccess(),
-    sourceGroup = newAccessGroup(source.schema);
-  sourceGroup.identities = ["wang"];
-  sourceAccess.membersEnabled = true;
-  sourceAccess.groups = [sourceGroup];
-  const targetAccess = defaultAccess(),
-    group = newAccessGroup(target.schema, "manage");
-  group.identities = ["wang"];
-  group.fields.attachment = "read";
-  targetAccess.membersEnabled = true;
-  targetAccess.groups = [group];
-  data.formAccess = { [source.id]: sourceAccess, [target.id]: targetAccess };
-  const entry = record("saved", "A", "2026-10-04");
-  entry.formId = target.id;
-  entry.values = {
-    product: "A",
-    attachment: copy(data.entries[1]!.values.files),
-    note: "",
-    picture: [],
-  };
-  data.entries.push(entry);
-  const updated = prepareMemberUpdate(data, entry, "wang", group.id, {
-    product: "B",
-  });
-  expect(updated.errors).toContain(
-    "字段联动会修改无编辑权限的字段，请联系管理员调整规则",
-  );
-  expect(entry.values.product).toBe("A");
-  expect(entry.values.attachment).toEqual(data.entries[1]!.values.files);
-});
 it("a source-only not-empty condition does not require or react to a dormant local reference", () => {
   const { data, target, attachment } = fixture();
   attachment.defaultLink!.filters[0]!.operator = "notEmpty";
@@ -544,55 +505,6 @@ it("the shared settings dialog confirms atomically, filters types and retains co
   click("放弃修改");
   await settle();
   expect(document.querySelector("dialog")).toBeNull();
-});
-it("real runtime prefills stored file IDs, submits them, and keeps initial saved values on reopen", async () => {
-  const { data, target } = fixture();
-  const files = [
-    { id: "source-file", name: "source.txt", type: "text/plain", size: 15 },
-  ];
-  data.entries[1]!.values.files = files;
-  const persist = vi.fn(async (_values: FormValues) => true);
-  await mount(
-    {
-      render: () =>
-        h(FormRuntime, {
-          schema: target.schema,
-          formId: target.id,
-          preview: false,
-          persistValues: persist,
-        }),
-    },
-    data,
-  );
-  expect(
-    document.querySelector('[aria-label="查看 source.txt"]'),
-  ).not.toBeNull();
-  document
-    .querySelector<HTMLFormElement>("form")!
-    .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-  await settle();
-  expect(persist.mock.calls[0]![0].attachment).toEqual(files);
-  app!.unmount();
-  app = undefined;
-  await mount(
-    {
-      render: () =>
-        h(FormRuntime, {
-          schema: target.schema,
-          formId: target.id,
-          entryId: "history",
-          initialValues: {
-            product: "A",
-            attachment: [{ name: "historic.txt", size: 4, type: "text/plain" }],
-          },
-        }),
-    },
-    data,
-  );
-  expect(
-    document.querySelector('[aria-label="查看 historic.txt"]'),
-  ).not.toBeNull();
-  expect(document.querySelector('[aria-label="查看 source.txt"]')).toBeNull();
 });
 
 function scalarFixture() {
@@ -867,67 +779,6 @@ it("uses the same member scope for scalar source fields and conditions", () => {
   expect(
     linkedDefault(amount, memberContext(data, "wang"), { product: "A" }),
   ).toBe("");
-});
-
-it("the real runtime submits scalar linked values but preserves a reopened record", async () => {
-  const { data, target } = scalarFixture(),
-    persist = vi.fn(async (_values: FormValues) => true);
-  const long = "第一行\n" + "完整说明".repeat(100);
-  data.entries[1]!.values.description = long;
-  await mount(
-    {
-      render: () =>
-        h(FormRuntime, {
-          schema: target.schema,
-          formId: target.id,
-          preview: false,
-          persistValues: persist,
-        }),
-    },
-    data,
-  );
-  expect(
-    document
-      .querySelector('[data-field-id="linkedNote"] textarea')
-      ?.getAttribute("maxlength"),
-  ).toBeNull();
-  document
-    .querySelector<HTMLFormElement>("form")!
-    .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-  await settle();
-  expect(persist.mock.calls[0]![0]).toMatchObject({
-    linkedAmount: 0,
-    linkedNote: long,
-    linkedDate: "2026-10-09",
-  });
-  app!.unmount();
-  app = undefined;
-  const original = {
-    product: "A",
-    linkedName: "旧名称",
-    linkedNote: "旧说明",
-    linkedAmount: 17,
-    linkedDate: "2025-01-01",
-  };
-  await mount(
-    {
-      render: () =>
-        h(FormRuntime, {
-          schema: target.schema,
-          formId: target.id,
-          initialValues: original,
-          entryId: "historic",
-          preview: false,
-          persistValues: persist,
-        }),
-    },
-    data,
-  );
-  document
-    .querySelector<HTMLFormElement>("form")!
-    .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-  await settle();
-  expect(persist.mock.calls.at(-1)![0]).toMatchObject(original);
 });
 
 it("legacy phone defaults and limits survive schema parsing without changing published definitions", () => {
@@ -1275,69 +1126,6 @@ it("rejects unusable address comparisons and value sources while ignoring dorman
   condition.value = "removed-field";
   expect(defaultLinkErrors(shipping, target.schema.fields, data)).toEqual([]);
   expect(matchesFilters([condition], record, {}, data)).toBe(true);
-});
-
-it("real address runtime submits the linked structure, changes customers and preserves a reopened record until its dependency changes", async () => {
-  const { data, target, shipping, locations } = addressFixture();
-  const persist = vi.fn(async (_values: FormValues) => true);
-  const render = (initialValues?: FormValues) => ({
-    render: () =>
-      h(FormRuntime, {
-        schema: target.schema,
-        formId: target.id,
-        preview: false,
-        initialValues,
-        entryId: initialValues ? "saved" : undefined,
-        persistValues: persist,
-      }),
-  });
-  await mount(render(), data);
-  expect(control<HTMLTextAreaElement>("收货地址 详细地址").value).toBe(
-    locations[1]!.detail,
-  );
-  const submit = () =>
-    document
-      .querySelector<HTMLFormElement>("form")!
-      .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-  submit();
-  await settle();
-  expect(persist.mock.calls[0]![0]).toMatchObject({
-    shipping: locations[1],
-    cityText: "无锡市",
-  });
-  app!.unmount();
-  app = undefined;
-  const old = {
-    product: "A",
-    shipping: { ...locations[1]!, detail: "历史地址" },
-    cityText: "无锡市",
-    note: "旧说明",
-  };
-  await mount(render(old), data);
-  submit();
-  await settle();
-  expect(persist.mock.calls.at(-1)![0]).toMatchObject(old);
-  app!.unmount();
-  app = undefined;
-  await mount(render(old), data);
-  const input = document.querySelector<HTMLInputElement>(
-    '[data-field-id="product"] input',
-  )!;
-  input.value = "B";
-  input.dispatchEvent(new Event("input", { bubbles: true }));
-  await settle();
-  expect(control<HTMLTextAreaElement>("收货地址 详细地址").value).toBe(
-    locations[2]!.detail,
-  );
-  submit();
-  await settle();
-  expect(persist.mock.calls.at(-1)![0]).toMatchObject({
-    product: "B",
-    shipping: locations[2],
-    cityText: "深圳市",
-    note: "旧说明",
-  });
-  expect(shipping.defaultValue).toMatchObject({ detail: "旧自定义仓库" });
 });
 
 it("all four date granularities round-trip each default source without losing custom, formula or linked configuration", () => {

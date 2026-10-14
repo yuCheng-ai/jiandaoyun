@@ -2,17 +2,20 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createApp, h, nextTick } from "vue";
 import PlatformLogin from "../src/features/session/PlatformLogin.vue";
-const login = vi.hoisted(() => vi.fn());
+const { login, replace } = vi.hoisted(() => ({ login: vi.fn(), replace: vi.fn() }));
+vi.mock("vue-router", () => ({
+  useRoute: () => ({ query: {} }),
+  useRouter: () => ({ replace }),
+}));
 vi.mock("../src/stores/platformSession", () => ({
   usePlatformSession: () => ({ login }),
 }));
 let app: ReturnType<typeof createApp> | undefined;
-const signedIn = vi.fn();
 async function settle() {
   for (let i = 0; i < 10; i++) await nextTick();
 }
 async function mount() {
-  app = createApp({ render: () => h(PlatformLogin, { onSignedIn: signedIn }) });
+  app = createApp({ render: () => h(PlatformLogin) });
   app.mount("#mount");
   await settle();
   const set = (selector: string, value: string) => {
@@ -32,14 +35,14 @@ async function submit() {
 }
 beforeEach(() => {
   login.mockReset();
-  signedIn.mockReset();
+  replace.mockReset();
   document.body.innerHTML = '<div id="mount"></div>';
 });
 afterEach(() => {
   app?.unmount();
   document.body.innerHTML = "";
 });
-it("login emits only after authentication and disables repeat submission while pending", async () => {
+it("login navigates only after authentication and disables repeat submission while pending", async () => {
   let done!: () => void;
   login.mockImplementation(
     () =>
@@ -52,14 +55,14 @@ it("login emits only after authentication and disables repeat submission while p
   await submit();
   expect(login).toHaveBeenCalledTimes(1);
   expect(login).toHaveBeenCalledWith("editor", "test-only-password");
-  expect(signedIn).not.toHaveBeenCalled();
+  expect(replace).not.toHaveBeenCalled();
   expect(document.querySelector("button")!.disabled).toBe(true);
   expect(document.querySelector('[role="status"]')?.textContent).toContain(
     "正在登录",
   );
   done();
   await settle();
-  expect(signedIn).toHaveBeenCalledOnce();
+  expect(replace).toHaveBeenCalledExactlyOnceWith("/");
   expect(
     document.querySelector<HTMLInputElement>('[type="password"]')!.value,
   ).toBe("");
@@ -70,7 +73,7 @@ it("authentication failure retains inputs for retry and does not navigate or rep
     .mockResolvedValueOnce(undefined);
   await mount();
   await submit();
-  expect(signedIn).not.toHaveBeenCalled();
+  expect(replace).not.toHaveBeenCalled();
   expect(document.querySelector('[role="alert"]')?.textContent).toContain(
     "账号或密码不正确",
   );
@@ -79,6 +82,6 @@ it("authentication failure retains inputs for retry and does not navigate or rep
   ).toBe("test-only-password");
   expect(document.querySelector("button")!.disabled).toBe(false);
   await submit();
-  expect(signedIn).toHaveBeenCalledOnce();
+  expect(replace).toHaveBeenCalledExactlyOnceWith("/");
   expect(document.querySelector('[role="alert"]')).toBeNull();
 });

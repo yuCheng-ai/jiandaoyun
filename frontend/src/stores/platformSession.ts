@@ -20,9 +20,10 @@ export const usePlatformSession = defineStore("platform-session", () => {
         if (requestedRevision === revision) setUser(account);
       } catch (error) {
         if (requestedRevision !== revision) return;
-        setUser(null);
+        // 只有鉴权失败才清空身份，服务故障不能被当作退出登录。
         if (!(error instanceof PlatformError) || error.status !== 401)
           throw error;
+        setUser(null);
       }
     })();
     restoring = pending;

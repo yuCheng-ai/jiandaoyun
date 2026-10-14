@@ -179,7 +179,6 @@ export async function dataModelImpact(
   tx: Transaction,
   definition: any,
   model: DataModel,
-  managePage = false,
   context?: { organization: ServerOrganization; actorId: string; publishingPageId?: string },
 ): Promise<DataModelImpact> {
   const prevSql = `
@@ -256,7 +255,6 @@ export async function dataModelImpact(
   );
   const references: DataModelImpact["references"] = [];
   const stamps: unknown[] = [];
-  let defaultPageWillPublish = false;
 
   const referenced = (ids: Iterable<string>) =>
     [...ids].filter((id) => affected.has(id)).map((id) => names.get(id) || id);
@@ -276,13 +274,9 @@ export async function dataModelImpact(
     // 当前正在随同模型一起发布的页面不计入外部阻塞引用
     if (row.id === context?.publishingPageId) continue;
 
-    if (managePage && row.managed && !row.archived_at) {
-      defaultPageWillPublish = true;
-    }
-
     if (row.latest_version) {
       const ids = pageBindings(row.schema);
-      const blocked = !row.archived_at && missing(ids).length > 0 && !(managePage && row.managed);
+      const blocked = !row.archived_at && missing(ids).length > 0;
 
       let detail: string;
       if (row.archived_at) {
@@ -292,8 +286,6 @@ export async function dataModelImpact(
           .map((id) => names.get(id) || id)
           .join("、");
         detail = `仍使用待移除字段：${missingNames}；请先调整并发布页面`;
-      } else if (managePage && row.managed) {
-        detail = "默认页面随此兼容定义一起发布；历史页面保留";
       } else {
         detail = `保持数据 V${row.public_data_version}；采用新版需要重新编辑并发布`;
       }
@@ -379,7 +371,7 @@ export async function dataModelImpact(
   const processSql = `
     SELECT t.*, v.spec
     FROM process_templates t
-    LEFT JOIN process_template_versions v ON v.template_id = t.id AND v.version = t.latest_version
+    LEFT JOIN process_template_versions v ON v.template_id = t.id AND v.version = t.active_version
     WHERE t.workspace_id = $1
     ORDER BY t.id
   `;
@@ -412,7 +404,7 @@ export async function dataModelImpact(
         id: row.id,
         title: spec.title,
         state,
-        version: row.latest_version,
+        version: state === "published" ? row.active_version : row.latest_version,
         fields: referenced(ids),
         effect: "retained",
         detail: `${bindingSummary}。任务范围、必填和等待条件继续按绑定版本执行`,
@@ -579,7 +571,6 @@ export async function dataModelImpact(
         }
       : {}),
     titleChanged: !!previous && previous.title !== definition.title,
-    defaultPageWillPublish,
     changes: {
       added: changes.added.map(summarize),
       removed: changes.removed.map(summarize),
@@ -595,7 +586,7 @@ export async function dataModelImpact(
   };
 
   const token = createHash("sha256")
-    .update(fingerprint({ impact, model, stamps, managePage }))
+    .update(fingerprint({ impact, model, stamps }))
     .digest("hex");
 
   return { ...impact, token };

@@ -1,15 +1,10 @@
 // @vitest-environment jsdom
+// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp, defineComponent, h, nextTick, ref } from "vue";
 import BaseDialog from "../src/components/BaseDialog.vue";
 import { useDraftDismiss } from "../src/composables/useDraftDismiss";
-import { useWorkspaceStore } from "../src/stores/workspace";
 
-vi.mock("../src/stores/workspace", async () => {
-  const { reactive } = await import("vue");
-  const state = reactive({ writePending: false });
-  return { useWorkspaceStore: () => state };
-});
 vi.mock("../src/components/AppIcon.vue", () => ({
   default: { render: () => null },
 }));
@@ -19,7 +14,6 @@ vi.mock("../src/components/shared/EditorDraftNotice.vue", () => ({
 
 const cleanups: (() => void)[] = [];
 beforeEach(() => {
-  useWorkspaceStore().writePending = false;
   document.body.innerHTML =
     '<div id="app"><button id="opener">打开</button><div id="mount"></div></div>';
   document.body.style.overflow = "auto";
@@ -79,19 +73,6 @@ function escape() {
 }
 
 describe("real shared dialog lifecycle", () => {
-  it("does not lock an unrelated dialog while workspace saving is pending", async () => {
-    const close = vi.fn();
-    useWorkspaceStore().writePending = true;
-    mount({
-      render: () =>
-        h(BaseDialog, { open: true, title: "编辑配置", onClose: close }),
-    });
-    await nextTick();
-    expect(dialog().querySelector('[role="status"]')).toBeNull();
-    await click(dialog().querySelector("button")!);
-    expect(close).toHaveBeenCalledOnce();
-  });
-
   it.each(["header", "cancel", "backdrop", "escape"])(
     "closes through %s and can reopen without a stale overlay",
     async (method) => {

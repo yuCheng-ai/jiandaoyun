@@ -3,6 +3,11 @@ export const router = createRouter({
   history: createWebHashHistory(),
   routes: [
     {
+      path: "/login",
+      name: "login",
+      component: () => import("../features/session/PlatformLogin.vue"),
+    },
+    {
       path: "/applications/:applicationId",
       name: "data-workspace",
       component: () =>
@@ -11,21 +16,25 @@ export const router = createRouter({
     {
       path: "/applications/:applicationId/pages/:pageId/design",
       name: "page-designer",
+      meta: { requiresAdmin: true },
       component: () => import("../features/data/PageDesignerView.vue"),
     },
     {
       path: "/applications/:applicationId/pages/:pageId/flow",
       name: "page-workflow",
+      meta: { requiresAdmin: true },
       component: () => import("../features/workflow/WorkflowView.vue"),
     },
     {
       path: "/applications/:applicationId/pages/:pageId/extensions",
       name: "page-extensions",
+      meta: { requiresAdmin: true },
       component: () => import("../features/extensions/ExtensionsView.vue"),
     },
     {
       path: "/applications/:applicationId/pages/:pageId/publish",
       name: "page-publish",
+      meta: { requiresAdmin: true },
       component: () => import("../features/forms/PublishView.vue"),
     },
     {
@@ -33,17 +42,9 @@ export const router = createRouter({
       redirect: "/",
     },
     {
-      path: "/collaboration",
-      name: "collaboration",
-      redirect: "/",
-    },
-    {
-      path: "/admin/payments",
-      redirect: { path: "/", query: { notice: "legacy-link" } },
-    },
-    {
       path: "/admin/organization",
       name: "organization",
+      meta: { requiresAdmin: true },
       component: () => import("../features/organization/EmployeesView.vue"),
     },
     {
@@ -53,11 +54,13 @@ export const router = createRouter({
     {
       path: "/admin/roles",
       name: "roles",
+      meta: { requiresAdmin: true },
       component: () => import("../features/organization/RolesView.vue"),
     },
     {
       path: "/admin/permissions",
       name: "permissions",
+      meta: { requiresAdmin: true },
       component: () => import("../features/organization/PermissionsView.vue"),
     },
     {
@@ -65,12 +68,7 @@ export const router = createRouter({
       name: "home",
       component: () => import("../features/workspace/WorkbenchView.vue"),
     },
-    // Local app/form IDs have no implicit correspondence to server UUIDs.
-    // Retired bookmarks lead to the authorized application list, never to a guessed record.
-    {
-      path: "/apps/:pathMatch(.*)*",
-      redirect: { path: "/", query: { notice: "legacy-link" } },
-    },
+    // 已删除页面统一回到工作台，未登录时由会话守卫转到登录页。
     { path: "/:pathMatch(.*)*", redirect: "/" },
   ],
 });
@@ -78,6 +76,7 @@ export const router = createRouter({
 router.afterEach((to, _from, failure) => {
   if (failure) return;
   const labels: Record<string, string> = {
+    login: "登录",
     "data-workspace": "应用",
     "page-designer": "表单设计",
     "page-workflow": "流程设计",

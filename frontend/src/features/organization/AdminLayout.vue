@@ -32,7 +32,7 @@ async function logout() {
   error.value = "";
   try {
     await session.logout();
-    await router.replace("/");
+    await router.replace("/login");
   } catch (cause) {
     error.value = (cause as Error).message;
   } finally {

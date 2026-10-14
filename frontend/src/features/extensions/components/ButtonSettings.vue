@@ -2,7 +2,7 @@
 import { computed, ref } from "vue";
 import AppIcon from "../../../components/AppIcon.vue";
 import ButtonEditor from "./ButtonEditor.vue";
-import { useWorkspaceStore } from "../../../stores/workspace";
+import { useRuntimeData } from "../../../composables/useRuntimeData";
 import type { FormRecord } from "../../../domain/workspace";
 import {
   buttonActions,
@@ -12,8 +12,8 @@ import {
 } from "../../../domain/buttons";
 import { copy, uid } from "../../../domain/form";
 const props = defineProps<{ form: FormRecord; query: string }>();
-const store = useWorkspaceStore(),
-  archived = ref(false),
+const runtimeData = useRuntimeData();
+const archived = ref(false),
   open = ref(false),
   editing = ref<CustomButton>();
 const configs = computed(() =>
@@ -32,28 +32,6 @@ function duplicate(c: CustomButton) {
     name: c.name + " 副本",
     enabled: false,
   });
-}
-async function toggle(c: CustomButton) {
-  const next = { ...copy(c), enabled: !c.enabled };
-  if (
-    next.enabled &&
-    buttonIssues(next, props.form.schema, store.data).length
-  ) {
-    edit(next);
-    return;
-  }
-  if (await store.saveButton(props.form.id, next))
-    store.notify("按钮状态已保存，发布新版本后生效");
-}
-async function archive(c: CustomButton) {
-  if (
-    await store.saveButton(props.form.id, {
-      ...copy(c),
-      archived: !c.archived,
-      enabled: false,
-    })
-  )
-    store.notify("归档状态已保存，历史记录保留原版本按钮");
 }
 function positionsLabel(c: CustomButton) {
   return c.positions.map((p) => buttonPositions[p]).join("、");
@@ -103,27 +81,28 @@ function positionsLabel(c: CustomButton) {
           }}</span>
         </div>
         <p
-          v-if="buttonIssues(c, form.schema, store.data).length"
+          v-if="buttonIssues(c, form.schema, runtimeData).length"
           class="config-warning"
         >
-          {{ buttonIssues(c, form.schema, store.data)[0]?.message }}
+          {{ buttonIssues(c, form.schema, runtimeData)[0]?.message }}
         </p>
         <div class="config-card-footer">
           <span>{{
             c.filters.length ? `${c.filters.length} 个显示条件` : "始终显示"
           }}</span
           ><button class="text-button" @click="edit(c)">编辑与检查</button
-          ><button v-if="!c.archived" class="text-button" @click="toggle(c)">
+          ><button v-if="!c.archived" class="text-button" disabled>
             {{ c.enabled ? "停用" : "启用" }}</button
           ><button v-if="!c.archived" class="text-button" @click="duplicate(c)">
             复制按钮</button
-          ><button class="text-button" @click="archive(c)">
+          ><button class="text-button" disabled>
             {{ c.archived ? "恢复按钮" : "归档按钮" }}
           </button>
         </div>
       </article>
     </div>
     <ButtonEditor
+      v-if="open"
       :open="open"
       :model-value="editing"
       :schema="form.schema"

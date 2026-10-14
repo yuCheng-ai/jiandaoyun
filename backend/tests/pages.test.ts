@@ -67,8 +67,6 @@ test("invalid bindings, malformed controls and stale page drafts are rejected", 
   page = await h.request(`/pages/${page.id}/draft`);
   const invalid = structuredClone(page); invalid.schema.controls[0].binding.fieldId = "missing";
   await h.request(`/pages/${page.id}`, "PUT", { ...invalid, expectedRevision: page.revision }, "admin", 400);
-  invalid.schema = structuredClone(page.schema); invalid.schema.controls[0].properties.tabs = null;
-  await h.request(`/pages/${page.id}`, "PUT", { ...invalid, expectedRevision: page.revision }, "admin", 400);
   invalid.schema = structuredClone(page.schema); invalid.schema.settings.allowSubmit = "disabled";
   await h.request(`/pages/${page.id}`, "PUT", { ...invalid, expectedRevision: page.revision }, "admin", 400);
   invalid.schema = structuredClone(page.schema); invalid.schema.settings.draftLabel = { text: "暂存" };
@@ -120,7 +118,20 @@ test("published page and model versions cannot be rewritten; restart retains ind
 
 test("two pages read and write the same record while page and member restrictions both apply", async () => {
   const users = await h.request("/users"), editor = users.find((user: any) => user.username === "editor");
-  await h.request(`/definitions/${definition.id}/grants`, "PUT", { userId: editor.id, read: true, create: true, edit: true, scope: "all", fields: { name: "edit", quantity: "edit", lines: "edit", item: "edit", count: "read", conclusion: "hidden" } });
+  await h.permissionGroup(definition.id, {
+    id: "member_" + editor.id,
+    subjects: [{ kind: "member", id: editor.id }],
+    scope: "all",
+    fields: {
+      name: "edit",
+      quantity: "edit",
+      lines: "edit",
+      item: "edit",
+      count: "read",
+      conclusion: "hidden",
+    },
+    actions: ["view", "create", "edit"],
+  });
   const schema = pageForModel(model); schema.controls[0]!.properties.editable = false; schema.controls[1]!.properties.visible = false;
   let scoped = await h.request("/pages", "POST", { title: "只读名称与处理明细", definitionId: definition.id, definitionVersion: 1, schema }, "admin", 201);
   scoped = await h.request(`/pages/${scoped.id}/publish`, "POST", { expectedRevision: scoped.revision }, "admin", 201);

@@ -24,6 +24,7 @@ import {
 import { platformApi } from "../../repositories/platformApi";
 import { usePageDesignerStore } from "../../stores/pageDesigner";
 import { usePlatformSession } from "../../stores/platformSession";
+import { useNotices } from "../../stores/notices";
 import {
   fieldRegistry,
   findField,
@@ -55,6 +56,7 @@ import DateRangeInspector from "../forms/components/DateRangeInspector.vue";
 import { isChoiceField } from "@platform/contracts";
 import UserMenu from "../../components/shared/UserMenu.vue";
 import PagePublishDialog from "./PagePublishDialog.vue";
+const { notify } = useNotices();
 const store = usePageDesignerStore(),
   session = usePlatformSession(),
   router = useRouter(),
@@ -81,7 +83,7 @@ const facade = computed(() => ({
     store.state.schema = value;
   },
 }));
-const notice = ref(""),
+const interactionHint = ref(""),
   fieldMode = ref("new"),
   query = ref(""),
   inspector = ref("field");
@@ -96,7 +98,7 @@ const preview = ref(false),
   publishing = ref(false),
   reloading = ref(false);
 const editor = useFormDesigner(facade, (message) => {
-  notice.value = message;
+  interactionHint.value = message;
 });
 const discarding = ref(false), recycling = ref(false);
 async function locateField() {
@@ -227,7 +229,8 @@ function confirmReuse() {
     editor.select(plan.replacement.id);
     editor.activeParent.value = plan.parentId || null;
     reuseReview.value = undefined;
-    notice.value = "已改用已有字段，保留本页显示设置；可撤销恢复。";
+    interactionHint.value = "";
+    notify("已改用已有字段");
   } catch (cause) {
     reuseError.value = (cause as Error).message;
   }
@@ -291,7 +294,7 @@ function add(
   while (existing.has(label)) label = `${original} ${counter++}`;
   const field = editor.add(type, parentId, undefined, index, { label });
   if (!field) return;
-  notice.value = "";
+  interactionHint.value = "";
   inspector.value = "field";
   inspectField();
 }
@@ -307,7 +310,7 @@ function reuse(
     !existing ||
     flattenFields(store.state.schema.fields).some((field) => field.id === id)
   ) {
-    notice.value = "请选择当前范围内尚未放入页面的已有字段。";
+    interactionHint.value = "请选择当前范围内尚未放入页面的已有字段。";
     return;
   }
   const schema = { version: 1 as const, fields: [existing.field] };
@@ -321,7 +324,8 @@ function reuse(
   editor.select(field.id);
   editor.activeParent.value = parentId;
   inspector.value = "field";
-  notice.value = `已将「${existing.field.name}」放入本页，仍使用原数据字段。`;
+  interactionHint.value = "";
+  notify(`已添加「${existing.field.name}」`);
   inspectField();
 }
 function drag(event: DragEvent, payload: object) {
@@ -341,7 +345,7 @@ function drop(payload: FieldDrop & { existingId?: string }) {
     (item) => item.field.id === payload.id,
   );
   if (existing && existing.parentId !== payload.parentId) {
-    notice.value =
+    interactionHint.value =
       "已有字段的业务归属不随拖动改变。请在原范围内调整位置，或新增对应明细字段。";
     return;
   }
@@ -350,14 +354,17 @@ function drop(payload: FieldDrop & { existingId?: string }) {
 function remove(id: string) {
   const existing = baseFields.value.some((item) => item.field.id === id);
   editor.remove([id]);
-  notice.value = canEditFields.value
-    ? "已移除字段，可在字段回收站恢复。已有记录保留原版本。"
-    : existing
-    ? "已移除页面控件，数据字段与已有值保留；可从“已有字段”重新放入。"
-    : "已取消这个新增字段，可撤销恢复。";
+  interactionHint.value = "";
+  if (canEditFields.value) {
+    notify("字段已移至回收站");
+  } else if (existing) {
+    notify("控件已移除，可从已有字段恢复");
+  } else {
+    notify("新增字段已移除，可撤销恢复");
+  }
 }
 async function save() {
-  if (await store.save()) notice.value = "草稿已保存，已发布表单尚未改变。";
+  if (await store.save()) notify("草稿已保存");
 }
 async function publish() {
   if (
@@ -365,7 +372,7 @@ async function publish() {
     (await store.publish(publicationImpact.value))
   ) {
     publishing.value = false;
-    notice.value = "表单已发布。";
+    notify("表单已发布");
   } else publicationImpact.value = undefined;
 }
 async function reload() {
@@ -391,8 +398,13 @@ function leave() {
 function beforeUnload(event: BeforeUnloadEvent) {
   if (store.dirty) event.preventDefault();
 }
-function undo() { editor.undo(); notice.value = ''; }
-function redo() { editor.redo(); notice.value = ''; }
+function restoreField(index: number) {
+  if (!editor.restore(index)) return;
+  interactionHint.value = "";
+  notify("字段已恢复，保存后生效");
+}
+function undo() { editor.undo(); interactionHint.value = ''; }
+function redo() { editor.redo(); interactionHint.value = ''; }
 function keyboard(event: KeyboardEvent) {
   if (event.target instanceof Element && event.target.closest('[role="dialog"]')) return;
   if (
@@ -606,18 +618,14 @@ onBeforeUnmount(() => {
         <button class="text-button" @click="reloading = true">重新读取</button>
       </div>
       <div
-        v-else-if="notice || store.feedback"
+        v-else-if="interactionHint && !recycling"
         class="page-editor-message"
         role="status"
       >
-        {{ notice || store.feedback
-        }}<button
+        {{ interactionHint }}<button
           class="icon-button"
           aria-label="关闭提示"
-          @click="
-            notice = '';
-            store.feedback = '';
-          "
+          @click="interactionHint = ''"
         >
           <AppIcon name="close" :size="14" />
         </button>
@@ -1150,8 +1158,8 @@ onBeforeUnmount(() => {
     </BaseDialog>
   </div>
   <BaseDialog :open="recycling" title="字段回收站" :busy="store.busy" @close="recycling = false">
-    <FieldRecycleList :items="editor.trash.value" @restore="index => { if (editor.restore(index)) notice = '字段已恢复，保存后生效'; }" />
-    <p v-if="notice" class="field-hint" role="status">{{ notice }}</p>
+    <FieldRecycleList :items="editor.trash.value" @restore="restoreField" />
+    <p v-if="interactionHint" class="field-hint" role="status">{{ interactionHint }}</p>
     <template #footer><button class="button" @click="recycling = false">关闭</button></template>
   </BaseDialog>
 </template>

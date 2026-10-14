@@ -19,6 +19,7 @@ import {
   type ProcessStartPreview,
   type ProcessTemplateDraft,
   type ProcessTemplateSpec,
+  type ProcessTemplateVersionSummary,
   type PublishedProcessTemplate,
   type TaskSpec,
   type RecordDetail,
@@ -43,7 +44,6 @@ import {
   title,
   uuid,
 } from "../../core/database/schema";
-import { assertPageActive } from "../pages/page-lifecycle";
 
 // ============================================================================
 // 1. 模板结构校验与 DTO 转换辅助函数
@@ -286,6 +286,7 @@ const dto = (row: any): ProcessTemplateDraft => ({
   enabled: row.enabled,
   revision: row.revision,
   latestVersion: row.latest_version,
+  activeVersion: row.active_version || 0,
   spec: row.draft,
   hasDraftChanges:
     !row.spec || JSON.stringify(row.draft) !== JSON.stringify(row.spec),
@@ -311,13 +312,13 @@ export class ProcessTemplateService {
     tx: Pick<Database, "query">,
     actor: Actor,
     id: string,
-    lock = false,
+    lock: "" | "FOR UPDATE" | "FOR SHARE" = "",
   ) {
     uuid(id);
     const sql = `
       SELECT * FROM process_templates
       WHERE id = $1 AND workspace_id = $2
-      ${lock ? "FOR UPDATE" : ""}
+      ${lock}
     `;
     const { rows } = await tx.query(sql, [id, actor.workspaceId]);
     const row = rows[0];
@@ -325,15 +326,28 @@ export class ProcessTemplateService {
     return row;
   }
 
+  /** 删除历史版本后仍按最新存在的快照比较草稿，发布编号继续使用高水位。 */
+  private async draftDto(tx: Pick<Database, "query">, row: any) {
+    const published = await tx.query(
+      "SELECT spec FROM process_template_versions WHERE template_id=$1 ORDER BY version DESC LIMIT 1",
+      [row.id],
+    );
+    return dto({ ...row, spec: published.rows[0]?.spec });
+  }
+
   /** 获取应用下的任务模板列表及草稿变更状态 */
   async list(actor: Actor, appId: string) {
     await applicationId(this.db, actor, appId);
 
     const sql = `
-      SELECT t.*, v.spec
+      SELECT t.*, v.spec, active.spec AS active_spec
       FROM process_templates t
-      LEFT JOIN process_template_versions v
-        ON v.template_id = t.id AND v.version = t.latest_version
+      LEFT JOIN LATERAL (
+        SELECT spec FROM process_template_versions
+        WHERE template_id = t.id ORDER BY version DESC LIMIT 1
+      ) v ON true
+      LEFT JOIN process_template_versions active
+        ON active.template_id = t.id AND active.version = t.active_version
       WHERE t.workspace_id = $1 AND t.application_id = $2
       ORDER BY t.created_at
     `;
@@ -341,11 +355,11 @@ export class ProcessTemplateService {
     if (actor.role === "admin") return rows.map(dto);
     const available: ProcessTemplateDraft[] = [];
     for (const row of rows) {
-      if (!row.enabled || !row.latest_version || !row.spec) continue;
+      if (!row.enabled || !row.active_version || !row.active_spec) continue;
       try {
-        await this.assertCanStart(this.db, actor, row.spec);
+        await this.assertCanStart(this.db, actor, row.active_spec);
         // 普通成员只获取已发布配置，不能读到管理员的未发布草稿。
-        available.push(dto({ ...row, draft: row.spec }));
+        available.push(dto({ ...row, draft: row.active_spec, spec: row.active_spec }));
       } catch (error) {
         if (!(error instanceof ForbiddenException)) throw error;
       }
@@ -438,7 +452,7 @@ export class ProcessTemplateService {
           async () => {
             if (body.startPageId)
               await this.bindPage(tx, actor, body.startPageId, appId, spec);
-            await this.draftPages(tx, actor, spec);
+            await this.draftPages(tx, actor, spec, appId);
             const createdId = randomUUID();
             await tx.query(
               "INSERT INTO process_templates(id,workspace_id,application_id,draft,start_page_id) VALUES($1,$2,$3,$4,$5)",
@@ -456,12 +470,12 @@ export class ProcessTemplateService {
         return dto(await this.template(tx, actor, created));
       }
 
-      const current = await this.template(tx, actor, id, true);
+      const current = await this.template(tx, actor, id, "FOR UPDATE");
       if (current.revision !== body.expectedRevision) {
         throw new ConflictException("任务模板已被修改，当前输入已保留");
       }
 
-      await this.draftPages(tx, actor, spec, current.draft);
+      await this.draftPages(tx, actor, spec, current.application_id);
       const startPageId = current.start_page_id || body.startPageId;
       if (startPageId)
         await this.bindPage(
@@ -476,36 +490,40 @@ export class ProcessTemplateService {
         "UPDATE process_templates SET draft=$2,revision=revision+1,start_page_id=$3 WHERE id=$1 RETURNING *",
         [id, spec, startPageId || null],
       );
-      const row = rows[0];
-
-      const { rows: pubRows } = await tx.query(
-        "SELECT spec FROM process_template_versions WHERE template_id=$1 AND version=$2",
-        [id, row.latest_version],
-      );
-      const published = pubRows[0];
-      return dto({ ...row, spec: published?.spec });
+      return this.draftDto(tx, rows[0]);
     });
   }
 
-  /** 校验草稿引用的任务处理页面是否存在且未归档 */
+  /** 草稿可保留归档页面以便修正；是否可执行统一在启用时校验。 */
   private async draftPages(
     tx: Transaction,
     actor: Actor,
     spec: ProcessTemplateSpec,
-    previous?: ProcessTemplateSpec,
+    appId: string,
   ) {
-    const allTasks = [...spec.tasks, ...(previous?.tasks || [])];
     const ids = [
-      ...new Set(allTasks.map((task) => task.pageId).filter(Boolean)),
+      ...new Set(spec.tasks.map((task) => task.pageId).filter(Boolean)),
     ];
     if (!ids.length) return;
 
     const { rows } = await tx.query(
-      "SELECT id,definition_id FROM pages WHERE workspace_id=$1 AND id=ANY($2::uuid[])",
+      `SELECT p.id, p.definition_id, d.application_id,
+         ARRAY(SELECT version FROM page_versions WHERE page_id=p.id) AS versions
+       FROM pages p JOIN definitions d ON d.id=p.definition_id
+       WHERE p.workspace_id=$1 AND p.id=ANY($2::uuid[])`,
       [actor.workspaceId, ids],
     );
     if (rows.length !== ids.length) {
       throw new NotFoundException("任务页面不存在或不属于当前工作空间");
+    }
+    if (rows.some((row) => row.application_id !== appId)) {
+      throw new BadRequestException("任务页面应属于当前应用");
+    }
+    const pages = new Map(rows.map((row) => [row.id, row]));
+    for (const task of spec.tasks) {
+      if (task.pageId && !pages.get(task.pageId)!.versions.includes(task.pageVersion)) {
+        throw new BadRequestException(`「${task.title}」处理页面版本不存在`);
+      }
     }
 
     const definitionIds = [
@@ -513,18 +531,6 @@ export class ProcessTemplateService {
     ].sort();
     for (const definitionId of definitionIds) {
       await this.platform.definition(tx, actor, definitionId, "FOR SHARE");
-    }
-
-    for (const task of spec.tasks) {
-      const unchanged = previous?.tasks.some(
-        (old) =>
-          old.id === task.id &&
-          old.pageId === task.pageId &&
-          old.pageVersion === task.pageVersion,
-      );
-      if (task.pageId && !unchanged) {
-        await assertPageActive(tx, actor, task.pageId);
-      }
     }
   }
 
@@ -690,15 +696,12 @@ export class ProcessTemplateService {
     object(body);
 
     return this.db.transaction(async (tx) => {
-      const row = await this.template(tx, actor, id, true);
+      const row = await this.template(tx, actor, id, "FOR UPDATE");
       if (row.revision !== body.expectedRevision) {
         throw new ConflictException("任务模板已被修改，请重新检查草稿");
       }
 
-      const spec = parseTemplate(row.draft);
-      const connectionError = processTemplateConnectionError(spec);
-      if (connectionError) throw new BadRequestException(connectionError);
-      await this.validate(tx, actor, spec, row.application_id);
+      const spec = await this.activationSpec(tx, actor, row, row.draft);
 
       const version = row.latest_version + 1;
       await tx.query(
@@ -706,7 +709,7 @@ export class ProcessTemplateService {
         [id, version, spec],
       );
       await tx.query(
-        "UPDATE process_templates SET latest_version=$2,revision=revision+1,enabled=true WHERE id=$1",
+        "UPDATE process_templates SET latest_version=$2,active_version=$2,revision=revision+1,enabled=true WHERE id=$1",
         [id, version],
       );
       return {
@@ -718,37 +721,122 @@ export class ProcessTemplateService {
     });
   }
 
-  /** 读取已发布的任务模板指定版本 */
+  /** 发布和切换启用都检查当前成员、页面与发起表单，避免切换到无法提交的旧配置。 */
+  private async activationSpec(
+    tx: Transaction,
+    actor: Actor,
+    template: any,
+    input: unknown,
+  ) {
+    const spec = parseTemplate(input);
+    const connectionError = processTemplateConnectionError(spec);
+    if (connectionError) throw new BadRequestException(connectionError);
+    const schemas = await this.validate(tx, actor, spec, template.application_id);
+
+    if (template.start_page_id) {
+      const binding = spec.bindings[0];
+      if (spec.bindings.length !== 1 || !binding) {
+        throw new BadRequestException("表单流程须使用本表单的业务数据");
+      }
+      const { rows } = await tx.query(
+        "SELECT latest_version FROM pages WHERE id=$1 AND workspace_id=$2",
+        [template.start_page_id, actor.workspaceId],
+      );
+      const page = rows[0];
+      if (!page?.latest_version) {
+        throw new BadRequestException("发起表单尚未发布或已不存在");
+      }
+      const scope = await this.pages.recordScope(
+        actor,
+        template.start_page_id,
+        page.latest_version,
+        tx,
+      );
+      const compatible = this.compatible(binding, schemas.get(binding.id)!, {
+        definition_id: scope.definitionId,
+        definition_version: scope.definitionVersion,
+        schema: scope.schema,
+      });
+      if (!compatible) {
+        throw new ConflictException(
+          "此流程版本与当前发起表单不兼容，请复制为草稿并调整办理表单后重新发布",
+        );
+      }
+    }
+    return spec;
+  }
+
+  private async version(
+    tx: Pick<Database, "query">,
+    template: any,
+    version: number,
+  ): Promise<PublishedProcessTemplate> {
+    if (!Number.isInteger(version) || version < 1) {
+      throw new BadRequestException("请选择已发布的流程版本");
+    }
+    const { rows } = await tx.query(
+      "SELECT spec FROM process_template_versions WHERE template_id=$1 AND version=$2",
+      [template.id, version],
+    );
+    if (!rows[0]) throw new NotFoundException("流程版本不存在或已删除");
+    return {
+      id: template.id,
+      applicationId: template.application_id,
+      version,
+      spec: rows[0].spec,
+    };
+  }
+
+  /** 历史版本供管理员只读检查；普通成员只能读取当前可发起的版本。 */
+  async readVersion(actor: Actor, id: string, version: number) {
+    return this.db.transaction(async (tx) => {
+      if (actor.role !== "admin") return this.published(actor, id, version, tx);
+      const template = await this.template(tx, actor, id);
+      return this.version(tx, template, version);
+    });
+  }
+
+  async versions(actor: Actor, id: string): Promise<ProcessTemplateVersionSummary[]> {
+    requireAdmin(actor);
+    return this.db.transaction(async (tx) => {
+      const template = await this.template(tx, actor, id);
+      const { rows } = await tx.query(
+        `SELECT v.version, v.created_at,
+           (SELECT count(*)::int FROM processes p
+            WHERE p.template_id=v.template_id AND p.template_version=v.version) AS process_count
+         FROM process_template_versions v
+         WHERE v.template_id=$1 ORDER BY v.version DESC`,
+        [id],
+      );
+      return rows.map((row) => {
+        const active = template.enabled && template.active_version === row.version;
+        return {
+          version: row.version,
+          createdAt: row.created_at.toISOString(),
+          active,
+          processCount: row.process_count,
+          canDelete: !active && row.process_count === 0,
+        };
+      });
+    });
+  }
+
+  /** 发起时锁住所选版本；管理员也不能通过历史地址绕过当前启用版本。 */
   async published(
     actor: Actor,
     id: string,
     version: number,
     tx: Pick<Database, "query"> = this.db,
   ): Promise<PublishedProcessTemplate> {
-    const template = await this.template(tx, actor, id);
+    const template = await this.template(tx, actor, id, "FOR SHARE");
     if (!template.enabled)
       throw new ConflictException("流程已停用，不能发起新流程");
-    if (actor.role !== "admin" && version !== template.latest_version) {
+    if (version !== template.active_version) {
       throw new ConflictException("流程版本已更新，请重新打开后发起");
     }
-    if (!Number.isInteger(version) || version < 1) {
-      throw new BadRequestException("请选择已发布的任务模板版本");
-    }
-
-    const { rows } = await tx.query(
-      "SELECT spec FROM process_template_versions WHERE template_id=$1 AND version=$2",
-      [id, version],
-    );
-    const row = rows[0];
-    if (!row) throw new NotFoundException("任务模板版本不存在");
-
-    await this.assertCanStart(tx, actor, row.spec);
-    return {
-      id,
-      applicationId: template.application_id,
-      version,
-      spec: row.spec,
-    };
+    const published = await this.version(tx, template, version);
+    await this.assertCanStart(tx, actor, published.spec);
+    return published;
   }
 
   async setEnabled(actor: Actor, id: string, body: unknown) {
@@ -757,16 +845,58 @@ export class ProcessTemplateService {
     if (typeof body.enabled !== "boolean")
       throw new BadRequestException("流程状态不合法");
     return this.db.transaction(async (tx) => {
-      const current = await this.template(tx, actor, id, true);
+      const current = await this.template(tx, actor, id, "FOR UPDATE");
       if (body.expectedRevision !== current.revision)
         throw new ConflictException("流程配置已变化，请重新读取");
-      if (body.enabled && !current.latest_version)
-        throw new BadRequestException("请先发布流程");
-      await tx.query(
-        "UPDATE process_templates SET enabled=$2,revision=revision+1 WHERE id=$1",
-        [id, body.enabled],
+      let activeVersion = current.active_version;
+      if (body.enabled) {
+        activeVersion = body.version ?? activeVersion;
+        if (!activeVersion) throw new BadRequestException("请选择已发布的流程版本");
+        const published = await this.version(tx, current, activeVersion);
+        await this.activationSpec(tx, actor, current, published.spec);
+      } else if (body.version !== undefined) {
+        throw new BadRequestException("停用流程时无需选择版本");
+      }
+      const { rows } = await tx.query(
+        "UPDATE process_templates SET enabled=$2,active_version=$3,revision=revision+1 WHERE id=$1 RETURNING *",
+        [id, body.enabled, activeVersion],
       );
-      return { enabled: body.enabled };
+      return this.draftDto(tx, rows[0]);
+    });
+  }
+
+  /** 历史内容不可改写；未启用且从未产生实例的版本才可删除。 */
+  async removeVersion(actor: Actor, id: string, version: number, body: unknown) {
+    requireAdmin(actor);
+    object(body);
+    return this.db.transaction(async (tx) => {
+      const current = await this.template(tx, actor, id, "FOR UPDATE");
+      if (body.expectedRevision !== current.revision) {
+        throw new ConflictException("流程配置已变化，请重新读取");
+      }
+      await this.version(tx, current, version);
+      if (current.enabled && current.active_version === version) {
+        throw new ConflictException("当前启用的版本不能删除，请先切换版本或停用流程");
+      }
+      const used = await tx.query(
+        "SELECT 1 FROM processes WHERE template_id=$1 AND template_version=$2 LIMIT 1",
+        [id, version],
+      );
+      if (used.rowCount) {
+        throw new ConflictException("已有流程使用此版本，需保留历史记录，不能删除");
+      }
+      // 停用后删除原所选版本，清空指针；发布高水位与当前草稿保持不变。
+      const { rows } = await tx.query(
+        `UPDATE process_templates SET
+           active_version=CASE WHEN active_version=$2 THEN NULL ELSE active_version END,
+           revision=revision+1 WHERE id=$1 RETURNING *`,
+        [id, version],
+      );
+      await tx.query(
+        "DELETE FROM process_template_versions WHERE template_id=$1 AND version=$2",
+        [id, version],
+      );
+      return this.draftDto(tx, rows[0]);
     });
   }
 
@@ -802,7 +932,7 @@ export class ProcessTemplateService {
       if (command.rowCount) return result;
 
       const { rows } = await tx.query(
-        "SELECT * FROM process_templates WHERE start_page_id=$1 AND workspace_id=$2 AND enabled AND latest_version>0 FOR SHARE",
+        "SELECT * FROM process_templates WHERE start_page_id=$1 AND workspace_id=$2 AND enabled AND active_version IS NOT NULL FOR SHARE",
         [pageId, actor.workspaceId],
       );
       const configured = rows[0];
@@ -810,7 +940,7 @@ export class ProcessTemplateService {
       const template = await this.published(
         actor,
         configured.id,
-        configured.latest_version,
+        configured.active_version,
         tx,
       );
       const binding = template.spec.bindings[0];
@@ -831,10 +961,21 @@ export class ProcessTemplateService {
         },
       );
       await tx.query(
-        "UPDATE processes SET submission_record_id=$2 WHERE id=$1",
-        [process.id, result.record.id],
+        "UPDATE processes SET submission_record_id=$2,spec=jsonb_set(spec,'{origin}',$3::jsonb) WHERE id=$1",
+        [
+          process.id,
+          result.record.id,
+          { pageId, pageVersion: body.pageVersion },
+        ],
       );
-      return { ...result, processId: process.id };
+      // 流程启动后，普通成员只能在待办中修改记录；首次提交也返回最终权限。
+      const scope = await this.pages.recordScope(
+        actor,
+        pageId,
+        body.pageVersion,
+        tx,
+      );
+      return this.platform.detailIn(tx, actor, result.record.id, scope);
     });
   }
 

@@ -12,33 +12,12 @@ import {
   type DirectorySnapshot,
   type DirectorySpec,
   type OrganizationSpec,
-  type RoleApplication,
 } from "@platform/contracts";
 import { type Actor, requireAdmin } from "../../core/auth/auth.service";
 import { Database, type Transaction } from "../../core/database/database";
 import { OrganizationService } from "./organization.service";
 import { once } from "../processes/commands";
 import { object, uuid } from "../../core/database/schema";
-
-type Queryable = Pick<Database, "query">;
-
-/** 查询工作空间下的应用与表单目录列表 */
-async function directoryApplications(tx: Queryable, actor: Actor) {
-  const sql = `
-    SELECT
-      a.id AS application_id,
-      a.title AS application_title,
-      d.id,
-      d.title,
-      true AS grouped
-    FROM applications a
-    LEFT JOIN definitions d ON d.application_id = a.id
-    WHERE a.workspace_id = $1
-    ORDER BY a.created_at, a.id, d.created_at, d.id
-  `;
-  const { rows } = await tx.query(sql, [actor.workspaceId]);
-  return rows;
-}
 
 /** 将数据库行转换为通讯录快照 DTO */
 const dto = (row: any): DirectorySnapshot => ({
@@ -78,38 +57,10 @@ export class DirectoryService {
     });
   }
 
-  /** 获取可用于通讯录角色授权的应用及表单列表 */
-  async applications(actor: Actor): Promise<RoleApplication[]> {
-    requireAdmin(actor);
-    return this.db.transaction(async (tx) => {
-      const forms = await directoryApplications(tx, actor);
-
-      const apps = new Map<string, RoleApplication>();
-      for (const form of forms) {
-        if (!apps.has(form.application_id)) {
-          apps.set(form.application_id, {
-            id: form.application_id,
-            name: form.application_title,
-            forms: [],
-          });
-        }
-        if (form.id) {
-          apps.get(form.application_id)!.forms.push({
-            id: form.id,
-            title: form.title,
-            grouped: form.grouped,
-          });
-        }
-      }
-
-      return [...apps.values()];
-    });
-  }
-
   /**
    * 接入或保存外部通讯录配置：
    * - 支持三方合并（before / current / after）；
-   * - 校验角色新增或修改的本地应用/表单授权引用是否真实存在；
+   * - 原样保留历史角色授权资料，拒绝继续写入不参与执行的旧授权；
    * - 将通讯录中的部门、角色、角色组投影至工作空间组织架构。
    */
   async save(actor: Actor, body: unknown, initialize = false) {
@@ -157,36 +108,12 @@ export class DirectoryService {
           }
         }
 
-        // 校验新增或变更的角色授权中引用的本地 UUID 是否在服务端目录中真实存在
-        const isNativeId = (id: string) => /^[a-f0-9]{8}-[a-f0-9-]{27}$/i.test(id);
-        const changedGrants = spec.roles.flatMap((role) => {
-          const prevRole = row?.spec.roles.find((previous: any) => previous.id === role.id);
-          return role.grants.filter(
-            (grant) =>
-              !prevRole?.grants.some(
-                (previous: any) => directoryCanonical(previous) === directoryCanonical(grant),
-              ),
-          );
-        });
-
-        const hasNativeGrantRef = changedGrants.some(
-          (grant) => isNativeId(grant.appId) || grant.formIds.some(isNativeId),
-        );
-        if (hasNativeGrantRef) {
-          const catalog = await directoryApplications(tx, actor);
-          for (const grant of changedGrants) {
-            const matchingForms = catalog.filter(
-              (form) => grant.appId === "*" || grant.appId === form.application_id,
-            );
-            const appMissing = isNativeId(grant.appId) && !matchingForms.length;
-            const formMissing = grant.formIds.some(
-              (id) => isNativeId(id) && !matchingForms.some((form) => form.id === id),
-            );
-            if (appMissing || formMissing) {
-              throw new BadRequestException(
-                "授权的应用或表单已不存在，请重新选择；当前修改尚未保存",
-              );
-            }
+        // 授权只由表单权限组执行；旧资料可保留，但不能再制造无效的角色授权。
+        const previousSpec = row?.spec as DirectorySpec | undefined;
+        for (const role of spec.roles) {
+          const previous = previousSpec?.roles.find((item) => item.id === role.id);
+          if (directoryCanonical(role.grants) !== directoryCanonical(previous?.grants || [])) {
+            throw new BadRequestException("角色授权请在表单权限组中设置");
           }
         }
 

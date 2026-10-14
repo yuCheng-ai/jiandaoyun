@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { automationEvents, type AutomationEvent } from "../../../domain/events";
+import { automationEvents } from "../../../domain/events";
 import { computed, ref } from "vue";
 import AppIcon from "../../../components/AppIcon.vue";
 import { copy, uid } from "../../../domain/form";
@@ -8,12 +8,12 @@ import {
   automationIssues,
   type AutomationConfig,
 } from "../../../domain/automation";
-import { useWorkspaceStore } from "../../../stores/workspace";
+import { useRuntimeData } from "../../../composables/useRuntimeData";
 import type { FormRecord } from "../../../domain/workspace";
 const props = defineProps<{ form: FormRecord; query: string }>();
 const emit = defineEmits<{ edit: [config?: AutomationConfig]; logs: [] }>();
-const store = useWorkspaceStore(),
-  archived = ref(false);
+const runtimeData = useRuntimeData();
+const archived = ref(false);
 function eventLabel(c: AutomationConfig) {
   return c.events.map((e) => automationEvents[e]).join("、");
 }
@@ -29,28 +29,6 @@ function duplicate(c: AutomationConfig) {
   next.enabled = false;
   next.steps.forEach((s) => (s.id = uid("action")));
   emit("edit", next);
-}
-async function toggle(c: AutomationConfig) {
-  const next = { ...copy(c), enabled: !c.enabled };
-  if (
-    next.enabled &&
-    automationIssues(next, props.form.schema, store.data).length
-  ) {
-    emit("edit", next);
-    return;
-  }
-  if (await store.saveAutomation(props.form.id, next))
-    store.notify("助手状态已保存，发布新版本后生效");
-}
-async function archive(c: AutomationConfig) {
-  if (
-    await store.saveAutomation(props.form.id, {
-      ...copy(c),
-      archived: !c.archived,
-      enabled: false,
-    })
-  )
-    store.notify("归档状态已保存，旧记录仍使用原发布版本");
 }
 </script>
 <template>
@@ -99,7 +77,7 @@ async function archive(c: AutomationConfig) {
             {{ s.name || automationActions[s.action]
             }}<span
               >{{
-                store.data.forms.find((f) => f.id === s.targetFormId)?.title ||
+                runtimeData.forms.find((f) => f.id === s.targetFormId)?.title ||
                 "目标表单不可用"
               }}
               · V{{ s.targetVersion }}</span
@@ -107,10 +85,10 @@ async function archive(c: AutomationConfig) {
           </li>
         </ol>
         <p
-          v-if="automationIssues(c, form.schema, store.data).length"
+          v-if="automationIssues(c, form.schema, runtimeData).length"
           class="config-warning"
         >
-          {{ automationIssues(c, form.schema, store.data)[0]?.message }}
+          {{ automationIssues(c, form.schema, runtimeData)[0]?.message }}
         </p>
         <div class="config-card-footer">
           <span>{{
@@ -120,11 +98,11 @@ async function archive(c: AutomationConfig) {
           }}</span
           ><button class="text-button" @click="emit('edit', c)">
             编辑与试运行</button
-          ><button v-if="!c.archived" class="text-button" @click="toggle(c)">
+          ><button v-if="!c.archived" class="text-button" disabled>
             {{ c.enabled ? "停用" : "启用" }}</button
           ><button v-if="!c.archived" class="text-button" @click="duplicate(c)">
             复制助手</button
-          ><button class="text-button" @click="archive(c)">
+          ><button class="text-button" disabled>
             {{ c.archived ? "恢复助手" : "归档助手" }}
           </button>
         </div>

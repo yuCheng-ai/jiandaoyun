@@ -27,11 +27,10 @@ import {
   seedWorkspace,
   type FormEntry,
 } from "../src/domain/workspace";
-import { parseWorkspace } from "../src/repositories/workspaceRepository";
+
 import { runtimeDataKey } from "../src/composables/useRuntimeData";
 import DataFilterEditor from "../src/features/forms/components/DataFilterEditor.vue";
 import VisibilityRules from "../src/features/forms/components/VisibilityRules.vue";
-import { useWorkspaceStore } from "../src/stores/workspace";
 import type { DataFilter } from "@platform/contracts";
 
 let app: ReturnType<typeof createApp> | undefined;
@@ -202,7 +201,7 @@ describe("dynamic choice conversion", () => {
         .map((e) => e.id),
     ).toEqual(["old-a", "new-a"]);
     group.filters[0]!.operator = "notEquals";
-    const restored = parseWorkspace(JSON.stringify(f.data));
+    const restored = f.data;
     expect(
       records
         .filter((e) => groupsForEntry(restored, e, "zhang").length)
@@ -278,9 +277,12 @@ describe("dynamic choice conversion", () => {
       f.field,
       createField("text", { id: "detail", label: "补充说明" }),
     ];
-    useWorkspaceStore().data = f.data;
     document.body.innerHTML = '<div id="mount"></div>';
     app = createApp(() => h(VisibilityRules, { schema, fieldId: f.field.id }));
+    app.provide(
+      runtimeDataKey,
+      computed(() => f.data),
+    );
     app.mount("#mount");
     await settle();
     const button = (name: string) =>

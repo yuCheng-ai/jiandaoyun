@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @vitest-environment jsdom
 import { expect, it } from "vitest";
 
 import { composeFormSchema, separateFormSchema } from "@platform/contracts";
@@ -22,8 +23,6 @@ import {
   memberContext,
   newAccessGroup,
   defaultAccess,
-  prepareMemberCreate,
-  prepareMemberUpdate,
 } from "../src/domain/access";
 
 function fixture() {
@@ -276,55 +275,6 @@ it("rejects missing, duplicated and incompatible child mappings before publishin
   expect(defaultLinkErrors(rows, target.schema.fields, data)).toContain(
     "子字段联动对应已失效、重复或类型不匹配",
   );
-});
-it("keeps manual adjustments after linked initialization during member create and record update", () => {
-  const { data, source, target } = fixture();
-  const values = runtimeDefaults(target.schema.fields, data);
-  (values.lines as FormValues[])[0]!.qty = 4;
-  expect(
-    (prepareMemberCreate(target.schema, values, data).lines as FormValues[])[0]!
-      .qty,
-  ).toBe(4);
-  const sourceGroup = newAccessGroup(source.schema);
-  sourceGroup.identities = ["wang"];
-  const group = newAccessGroup(target.schema, "manage");
-  group.identities = ["wang"];
-  group.actions.push("edit");
-  data.formAccess = {
-    [source.id]: {
-      ...defaultAccess(),
-      membersEnabled: true,
-      groups: [sourceGroup],
-    },
-    [target.id]: { ...defaultAccess(), membersEnabled: true, groups: [group] },
-  };
-  const entry = {
-    id: "request",
-    formId: target.id,
-    definitionVersion: 1,
-    status: "submitted" as const,
-    createdAt: "2026-10-03",
-    history: [],
-    values,
-  };
-  data.entries.push(entry);
-  const incoming = applyFieldChange(
-    target.schema.fields,
-    values,
-    "selected",
-    "B",
-    memberContext(data, "wang"),
-  );
-  (incoming.lines as FormValues[])[0]!.qty = 7;
-  const update = prepareMemberUpdate(data, entry, "wang", group.id, incoming);
-  expect(update.errors).toEqual([]);
-  expect((update.values.lines as FormValues[])[0]).toMatchObject({
-    name: "合成面板",
-    qty: 7,
-  });
-  group.fields.qty = "read";
-  const denied = prepareMemberUpdate(data, entry, "wang", group.id, incoming);
-  expect(denied.errors.length).toBeGreaterThan(0);
 });
 it("fills dependent choices before evaluating row formulas regardless of whole-link mapping order", () => {
   const { data, source, target, rows } = fixture();

@@ -9,9 +9,15 @@ import { randomUUID } from "node:crypto";
 import {
   groupActionNames,
   groupScopeNames,
+  groupFilterOperators,
+  hasFieldValue,
+  isNumericField,
   isOrganizationField,
+  type DirectoryIdentity,
+  type DirectorySpec,
   type FormField,
   type FormSchema,
+  type OrganizationPermissionSummary,
   type RecordGroupConfiguration,
   type RecordGroupOptions,
   type RecordPermissionGroup,
@@ -115,6 +121,121 @@ export class GroupConfigurationService {
         allowMerged: true,
         groups: groups.map(({ id: groupId, name, actions }) => ({ id: groupId, name, actions })),
       };
+    });
+  }
+
+  /** 批量查询真实权限组；目录成员必须先明确关联账号，角色必须使用稳定的投影身份。 */
+  async organizationPermissions(
+    actor: Actor,
+    memberId?: string,
+    roleId?: string,
+  ): Promise<OrganizationPermissionSummary> {
+    requireAdmin(actor);
+    const selectedId = memberId ?? roleId;
+    if (
+      (memberId !== undefined) === (roleId !== undefined) ||
+      typeof selectedId !== "string" ||
+      !selectedId.trim()
+    ) {
+      throw new BadRequestException("请选择一个成员或角色");
+    }
+
+    return this.db.transaction(async (tx) => {
+      const organization = await this.organizations.snapshot(tx, actor);
+      requireAdmin(organization.users.find((user) => user.id === actor.id)!);
+      const { rows: directories } = await tx.query<{
+        source_namespace: string;
+        spec: DirectorySpec;
+        identities: DirectoryIdentity[];
+      }>(
+        "SELECT source_namespace, spec, identities FROM organization_directories WHERE workspace_id = $1",
+        [actor.workspaceId],
+      );
+      const directory = directories[0];
+      if (!directory) {
+        throw new NotFoundException("通讯录不存在");
+      }
+
+      const result: OrganizationPermissionSummary = { forms: [] };
+      let memberActor: Actor | undefined;
+      let projectedRoleId: string | undefined;
+      if (memberId !== undefined) {
+        const member = directory.spec.employees.find((item) => item.id === memberId);
+        if (!member) {
+          throw new NotFoundException("成员不存在");
+        }
+        const { rows: links } = await tx.query<{ account_id: string }>(
+          `SELECT account_id FROM member_accounts
+           WHERE workspace_id = $1 AND source_namespace = $2 AND member_id = $3`,
+          [actor.workspaceId, directory.source_namespace, memberId],
+        );
+        const account = organization.users.find((user) => user.id === links[0]?.account_id);
+        let accountStatus: NonNullable<OrganizationPermissionSummary["member"]>["accountStatus"] = "unlinked";
+        if (account) {
+          accountStatus = "disabled";
+          if (member.status === "active" && account.active) {
+            accountStatus = account.role === "admin" ? "admin" : "active";
+            memberActor = { ...account, workspaceId: actor.workspaceId };
+          }
+        }
+        result.member = {
+          id: member.id,
+          name: member.name,
+          accountId: account?.id || null,
+          username: account?.username || null,
+          accountStatus,
+        };
+      } else {
+        const role = directory.spec.roles.find((item) => item.id === roleId);
+        if (!role) {
+          throw new NotFoundException("角色不存在");
+        }
+        projectedRoleId = directory.identities.find(
+          (identity) => identity.kind === "role" && identity.id === role.id,
+        )?.targetId;
+        result.role = { id: role.id, name: role.name, archived: role.archived };
+      }
+
+      // 只查询页面目录与权限配置，不逐表读取记录；未授予的表单也保留设置入口。
+      const { rows: forms } = await tx.query<{
+        application_id: string;
+        application_title: string;
+        page_id: string;
+        title: string;
+        config: RecordGroupConfiguration | null;
+      }>(
+        `SELECT a.id AS application_id, a.title AS application_title,
+                p.id AS page_id, p.title, g.config
+         FROM pages p
+         JOIN definitions d ON d.id = p.definition_id AND d.workspace_id = p.workspace_id
+         JOIN applications a ON a.id = d.application_id AND a.workspace_id = p.workspace_id
+         LEFT JOIN record_permission_groups g ON g.definition_id = d.id
+         WHERE p.workspace_id = $1 AND p.archived_at IS NULL
+         ORDER BY a.created_at, a.id, p.created_at, p.id`,
+        [actor.workspaceId],
+      );
+      for (const form of forms) {
+        const config = form.config || directGroupConfiguration();
+        let groups: RecordPermissionGroup[] = [];
+        if (memberActor?.role === "member") {
+          groups = eligibleRecordGroups(memberActor, organization, config);
+        } else if (projectedRoleId) {
+          // 角色查询展示授予此角色的配置，是否生效由角色状态及成员关系决定。
+          groups = config.groups.filter((group) =>
+            group.enabled && !group.archived && group.subjects.some(
+              (subject) => subject.kind === "role" && subject.id === projectedRoleId,
+            ),
+          );
+        }
+        result.forms.push({
+          applicationId: form.application_id,
+          applicationTitle: form.application_title,
+          pageId: form.page_id,
+          title: form.title,
+          groups: groups.map(({ id, name, actions, scope }) => ({ id, name, actions, scope })),
+        });
+      }
+      return result;
     });
   }
 
@@ -298,7 +419,9 @@ export class GroupConfigurationService {
         if (
           filterIds.has(filter.id) ||
           !fieldVariants?.length ||
-          fieldVariants.some((item) => item.child || item.field.type === "subform")
+          fieldVariants.some((item) =>
+            item.child || item.field.type === "subform" || !hasFieldValue(item.field),
+          )
         ) {
           throw new BadRequestException("筛选标识重复或字段不属于主记录");
         }
@@ -324,10 +447,16 @@ export class GroupConfigurationService {
         }
 
         if (
+          fieldVariants.some(({ field }) => !groupFilterOperators(field).includes(filter.operator))
+        ) {
+          throw new BadRequestException("筛选关系不适用于此字段；附件、地址等结构字段只支持「不为空」");
+        }
+
+        if (
           ["greater", "less"].includes(filter.operator) &&
           (filter.source !== "constant" ||
             !Number.isFinite(Number(filter.value)) ||
-            !fieldVariants.every((item) => item.field.type === "number"))
+            !fieldVariants.every((item) => isNumericField(item.field)))
         ) {
           throw new BadRequestException("数值比较需要数字字段与有效数字常量");
         }
@@ -354,7 +483,6 @@ export class GroupConfigurationService {
       }
 
       if (
-        body.mode === "groups" &&
         raw.enabled &&
         !raw.archived &&
         raw.actions.includes("view") &&
@@ -385,7 +513,8 @@ export class GroupConfigurationService {
       });
     }
 
-    const config = { mode: body.mode, allowMerged: body.allowMerged, groups };
+    // 权限组是唯一运行模式，保存结果与读取、鉴权时的合并规则保持一致。
+    const config = { mode: "groups" as const, allowMerged: true, groups };
     const revision = current.revision + 1;
 
     const upsertSql = `

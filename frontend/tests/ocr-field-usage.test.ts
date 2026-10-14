@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { createApp, h, nextTick } from "vue";
 import { createPinia, setActivePinia } from "pinia";
@@ -53,7 +54,7 @@ import {
   seedWorkspace,
   type FormEntry,
 } from "../src/domain/workspace";
-import { useWorkspaceStore } from "../src/stores/workspace";
+
 import DataFilterEditor from "../src/features/forms/components/DataFilterEditor.vue";
 
 let app: ReturnType<typeof createApp> | undefined;
@@ -387,30 +388,4 @@ it("the common filter editor removes actions from both lists without clearing a 
     expect(select.selectedOptions[0]!.disabled).toBe(true);
   }
   expect(filters).toEqual(before);
-});
-it("real store submission retains immutable V1 OCR text after V2 changes the same ID into an action", async () => {
-  const store = useWorkspaceStore(),
-    created = (await store.createForm("oa", "SYN-文字识别版本", "form"))!,
-    form = store.openForm(created.id)!;
-  const { legacy, output, scan } = fixture();
-  legacy.id = scan.id;
-  form.schema = { ...emptySchema(), fields: [legacy, output] };
-  expect(await store.publishForm(form.id)).toBe(true);
-  const old = (await store.submitEntry(form.id, {
-    scan: "V1旧识别文本",
-    output: "V1内容",
-  }))!;
-  expect(old).toBeTruthy();
-  form.schema.fields[0] = scan;
-  expect(await store.publishForm(form.id)).toBe(true);
-  const current = (await store.submitEntry(form.id, {
-    scan: "非法入口值",
-    output: "V2内容",
-  }))!;
-  expect(current.values).toEqual({ output: "V2内容" });
-  expect(store.data.entries.find((e) => e.id === old.id)!.values.scan).toBe(
-    "V1旧识别文本",
-  );
-  expect(form.versions[0]!.schema.fields[0]!.ocr).toBeUndefined();
-  expect(form.versions[1]!.schema.fields[0]!.ocr?.type).toBe("general");
 });

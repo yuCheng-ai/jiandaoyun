@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import type {
   ApplicationSummary,
@@ -25,9 +25,12 @@ import AppIcon from "../../components/AppIcon.vue";
 import BaseDialog from "../../components/BaseDialog.vue";
 import UserMenu from "../../components/shared/UserMenu.vue";
 import { usePlatformSession } from "../../stores/platformSession";
+import { useNotices } from "../../stores/notices";
 import { platformApi } from "../../repositories/platformApi";
 import {
   accessGroupReady,
+  accessGroupSelections,
+  chooseAccessGroup,
   recordGroupOptions,
 } from "../../repositories/accessGroupSelection";
 import {
@@ -44,6 +47,7 @@ import RecordUpgradeDialog from "../data/RecordUpgradeDialog.vue";
 import RelationManager from "../data/RelationManager.vue";
 import ProcessWorkspace from "../processes/ProcessWorkspace.vue";
 import "../collaboration/collaboration.css";
+const { notify } = useNotices();
 const route = useRoute(),
   router = useRouter(),
   session = usePlatformSession();
@@ -69,8 +73,7 @@ const selected = computed(() =>
       : pages.value.find((page) => page.latestVersion) || pages.value[0],
 );
 const busy = ref(false),
-  error = ref(""),
-  notice = ref("");
+  error = ref("");
 const view = ref<"fill" | "records" | "processes">("fill");
 const form = ref<PublishedAccess>(),
   groups = ref<RecordGroupOptions>(),
@@ -83,28 +86,17 @@ const recordPage = ref(1),
   viewError = ref("");
 const viewConflict = ref(false);
 const searchKeyword = ref("");
+const submittedKeyword = ref("");
 const recordColumns = computed(() =>
   (recordList.value?.view.settings.fieldIds || [])
     .map((id) => recordList.value?.fields.find((field) => field.id === id))
     .filter((field): field is NonNullable<typeof field> => !!field),
 );
-const filteredRecords = computed(() => {
-  if (!searchKeyword.value.trim()) return records.value;
-  const kw = searchKeyword.value.trim().toLowerCase();
-  return records.value.filter((r) => {
-    if (r.id.toLowerCase().includes(kw)) return true;
-    if (r.createdAt.includes(kw)) return true;
-    if (!r.preview?.values) return false;
-    return Object.values(r.preview.values).some((v) =>
-      String(v ?? "").toLowerCase().includes(kw),
-    );
-  });
-});
 async function loadRecords(request = disposedRequest) {
   const page = selected.value;
   if (!page) return;
   const result = await platformApi<RecordListResult>(
-    `/pages/${page.id}/record-list?version=${pageVersion.value}&state=${recordState.value}&page=${recordPage.value}`,
+    `/pages/${page.id}/record-list?version=${pageVersion.value}&state=${recordState.value}&page=${recordPage.value}&keyword=${encodeURIComponent(submittedKeyword.value)}`,
   );
   if (request === disposedRequest && page.id === selected.value?.id) {
     recordList.value = result;
@@ -137,7 +129,7 @@ async function changeRecordView(patch: Partial<RecordViewSettings>) {
     recordPage.value = 1;
     viewConflict.value = false;
     await loadRecords();
-    notice.value = "列表设置已保存";
+    notify("列表设置已保存");
     return true;
   } catch (cause) {
     viewError.value = (cause as Error).message;
@@ -162,10 +154,34 @@ async function refreshView() {
     viewError.value = "已读取最新设置，请核对当前选择后保存";
   });
 }
+async function searchRecords(clear = false) {
+  if (busy.value) return;
+  if (clear) searchKeyword.value = "";
+  await run(async () => {
+    const previousKeyword = submittedKeyword.value;
+    const previousPage = recordPage.value;
+    submittedKeyword.value = searchKeyword.value.trim();
+    recordPage.value = 1;
+    try {
+      await loadRecords();
+    } catch (cause) {
+      // 失败时保留上次成功的结果和分页，输入仍可修正后重试。
+      submittedKeyword.value = previousKeyword;
+      recordPage.value = previousPage;
+      throw cause;
+    }
+  });
+}
 async function turnPage(value: number) {
   await run(async () => {
+    const previousPage = recordPage.value;
     recordPage.value = value;
-    await loadRecords();
+    try {
+      await loadRecords();
+    } catch (cause) {
+      recordPage.value = previousPage;
+      throw cause;
+    }
   });
 }
 function recordCell(record: PageRecordSummary, id: string) {
@@ -181,16 +197,24 @@ function recordCell(record: PageRecordSummary, id: string) {
     },
   });
 }
-const pageVersion = ref(1),
-  recordState = ref<"active" | "draft">("active"),
+const pageVersion = computed(() => {
+  const latest = selected.value?.latestVersion || 1;
+  // 新填写始终采用当前发布版本；历史版本只用于记录查看和续填。
+  const recordRoute =
+    route.query.view === "records" ||
+    route.query.tab === "objects" ||
+    route.query.section === "data";
+  if (!recordRoute) return latest;
+  const requested = Number(route.query.version);
+  const versions = selected.value?.versions;
+  if (!Number.isSafeInteger(requested) || requested < 1 || requested > latest)
+    return latest;
+  if (versions && !versions.includes(requested)) return latest;
+  return requested;
+});
+const recordState = ref<"active" | "draft">("active"),
   editorKey = ref(0);
 const filling = ref<InstanceType<typeof RecordEditor>>();
-watch(
-  () => filling.value?.dirty,
-  (dirty) => {
-    if (dirty) notice.value = "";
-  },
-);
 const createOpen = ref(false),
   title = ref(""),
   trashOpen = ref(false),
@@ -199,8 +223,10 @@ const createOpen = ref(false),
 const permission = ref<ServerDefinition>(),
   collectionOpen = ref(false),
   relationsOpen = ref(false);
-let disposedRequest = 0,
-  loading = false;
+let disposedRequest = 0;
+onBeforeUnmount(() => {
+  disposedRequest++;
+});
 async function run(action: () => Promise<void>) {
   if (busy.value) return;
   busy.value = true;
@@ -214,9 +240,9 @@ async function run(action: () => Promise<void>) {
   }
 }
 async function loadForm(resetList = true) {
-  notice.value = "";
   const page = selected.value;
   const request = ++disposedRequest;
+  const actorId = session.user?.id;
   form.value = undefined;
   groups.value = undefined;
   records.value = [];
@@ -224,6 +250,7 @@ async function loadForm(resetList = true) {
   if (resetList) {
     recordPage.value = 1;
     searchKeyword.value = "";
+    submittedKeyword.value = "";
   }
   columnsOpen.value = false;
   viewError.value = "";
@@ -231,13 +258,33 @@ async function loadForm(resetList = true) {
   detail.value = undefined;
   if (!page?.latestVersion) return;
   const options = await recordGroupOptions(page.definitionId);
-  if (request !== disposedRequest || page.id !== selected.value?.id) return;
+  if (
+    request !== disposedRequest ||
+    page.id !== selected.value?.id ||
+    actorId !== session.user?.id
+  )
+    return;
+  // 只有当前页面、当前账号的响应才能设置选中组，旧请求不改共享选择。
+  const current = accessGroupSelections.value[page.definitionId];
+  if (options.mode !== "groups") chooseAccessGroup(page.definitionId, "");
+  else if (
+    !options.groups.some((group) => group.id === current) &&
+    !(current === "*" && (options.allowMerged || options.groups.length === 1))
+  ) {
+    const selection = options.groups.length === 1 ? options.groups[0]!.id : "*";
+    chooseAccessGroup(page.definitionId, selection);
+  }
   groups.value = options;
   if (!accessGroupReady(page.definitionId, options)) return;
   const access = await platformApi<PublishedAccess>(
     `/pages/${page.id}/form?version=${pageVersion.value}`,
   );
-  if (request !== disposedRequest || page.id !== selected.value?.id) return;
+  if (
+    request !== disposedRequest ||
+    page.id !== selected.value?.id ||
+    actorId !== session.user?.id
+  )
+    return;
   form.value = access;
   recordState.value = recordStateForAccess(access.access, recordState.value);
   if (!access.access.create && view.value === "fill") view.value = "records";
@@ -249,64 +296,69 @@ async function loadForm(resetList = true) {
   }
 }
 function selectRecordState(state: "active" | "draft") {
-  if (recordState.value === state) return;
-  recordState.value = state;
-  void run(loadForm);
+  if (busy.value || recordState.value === state) return;
+  void router.replace({
+    path: route.path,
+    query: {
+      form: selected.value?.id,
+      view: "records",
+      state,
+      version: pageVersion.value,
+    },
+  });
+}
+function selectPageVersion(version: number) {
+  if (busy.value || pageVersion.value === version) return;
+  void router.replace({
+    path: route.path,
+    query: {
+      form: selected.value?.id,
+      view: "records",
+      state: recordState.value,
+      version,
+    },
+  });
 }
 async function load() {
-  loading = true;
-  try {
-    await session.restore();
-    if (!session.user) {
-      await router.replace("/");
-      return;
-    }
-    const applications =
-      await platformApi<ApplicationSummary[]>("/applications");
-    application.value = applications.find((item) => item.id === appId.value);
-    if (!appId.value) {
-      await router.replace("/");
-      return;
-    }
-    if (!application.value) throw new Error("应用不存在或尚未授权。");
-    const result = await Promise.all([
-      platformApi<PageSummary[]>(`/pages?applicationId=${appId.value}`),
-      platformApi<DefinitionSummary[]>(
-        `/data-objects?applicationId=${appId.value}`,
-      ),
-      session.user.role === "admin"
-        ? platformApi<PageSummary[]>(
-            `/pages?applicationId=${appId.value}&state=archived`,
-          )
-        : Promise.resolve([]),
-    ]);
-    [pages.value, objects.value, archived.value] = result;
-    pageVersion.value = selected.value?.latestVersion || 1;
-    view.value =
-      route.query.tab === "processes"
-        ? "processes"
-        : route.query.tab === "objects" ||
-            route.query.view === "records" ||
-            route.query.section === "data"
-          ? "records"
-          : "fill";
-    await loadForm();
-  } finally {
-    loading = false;
+  await session.restore();
+  if (!session.user) {
+    await router.replace("/");
+    return;
   }
+  const applications = await platformApi<ApplicationSummary[]>("/applications");
+  application.value = applications.find((item) => item.id === appId.value);
+  if (!appId.value) {
+    await router.replace("/");
+    return;
+  }
+  if (!application.value) throw new Error("应用不存在或尚未授权。");
+  const result = await Promise.all([
+    platformApi<PageSummary[]>(`/pages?applicationId=${appId.value}`),
+    platformApi<DefinitionSummary[]>(
+      `/data-objects?applicationId=${appId.value}`,
+    ),
+    session.user.role === "admin"
+      ? platformApi<PageSummary[]>(
+          `/pages?applicationId=${appId.value}&state=archived`,
+        )
+      : Promise.resolve([]),
+  ]);
+  [pages.value, objects.value, archived.value] = result;
+  if (route.query.view === "processes" || route.query.tab === "processes") {
+    view.value = "processes";
+  } else if (
+    route.query.tab === "objects" ||
+    route.query.view === "records" ||
+    route.query.section === "data"
+  ) {
+    view.value = "records";
+  } else {
+    view.value = "fill";
+  }
+  recordState.value = route.query.state === "draft" ? "draft" : "active";
+  await loadForm();
 }
 onMounted(() => run(load));
-watch(
-  () => route.query.form,
-  () => {
-    if (!loading)
-      void run(async () => {
-        pageVersion.value = selected.value?.latestVersion || 1;
-        view.value = "fill";
-        await loadForm();
-      });
-  },
-);
 function afterLeave(action: () => void | Promise<void>) {
   if (filling.value) filling.value.runAfterLeave(action);
   else void action();
@@ -317,13 +369,18 @@ function select(id: string) {
   );
 }
 function show(next: typeof view.value) {
-  afterLeave(async () => {
-    notice.value = "";
-    detail.value = undefined;
-    view.value = next;
-    // 填写成功后保留回执；进入数据管理时再刷新列表和访问权限。
-    if (next === "records") await run(() => loadForm(false));
-  });
+  // 视图切换和刷新共用地址；App 按完整路由重建页面并重新读取数据及权限。
+  afterLeave(() =>
+    router
+      .push({
+        path: route.path,
+        query: {
+          ...(selected.value ? { form: selected.value.id } : {}),
+          view: next,
+        },
+      })
+      .then(() => {}),
+  );
 }
 function design() {
   if (selected.value)
@@ -337,27 +394,68 @@ async function logout() {
   afterLeave(async () => {
     await run(async () => {
       await session.logout();
-      await router.replace("/");
+      await router.replace("/login");
     });
   });
 }
 async function saved(result: RecordDetail, fromFilling = false) {
+  // 草稿提交后保留同一个成功回执，用户可查看申请或继续填写。
+  if (
+    !fromFilling &&
+    detail.value?.record.state === "draft" &&
+    result.processId
+  ) {
+    detail.value = result;
+    return;
+  }
   detail.value = undefined;
   const nextState = result.record.state || "active";
   if (recordState.value !== nextState) recordPage.value = 1;
   recordState.value = nextState;
-  if (fromFilling && nextState === "active") {
-    // 回执保留本次填写内容，点击继续填写后才重新加载默认值并创建下一条。
-    notice.value = recordSavedNotice(result);
+  if (fromFilling) {
+    if (nextState === "draft") {
+      // 保存结束后进入可续填的草稿箱；等待编辑器解除忙碌，正常通过离开守卫。
+      await nextTick();
+      await router.replace({
+        path: route.path,
+        query: {
+          form: selected.value?.id,
+          view: "records",
+          state: "draft",
+          version: pageVersion.value,
+        },
+      });
+      notify(recordSavedNotice(result));
+    }
+    // 正式提交保留回执，保存草稿则保留明确的草稿入口，不重新生成空白记录。
     return;
   }
-  editorKey.value++;
-  await run(() => loadForm(false));
-  notice.value = recordSavedNotice(result);
+  const routeState = route.query.state === "draft" ? "draft" : "active";
+  if (view.value === "records" && routeState !== nextState) {
+    await nextTick();
+    await router.replace({
+      path: route.path,
+      query: {
+        form: selected.value?.id,
+        view: "records",
+        state: nextState,
+        version: pageVersion.value,
+      },
+    });
+  } else {
+    editorKey.value++;
+    await run(() => loadForm(false));
+  }
+  notify(recordSavedNotice(result));
+}
+async function closeRecord() {
+  const submitted =
+    recordState.value === "draft" && detail.value?.record.state === "active";
+  detail.value = undefined;
+  if (submitted) await run(() => loadForm(false));
 }
 async function openRecord(record: RecordSummary) {
   await run(async () => {
-    notice.value = "";
     detail.value = await platformApi<RecordDetail>(
       `/pages/${selected.value!.id}/records/${record.id}?version=${pageVersion.value}`,
     );
@@ -486,7 +584,6 @@ async function permissions() {
     <p v-if="error" class="field-error server-home-message" role="alert">
       {{ error }} <button class="text-button" @click="run(load)">重试</button>
     </p>
-    <p v-if="notice" class="server-home-message" role="status">{{ notice }}</p>
     <ProcessWorkspace
       v-if="view === 'processes'"
       :application-id="appId"
@@ -531,6 +628,7 @@ async function permissions() {
                   type="button"
                   class="record-state-tab"
                   :class="{ active: recordState === 'active' }"
+                  :disabled="busy"
                   @click="selectRecordState('active')"
                 >
                   正式记录
@@ -540,22 +638,11 @@ async function permissions() {
                   type="button"
                   class="record-state-tab"
                   :class="{ active: recordState === 'draft' }"
+                  :disabled="busy"
                   @click="selectRecordState('draft')"
                 >
                   草稿箱
                 </button>
-                <select
-                  v-model="recordState"
-                  class="sr-only"
-                  tabindex="-1"
-                  aria-hidden="true"
-                  @change="run(loadForm)"
-                >
-                  <option v-if="form.access.read" value="active">正式记录</option>
-                  <option v-if="canReadRecordDrafts(form.access)" value="draft">
-                    草稿
-                  </option>
-                </select>
               </div>
 
               <div
@@ -568,13 +655,18 @@ async function permissions() {
               >
                 <span class="version-label">版本:</span>
                 <select
-                  v-model.number="pageVersion"
+                  :value="pageVersion"
                   :disabled="busy"
                   class="version-select"
-                  @change="run(loadForm)"
+                  @change="
+                    selectPageVersion(
+                      Number(($event.target as HTMLSelectElement).value),
+                    )
+                  "
                 >
                   <option
-                    v-for="version in selected.versions || selected.latestVersion"
+                    v-for="version in selected.versions ||
+                    selected.latestVersion"
                     :key="version"
                     :value="version"
                   >
@@ -585,7 +677,7 @@ async function permissions() {
             </div>
 
             <div class="record-toolbar-right">
-              <div class="record-search-box">
+              <form class="record-search-box" @submit.prevent="searchRecords()">
                 <AppIcon name="search" :size="14" class="search-icon" />
                 <input
                   v-model="searchKeyword"
@@ -593,17 +685,20 @@ async function permissions() {
                   placeholder="搜索数据..."
                   class="record-search-input"
                   aria-label="搜索数据"
+                  maxlength="200"
+                  :disabled="busy"
                 />
                 <button
                   v-if="searchKeyword"
                   type="button"
                   class="search-clear-btn"
                   aria-label="清空搜索"
-                  @click="searchKeyword = ''"
+                  :disabled="busy"
+                  @click="searchRecords(true)"
                 >
                   <AppIcon name="close" :size="12" />
                 </button>
-              </div>
+              </form>
 
               <template v-if="session.user?.role === 'admin' && recordList">
                 <div class="record-sort-group">
@@ -721,7 +816,7 @@ async function permissions() {
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="record in filteredRecords" :key="record.id">
+                <tr v-for="record in records" :key="record.id">
                   <td v-for="field in recordColumns" :key="field.id">
                     <span
                       class="server-record-cell record-cell-value"
@@ -751,11 +846,11 @@ async function permissions() {
                 </tr>
               </tbody>
             </table>
-            <p v-if="!records.length" class="field-hint">
-              {{ recordState === "draft" ? "暂无保存的草稿" : "暂无记录" }}
+            <p v-if="!records.length && submittedKeyword" class="field-hint">
+              没有找到与“{{ submittedKeyword }}”匹配的记录
             </p>
-            <p v-else-if="!filteredRecords.length" class="field-hint">
-              没有找到与“{{ searchKeyword }}”匹配的记录
+            <p v-else-if="!records.length" class="field-hint">
+              {{ recordState === "draft" ? "暂无保存的草稿" : "暂无记录" }}
             </p>
           </div>
           <RecordPagination
@@ -887,8 +982,9 @@ async function permissions() {
         v-if="detail && form"
         :published="form"
         :detail="detail"
-        @close="detail = undefined"
+        @close="closeRecord"
         @saved="saved"
+        @continue="show('fill')"
       />
       <RecordUpgradeDialog
         v-if="upgrade && selected"

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @vitest-environment jsdom
 import { afterEach, expect, it } from "vitest";
 import { createApp, h, nextTick, reactive } from "vue";
 import { createPinia } from "pinia";
@@ -16,10 +17,10 @@ import {
   formulaFunctions,
   formulaValue,
 } from "@platform/contracts";
-import { applyFieldChange, runtimeDefaults } from "../src/domain/relations";
-import { validateFieldConfiguration } from "../src/domain/fieldValidation";
+import { applyFieldChange } from "../src/domain/relations";
+
 import { seedWorkspace } from "../src/domain/workspace";
-import { useWorkspaceStore } from "../src/stores/workspace";
+
 import FormulaEditor from "../src/features/forms/components/FormulaEditor.vue";
 
 const phone = createField("phone", { id: "contact", label: "联系电话" });
@@ -236,72 +237,4 @@ it("finds the function in the existing editor and debugs the actual phone sample
   expect(updates).toContainEqual(
     expect.objectContaining({ expression: number.expression }),
   );
-});
-
-it("preserves old publications and recomputes new same-ID submissions and edits through the real workspace repository", async () => {
-  localStorage.clear();
-  const store = useWorkspaceStore(createPinia());
-  const created = (await store.createForm("oa", "SYN-手机公式验收", "form"))!;
-  const form = store.openForm(created.id)!;
-  form.schema.fields = [copy(phone)];
-  expect(await store.publishForm(form.id)).toBeTruthy();
-  const old = (await store.submitEntry(form.id, { contact: "13800000001" }))!;
-  expect(old.definitionVersion).toBe(1);
-  const original = copy(
-    store.data.forms.find((f) => f.id === form.id)!.published!,
-  );
-  const design = store.openForm(form.id)!;
-  design.schema.fields = copy(fields);
-  expect(validateFieldConfiguration(design.schema, store.data)).toEqual([]);
-  expect(await store.saveForm(form.id)).toBeTruthy();
-  expect(await store.publishForm(form.id)).toBeTruthy();
-  const input = applyFieldChange(
-    fields,
-    runtimeDefaults(fields, store.data),
-    "contact",
-    "13800000002",
-    store.data,
-  );
-  const draft = (await store.submitEntry(form.id, input, "draft"))!;
-  const submitted = (await store.submitEntry(
-    form.id,
-    draft.values,
-    "submitted",
-    draft.id,
-  ))!;
-  expect(submitted.id).toBe(draft.id);
-  expect(submitted.values).toMatchObject({
-    contact: "13800000002",
-    phoneText: "13800000002",
-    verified: 0,
-  });
-  const edit = applyFieldChange(
-    fields,
-    submitted.values,
-    "contact",
-    "13900000003",
-    store.data,
-  );
-  expect(await store.updateEntry(submitted.id, edit)).toBe(true);
-  const edited = store.data.entries.find((e) => e.id === submitted.id)!;
-  expect(edited.id).toBe(submitted.id);
-  expect(edited.values).toMatchObject({
-    phoneText: "13900000003",
-    verified: 0,
-  });
-  const reloaded = useWorkspaceStore(createPinia());
-  await reloaded.refreshForRead();
-  expect(
-    reloaded.data.forms.find((f) => f.id === form.id)!.versions[0],
-  ).toEqual(original);
-  const records = reloaded.data.entries.filter((e) => e.formId === form.id);
-  expect(records).toHaveLength(2);
-  expect(records.find((e) => e.id === old.id)!.values).toEqual({
-    contact: "13800000001",
-  });
-  expect(records.find((e) => e.id === submitted.id)!.values).toMatchObject({
-    contact: "13900000003",
-    phoneText: "13900000003",
-    verified: 0,
-  });
 });

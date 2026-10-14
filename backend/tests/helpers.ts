@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import type { INestApplication } from "@nestjs/common";
+import {
+  separateFormSchema,
+  type RecordPermissionGroup,
+  type FormSchema,
+} from "@platform/contracts";
 
 export const field = (id: string, type = "text", extra: Record<string, unknown> = {}) => ({ id, type, label: id, visible: true, editable: true, required: false, unique: false, masked: false, defaultValue: "", precision: 2, maxLength: 200, children: [], ...extra });
 export const schema = (...fields: ReturnType<typeof field>[]) => ({ version: 1, fields, settings: { rules: [] } });
@@ -34,28 +39,128 @@ export function harness() {
     }
   };
   return {
-    start, request, login, get db() { return app.get(Database); },
-    async restart() { await app.close(); await start(); },
+    start,
+    request,
+    login,
+    get db() {
+      return app.get(Database);
+    },
+    async restart() {
+      await app.close();
+      await start();
+    },
     async close() {
-      await app?.close(); const cleanup = new Pool({ connectionString: config.databaseUrl });
-      if (!/^platform_test_[a-f0-9]+$/.test(config.schema)) throw new Error("Unsafe cleanup schema");
-      await cleanup.query(`DROP SCHEMA "${config.schema}" CASCADE`); await cleanup.end();
+      await app?.close();
+      const cleanup = new Pool({ connectionString: config.databaseUrl });
+      if (!/^platform_test_[a-f0-9]+$/.test(config.schema))
+        throw new Error("Unsafe cleanup schema");
+      await cleanup.query(`DROP SCHEMA "${config.schema}" CASCADE`);
+      await cleanup.end();
     },
-    async definition(title: string, definitionSchema: ReturnType<typeof schema>) {
-      const def = await request("/definitions", "POST", { title, schema: definitionSchema }, "admin", 201);
-      await request(`/definitions/${def.id}/publish`, "POST", { expectedRevision: 1 }, "admin", 201);
-      return { ...def, revision: 2, latestVersion: 1 };
+    async definition(
+      title: string,
+      definitionSchema: ReturnType<typeof schema>,
+    ) {
+      const { model, page: pageSchema } = separateFormSchema(
+        definitionSchema as unknown as FormSchema,
+      );
+      const def = await request(
+        "/data-objects",
+        "POST",
+        { title, model },
+        "admin",
+        201,
+      );
+      const published = await request(
+        `/data-objects/${def.id}/publish`,
+        "POST",
+        { expectedRevision: 1 },
+        "admin",
+        201,
+      );
+      // 测试数据显式创建填写页面，不依赖模型发布时隐式生成默认页。
+      const page = await request(
+        "/pages",
+        "POST",
+        {
+          title,
+          definitionId: def.id,
+          definitionVersion: published.latestVersion,
+          schema: pageSchema,
+        },
+        "admin",
+        201,
+      );
+      await request(
+        `/pages/${page.id}/publish`,
+        "POST",
+        {
+          expectedRevision: page.revision,
+        },
+        "admin",
+        201,
+      );
+      return published;
     },
-    async grant(definitionId: string, policy: { userId: string; [key: string]: unknown }) {
-      const current = (await request(`/definitions/${definitionId}/grants`)).find((grant: any) => grant.userId === policy.userId);
-      return request(`/definitions/${definitionId}/grants`, "PUT", { ...policy, expectedRevision: current?.revision ?? 0 });
-    },
-    async record(definitionId: string, values: unknown, user = "admin", version = 1) {
-      return request(`/definitions/${definitionId}/records`, "POST", { requestId: randomUUID(), version, values }, user, 201);
+    permissionGroup: (definitionId: string, group: TestPermissionGroup) =>
+      savePermissionGroup(request, definitionId, group),
+    async record(
+      definitionId: string,
+      values: unknown,
+      user = "admin",
+      version = 1,
+    ) {
+      return request(
+        `/definitions/${definitionId}/records`,
+        "POST",
+        { requestId: randomUUID(), version, values },
+        user,
+        201,
+      );
     },
     async relation(spec: unknown) {
-      const relation = await request("/relations", "POST", { spec }, "admin", 201);
-      return request(`/relations/${relation.id}/publish`, "POST", { expectedRevision: relation.revision }, "admin", 201);
+      const relation = await request(
+        "/relations",
+        "POST",
+        { spec },
+        "admin",
+        201,
+      );
+      return request(
+        `/relations/${relation.id}/publish`,
+        "POST",
+        { expectedRevision: relation.revision },
+        "admin",
+        201,
+      );
     },
   };
+}
+
+// 使用正式权限组契约准备测试成员，不再模拟已退役的直授权接口。
+export type TestPermissionGroup = Pick<RecordPermissionGroup, "id" | "subjects" | "fields" | "actions"> & Partial<RecordPermissionGroup>;
+export async function savePermissionGroup(
+  request: (path: string, method?: string, body?: unknown) => Promise<any>,
+  definitionId: string,
+  group: TestPermissionGroup,
+) {
+  const path = `/definitions/${definitionId}/permission-groups`;
+  const current = await request(path);
+  const next: RecordPermissionGroup = {
+    name: group.id,
+    enabled: true,
+    archived: false,
+    scope: "all",
+    filters: [],
+    relations: {},
+    ...group,
+  };
+  const groups = current.groups.filter((item: RecordPermissionGroup) => item.id !== next.id);
+  groups.push(next);
+  return request(path, "PUT", {
+    expectedRevision: current.revision,
+    mode: "groups",
+    allowMerged: true,
+    groups,
+  });
 }

@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it } from "vitest";
 import { createApp, h, nextTick, ref } from "vue";
-import { createPinia } from "pinia";
-import { createMemoryHistory, createRouter } from "vue-router";
+
 import {
   choiceValueIssue,
   fieldValueLabel,
@@ -15,7 +14,6 @@ import {
   emptySchema,
   parseSchema,
   isFieldVisible,
-  type FormField,
 } from "../src/domain/form";
 import { validateDynamicValues } from "../src/domain/fieldValidation";
 import {
@@ -27,7 +25,7 @@ import { seedWorkspace } from "../src/domain/workspace";
 import { filterAndSortRecords, defaultRecordView } from "../src/domain/records";
 import ChoiceFieldControl from "../src/features/forms/components/ChoiceFieldControl.vue";
 import ManualChoiceEditor from "../src/features/forms/components/ManualChoiceEditor.vue";
-import FormRuntime from "../src/features/forms/components/FormRuntime.vue";
+
 const options = [
   { id: "a", label: "北京" },
   { id: "b", label: "上海" },
@@ -215,126 +213,56 @@ for (const type of ["checkbox", "multiselect"] as const)
     expect(control("部门 已保存部门").checked).toBe(true);
   });
 
-it("temporary options remain scoped to their rows and a completed fill resets their lifetime through the real runtime", async () => {
-  const multi = createField("checkbox", {
-    id: "multi",
-    label: "部门",
-    options,
-    allowCustomChoices: true,
-  });
-  const schema = {
-    ...emptySchema(),
-    fields: [
-      createField("text", { id: "note", label: "备注" }),
-      multi,
-      createField("subform", {
-        id: "rows",
-        label: "明细",
-        children: [{ ...multi, id: "rowmulti" }],
-      }),
-    ],
-  };
-  schema.settings.successMode = "inline";
-  schema.settings.allowAnotherSubmission = true;
-  const router = createRouter({
-    history: createMemoryHistory(),
-    routes: [{ path: "/:pathMatch(.*)*", component: { render: () => null } }],
-  });
-  await router.push("/fill");
-  const pinia = createPinia();
-  document.body.innerHTML = '<div id="app"></div>';
-  app = createApp({
-    render: () =>
-      h(FormRuntime, {
-        formId: "choice-test",
-        schema,
-        preview: false,
-        persistValues: async () => true,
-        initialValues: {
-          note: "",
-          multi: [],
-          rows: [{ rowmulti: [] }, { rowmulti: [] }],
-        },
-      }),
-  });
-  app.use(pinia);
-  app.use(router);
-  app.mount("#app");
-  await settle();
-  const add = async (label: string, text: string) => {
-    control(`${label}添加选项`).click();
+for (const type of ["checkbox", "multiselect"] as const)
+  it(`${type} counts temporary selections against configured bounds, independently of the predefined-option limit`, async () => {
+    const field = createField(type, {
+      allowCustomChoices: true,
+      selectionLimit: { enabled: true, min: 1001, max: 1001 },
+      options: Array.from({ length: 1000 }, (_, i) => ({
+        id: `a${i}`,
+        label: `选项${i}`,
+      })),
+    });
+    const predefined = field.options.map((option) => option.id);
+    const value = ref<unknown>(predefined);
+    await mount({
+      render: () =>
+        h(ChoiceFieldControl, {
+          field,
+          label: "部门",
+          modelValue: value.value,
+          "onUpdate:modelValue": (next) => (value.value = next),
+        }),
+    });
+    expect(selectionCountMessage(field, value.value)).toBe("需选择1001~1001项");
+    if (type === "multiselect") {
+      control("部门").click();
+      await settle();
+    }
+    control("部门添加选项").click();
     await settle();
-    await fill(`${label}新增选项`, text);
+    await fill("部门新增选项", "临时部门");
     button("确定").click();
     await settle();
-  };
-  await add("部门", "未选择部门");
-  control("部门 未选择部门").click();
-  await settle();
-  await fill("备注", "其他字段已修改");
-  expect(control("部门 未选择部门")).not.toBeNull();
-  await add("明细 第1行 部门", "首行临时");
-  control("明细 第1行 部门 首行临时").click();
-  await settle();
-  await add("明细 第2行 部门", "次行临时");
-  control("明细 第2行 部门 次行临时").click();
-  await settle();
-  control("删除明细第1行").click();
-  await settle();
-  expect(control("明细 第1行 部门 首行临时")).toBeNull();
-  expect(control("明细 第1行 部门 次行临时")).not.toBeNull();
-  document
-    .querySelector("form")!
-    .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-  await settle();
-  button("继续填写").click();
-  await settle();
-  expect(control("部门 未选择部门")).toBeNull();
-  expect(control("明细 第1行 部门 次行临时")).toBeNull();
-});
-
-for (const type of ["checkbox", "multiselect"] as const)
-it(`${type} counts temporary selections against configured bounds, independently of the predefined-option limit`, async () => {
-  const field = createField(type, {
-    allowCustomChoices: true,
-    selectionLimit: { enabled: true, min: 1001, max: 1001 },
-    options: Array.from({ length: 1000 }, (_, i) => ({
-      id: `a${i}`,
-      label: `选项${i}`,
-    })),
+    expect(value.value).toEqual([...predefined, { text: "临时部门" }]);
+    expect(choiceValueIssue(field, value.value)).toBeUndefined();
+    expect(selectionCountMessage(field, value.value)).toBeUndefined();
+    const restored = JSON.parse(JSON.stringify(value.value));
+    expect(choiceValueIssue(field, restored)).toBeUndefined();
+    expect(
+      selectionCountMessage(field, [...restored, { text: "超出项数" }]),
+    ).toBe("需选择1001~1001项");
+    expect(choiceValueIssue(field, [...restored, { text: "临时部门" }])).toBe(
+      "不能重复选择同一选项",
+    );
+    expect(choiceValueIssue(field, [...restored, "missing"])).toBe(
+      "包含无效选项，请重新选择",
+    );
+    expect(
+      choiceValueIssue({ ...field, allowCustomChoices: false }, restored),
+    ).toBe("包含无效选项，请重新选择");
+    expect(field.options).toHaveLength(1000);
   });
-  const predefined = field.options.map(option => option.id);
-  const value = ref<unknown>(predefined);
-  await mount({
-    render: () =>
-      h(ChoiceFieldControl, {
-        field,
-        label: "部门",
-        modelValue: value.value,
-        "onUpdate:modelValue": (next) => (value.value = next),
-      }),
-  });
-  expect(selectionCountMessage(field, value.value)).toBe("需选择1001~1001项");
-  if (type === "multiselect") {
-    control("部门").click();
-    await settle();
-  }
-  control("部门添加选项").click();
-  await settle();
-  await fill("部门新增选项", "临时部门");
-  button("确定").click();
-  await settle();
-  expect(value.value).toEqual([...predefined, { text: "临时部门" }]);
-  expect(choiceValueIssue(field, value.value)).toBeUndefined();
-  expect(selectionCountMessage(field, value.value)).toBeUndefined();
-  const restored = JSON.parse(JSON.stringify(value.value));
-  expect(choiceValueIssue(field, restored)).toBeUndefined();
-  expect(selectionCountMessage(field, [...restored, { text: "超出项数" }])).toBe("需选择1001~1001项");
-  expect(choiceValueIssue(field, [...restored, { text: "临时部门" }])).toBe("不能重复选择同一选项");
-  expect(choiceValueIssue(field, [...restored, "missing"])).toBe("包含无效选项，请重新选择");
-  expect(choiceValueIssue({ ...field, allowCustomChoices: false }, restored)).toBe("包含无效选项，请重新选择");
-  expect(field.options).toHaveLength(1000);
-});
 
 it("the manual editor keeps a single Other last, preserves it through batches and removes its default explicitly", async () => {
   const field = ref(

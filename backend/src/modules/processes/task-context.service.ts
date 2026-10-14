@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
 } from "@nestjs/common";
+import { emptyFieldValue, ruleFieldVisible } from "@platform/contracts";
 import type {
   FormField,
   FormSchema,
@@ -167,6 +168,83 @@ export class TaskContextService {
     return { ...source, scope, access, schema };
   }
 
+  /** 委托不能把待办交给无法补齐当前必填项的人；已填妥的只读审批仍允许接收。 */
+  async assertDelegateRecipient(
+    tx: Transaction,
+    recipient: Actor,
+    recordId: string,
+    spec: TaskSpec,
+  ) {
+    const source = await this.load(tx, recipient, recordId, spec);
+    if (!source.access.edit) {
+      throw new ForbiddenException(
+        "该成员没有任务记录的编辑权限，请先由管理员配置权限",
+      );
+    }
+    // 未绑定页面的直接任务，完成时只检查明确指定的主表必填项。
+    if (!source.scope) {
+      for (const fieldId of spec.requiredFields || []) {
+        const field = source.schema.fields.find(
+          (item) => item.id === fieldId && item.type !== "subform",
+        );
+        if (!field || permission(source.access, field) === "hidden") {
+          throw new ForbiddenException("该成员无法查看任务要求填写的字段");
+        }
+        if (
+          emptyFieldValue(source.row.values[fieldId]) &&
+          permission(source.access, field) !== "edit"
+        ) {
+          throw new ForbiddenException(
+            `该成员无法填写必填字段「${field.label}」，请先配置权限`,
+          );
+        }
+      }
+      return;
+    }
+    const visible = masked(source.schema, source.row.values, {}, source.access);
+    const actions = rowActions(
+      source.version.schema,
+      source.access,
+      source.scope?.schema,
+    );
+    const check = (
+      field: FormField,
+      value: unknown,
+      values: FormValues,
+      parent?: FormField,
+    ) => {
+      if (!field.required || !emptyFieldValue(value)) return;
+      if (!ruleFieldVisible(field, visible.schema, values)) return;
+      let editable = permission(source.access, field, parent) === "edit";
+      if (parent && actions[parent.id]?.editExisting === false) editable = false;
+      if (
+        field.type === "subform" &&
+        !actions[field.id]?.add &&
+        !actions[field.id]?.insert
+      ) {
+        editable = false;
+      }
+      if (!editable) {
+        throw new ForbiddenException(
+          `该成员无法填写必填字段「${field.label}」，请先配置权限`,
+        );
+      }
+    };
+    for (const field of visible.schema.fields) {
+      if (!ruleFieldVisible(field, visible.schema, visible.values)) continue;
+      const value = visible.values[field.id];
+      check(field, value, visible.values);
+      if (field.type !== "subform" || !Array.isArray(value)) continue;
+      for (const row of value as FormValues[]) {
+        if (spec.rowId && row._rowId !== spec.rowId) continue;
+        const values = { ...visible.values, ...row };
+        for (const child of field.children) {
+          check(child, row[child.id], values, field);
+        }
+      }
+    }
+  }
+
   /** 在完成任务前校验页面提交约束及任务必填字段是否均已合规填写 */
   async validateCompletion(
     tx: Transaction,
@@ -204,11 +282,12 @@ export class TaskContextService {
       status: string;
       spec: TaskSpec;
     },
+    readOnly = false,
   ): Promise<RecordDetail> {
     const spec = task.spec;
     const source = await this.load(tx, actor, task.record_id, spec);
 
-    const writable = task.status === "ready" && spec.kind !== "copy";
+    const writable = !readOnly && task.status === "ready" && spec.kind !== "copy";
     const access = { ...source.access, edit: source.access.edit && writable };
     if (!writable) {
       access.fields = Object.fromEntries(

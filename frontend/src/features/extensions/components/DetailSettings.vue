@@ -1,18 +1,11 @@
 <script setup lang="ts">
-import { ref, watch, computed } from "vue";
+import { watch, computed } from "vue";
 import type { FormRecord } from "../../../domain/workspace";
-import { copy } from "../../../domain/form";
-import {
-  defaultDetailSettings,
-  presentationIssues,
-} from "../../../domain/presentation";
+import { defaultDetailSettings } from "../../../domain/presentation";
 import { sampleValues } from "../../../domain/extensions";
-import { useWorkspaceStore } from "../../../stores/workspace";
 import RecordBody from "../../forms/components/RecordBody.vue";
 import PresentationFields from "./PresentationFields.vue";
 const props = defineProps<{ form: FormRecord }>();
-const store = useWorkspaceStore(),
-  errors = ref<string[]>([]);
 const settings = computed(() => props.form.extensions!.detail!);
 watch(
   () => props.form,
@@ -23,14 +16,6 @@ watch(
   { immediate: true },
 );
 const values = computed(() => sampleValues(props.form.schema));
-async function save() {
-  errors.value = presentationIssues(settings.value, props.form.schema);
-  if (
-    !errors.value.length &&
-    (await store.saveDetailSettings(props.form.id, copy(settings.value)))
-  )
-    store.notify("数据详情布局已保存，发布新版本后生效");
-}
 </script>
 <template>
   <div class="submission-settings">
@@ -73,12 +58,9 @@ async function save() {
       <p class="field-hint">
         调整详情的展示，不修改原始记录。记录沿用提交时的布局版本。
       </p>
-      <ul v-if="errors.length" class="config-errors" role="alert">
-        <li v-for="error in errors" :key="error">{{ error }}</li>
-      </ul>
       <div class="submission-save">
         <span>发布后用于新记录</span
-        ><button class="button primary" @click="save">保存详情布局</button>
+        ><button class="button primary" disabled>保存详情布局</button>
       </div>
     </section>
     <aside class="submission-preview detail-preview">

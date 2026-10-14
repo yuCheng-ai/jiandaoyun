@@ -144,9 +144,9 @@ export async function pagePublishImpact(
 
   // 3. 检查引用该数据对象或页面的流程模板
   const processSql = `
-    SELECT t.id, t.draft, t.latest_version, v.spec
+    SELECT t.id, t.draft, t.latest_version, t.active_version, v.spec
     FROM process_templates t
-    LEFT JOIN process_template_versions v ON v.template_id = t.id AND v.version = t.latest_version
+    LEFT JOIN process_template_versions v ON v.template_id = t.id AND v.version = t.active_version
     WHERE t.workspace_id = $1
     ORDER BY t.id
   `;
@@ -169,7 +169,7 @@ export async function pagePublishImpact(
         id: row.id,
         title: row.spec.title,
         state: "published",
-        version: row.latest_version,
+        version: row.active_version,
         detail: detail(row.spec),
       });
     }

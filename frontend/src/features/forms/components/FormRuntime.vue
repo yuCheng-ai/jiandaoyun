@@ -1,16 +1,6 @@
 <script setup lang="ts">
 import { provideFileUploads } from "../../../composables/useFileUploads";
 import { useRuntimeData } from "../../../composables/useRuntimeData";
-import { useEditorDraft } from "../../../composables/useEditorDraft";
-import { useEditorDraftStore } from "../../../stores/editorDrafts";
-import { migrateLegacyFillCache } from "../../../repositories/legacyFillCache";
-import { useRoute } from "vue-router";
-import EditorDraftNotice from "../../../components/shared/EditorDraftNotice.vue";
-import {
-  restoreRuntimeDraft,
-  restoreFillingDraft,
-} from "../../../domain/editorDraftAdapters";
-import { contextFingerprint } from "../../../domain/editorDrafts";
 import { computed, defineAsyncComponent, nextTick, ref, watch } from "vue";
 import type { FrontendEvent, FrontendFieldChange } from "@platform/contracts";
 import {
@@ -18,7 +8,6 @@ import {
   subformRowIdentityErrors,
   identifySubformRows,
   subformOperationErrors,
-  subformPermissions,
   subformRowId,
 } from "@platform/contracts";
 import {
@@ -28,9 +17,6 @@ import {
 } from "../../../domain/frontendEvents";
 import { applyLookupSelection, lookupIssues } from "../../../domain/lookup";
 import FrontendSelectionDialog from "./FrontendSelectionDialog.vue";
-import CustomButtonBar from "../../../components/shared/CustomButtonBar.vue";
-import type { CustomButton } from "../../../domain/buttons";
-import SubmissionReceipt from "../../../components/shared/SubmissionReceipt.vue";
 import FormFields from "./FormFields.vue";
 import BaseDialog from "../../../components/BaseDialog.vue";
 import {
@@ -38,13 +24,11 @@ import {
   changedValidationRules,
   type FormValidationIssue,
 } from "../../../domain/formValidation";
-import QuickFillDialog from "./QuickFillDialog.vue";
 import { applyOcrResult } from "../../../domain/ocr";
 import { frontendValueFields } from "../../../domain/frontendEventValues";
 const OcrRecognitionDialog = defineAsyncComponent(
   () => import("./OcrRecognitionDialog.vue"),
 );
-import type { QuickFillConfig } from "../../../domain/quickFill";
 import { validateDynamicValues } from "../../../domain/fieldValidation";
 import {
   runtimeDefaults,
@@ -53,11 +37,9 @@ import {
   resolveRuntimeValues,
 } from "../../../domain/relations";
 import {
-  defaultValues,
   validateValues,
   flattenFields,
   findField,
-  isFieldVisible,
   isFieldVisibleInSchema,
   prepareSubmission,
   copy,
@@ -67,36 +49,10 @@ import {
   type FieldError,
   type FormField,
 } from "../../../domain/form";
-const props = withDefaults(
-  defineProps<{
-    schema: FormSchema;
-    device?: "desktop" | "mobile";
-    external?: boolean;
-    buttons?: CustomButton[];
-    quickFill?: QuickFillConfig;
-    formId: string;
-    preview?: boolean;
-    initialValues?: FormValues;
-    rowBaseline?: FormValues;
-    rowPermissionMode?: "fill" | "record" | "unrestricted";
-    readonly?: boolean;
-    editSerial?: boolean;
-    existingValues?: FormValues[];
-    persistValues?: (
-      values: FormValues,
-      draft: boolean,
-    ) => boolean | Promise<boolean>;
-    cacheKey?: string;
-    entryId?: string;
-    editableValidationOnly?: boolean;
-  }>(),
-  { preview: true, readonly: false, existingValues: () => [] },
-);
-const emit = defineEmits<{
-  change: [values: FormValues];
-  submit: [values: FormValues];
-  draft: [values: FormValues];
-  continue: [];
+const props = defineProps<{
+  schema: FormSchema;
+  device?: "desktop" | "mobile";
+  formId: string;
 }>();
 const runtimeData = useRuntimeData();
 const ocrContext = ref<{ fieldId: string }>();
@@ -109,9 +65,6 @@ const ocrField = computed(() =>
 );
 const ocrDisabled = computed(
   () =>
-    props.readonly ||
-    submitted.value ||
-    submitting.value ||
     !ocrField.value?.visible ||
     !ocrField.value.editable ||
     !ocrField.value.ocr?.mappings.length ||
@@ -147,49 +100,24 @@ function commitOcr(result: Record<string, unknown>, fingerprint?: string) {
   if (!triggerEvents(next, sources, false))
     throw Error(changeError.value || "回填未完成，请核对表单提示");
 }
-const uploadingFiles = provideFileUploads();
-const quickFillOpen = ref(false);
-const draftKey = computed(
-  () =>
-    `${props.preview ? "form-preview" : "form-fill"}-${props.formId}-${props.entryId || "new"}-${props.cacheKey || "draft"}-${runtimeData.value.organization.currentUserId}`,
-);
+// 预览只运行交互与校验；关闭后回收本次上传，不写入记录或本地草稿。
+const { uploading: uploadingFiles } = provideFileUploads();
 function initialValues() {
   return identifySubformRows(
     props.schema.fields,
-    props.initialValues
-      ? copy(props.initialValues)
-      : runtimeDefaults(props.schema.fields, runtimeData.value),
+    runtimeDefaults(props.schema.fields, runtimeData.value),
   );
 }
 const values = ref<FormValues>(initialValues());
 const permissionBaseline = ref<FormValues>(
-  props.rowPermissionMode === "record"
-    ? copy(values.value)
-    : subformFillingBaseline(
-        props.schema.fields,
-        runtimeData.value,
-        values.value,
-      ),
+  subformFillingBaseline(props.schema.fields, runtimeData.value, values.value),
 );
 const ignoreRowPermissions = computed(
   () =>
-    props.rowPermissionMode === "unrestricted" ||
-    (props.rowPermissionMode !== "record" &&
-      runtimeData.value.forms.find((form) => form.id === props.formId)?.kind ===
-        "workflow"),
-);
-const restrictedExistingRows = computed(
-  () =>
-    !ignoreRowPermissions.value &&
-    flattenFields(props.schema.fields).some(
-      (field) =>
-        field.type === "subform" &&
-        (!subformPermissions(field.subformPermissions).editExisting ||
-          !subformPermissions(field.subformPermissions).deleteExisting),
-    ),
+    runtimeData.value.forms.find((form) => form.id === props.formId)?.kind ===
+    "workflow",
 );
 const runtimeKey = ref(0);
-const baseline = ref(JSON.stringify(values.value));
 const errors = ref<FieldError[]>([]);
 const changeError = ref("");
 const validationAttempt = ref(0);
@@ -223,12 +151,7 @@ function checkFormRules(ruleIds?: ReadonlySet<string>) {
     ? []
     : formValidationResults(
         props.schema,
-        prepareSubmission(
-          props.schema,
-          resolved.value,
-          originalValues.value,
-          true,
-        ),
+        prepareSubmission(props.schema, resolved.value, {}, true),
         { data: runtimeData.value, ruleIds },
       );
 }
@@ -252,151 +175,8 @@ function resetValidation() {
 }
 
 const status = ref("");
-const saveFailed = ref(false);
-const submitted = ref(false);
-const submitting = ref(false);
-const recoveryTitle = () =>
-  `表单${props.entryId ? "编辑" : "填写"} · ${runtimeData.value.forms.find((f) => f.id === props.formId)?.title || props.formId}`;
-const recoveryContext = () => ({
-  schema: props.schema,
-  initial: props.initialValues || null,
-  record: props.entryId
-    ? runtimeData.value.entries.find((e) => e.id === props.entryId)
-    : null,
-  member: runtimeData.value.organization.currentUserId,
-});
-const editorDraft = useEditorDraft(
-  {
-    key: () => draftKey.value,
-    autoPersist: () => props.schema.settings.cacheDraft,
-    title: recoveryTitle,
-    context: recoveryContext,
-    restore: (value) => {
-      const envelope =
-        value &&
-        typeof value === "object" &&
-        (value as any).format === "subform-runtime-v1"
-          ? (value as { values: unknown; existingRows: unknown })
-          : undefined;
-      const filling =
-        props.rowPermissionMode !== "record" &&
-        props.rowPermissionMode !== "unrestricted" &&
-        !ignoreRowPermissions.value;
-      const recovery = filling
-        ? restoreFillingDraft(
-            envelope ? envelope.values : value,
-            props.schema.fields,
-            values.value,
-            runtimeData.value,
-            envelope?.existingRows,
-          )
-        : {
-            values: restoreRuntimeDraft(
-              envelope ? envelope.values : value,
-              props.schema.fields,
-              values.value,
-              permissionBaseline.value,
-            ),
-            existingRows: permissionBaseline.value,
-          };
-      const restored = recovery.values,
-        restoredBaseline = recovery.existingRows;
-      const issue =
-        !ignoreRowPermissions.value &&
-        subformOperationErrors(
-          props.schema.fields,
-          restoredBaseline,
-          restored,
-          restoredBaseline,
-        )[0];
-      if (issue) throw Error(issue.message);
-      if (!applyValues(restored, true, restoredBaseline))
-        throw Error(changeError.value || "暂存内容无法恢复");
-      saveFailed.value = false;
-      status.value = "填写内容已恢复，请检查后再提交；只读字段保留当前值。";
-    },
-  },
-  () => !props.readonly && !props.preview && !submitted.value,
-  () =>
-    restrictedExistingRows.value
-      ? {
-          format: "subform-runtime-v1",
-          values: copy(values.value),
-          existingRows: copy(permissionBaseline.value),
-        }
-      : values.value,
-  () => JSON.stringify(values.value) !== baseline.value,
-);
-const draftStore = useEditorDraftStore(),
-  route = useRoute(),
-  legacyIssue = ref("");
-watch(
-  draftKey,
-  () => {
-    legacyIssue.value = "";
-    if (
-      props.preview ||
-      props.readonly ||
-      !props.schema.settings.cacheDraft ||
-      props.initialValues
-    )
-      return;
-    legacyIssue.value = migrateLegacyFillCache(draftKey.value, (raw) => {
-      const restored = restoreRuntimeDraft(
-        raw,
-        props.schema.fields,
-        values.value,
-      );
-      const context = JSON.stringify(recoveryContext());
-      const existing = draftStore.entries.find(
-        (d) =>
-          d.key === draftKey.value &&
-          contextFingerprint(d.context) === contextFingerprint(context) &&
-          JSON.stringify(d.value) === JSON.stringify(restored),
-      );
-      if (existing) return draftStore.checkpoint(existing.id);
-      if (JSON.stringify(restored) === JSON.stringify(values.value))
-        return true;
-      const draft = {
-        id: uid("draft"),
-        key: draftKey.value,
-        title: recoveryTitle(),
-        path: route.fullPath,
-        context,
-        value: restored,
-        updatedAt: new Date().toISOString(),
-      };
-      return draftStore.capture(draft) && draftStore.checkpoint(draft.id);
-    });
-  },
-  { immediate: true, flush: "post" },
-);
-function discardEdits() {
-  editorDraft.clear();
-  baseline.value = JSON.stringify(values.value);
-}
-defineExpose({
-  discardEdits,
-  flushDraft: editorDraft.flush,
-  retainedDraft: editorDraft.retained,
-  hasChanges: computed(
-    () => !submitted.value && JSON.stringify(values.value) !== baseline.value,
-  ),
-  pending: computed(() => submitting.value || uploadingFiles.value),
-});
-const originalValues = computed(() =>
-  runtimeData.value.entries.find((entry) => entry.id === props.entryId)
-    ?.status === "draft"
-    ? {}
-    : props.initialValues || {},
-);
 const resolved = computed(() =>
-  resolveRuntimeValues(
-    props.schema,
-    values.value,
-    runtimeData.value,
-    originalValues.value,
-  ),
+  resolveRuntimeValues(props.schema, values.value, runtimeData.value, {}),
 );
 function validationErrors() {
   return [
@@ -408,25 +188,11 @@ function validationErrors() {
           permissionBaseline.value,
         )
       : []),
-    ...validateValues(
-      props.schema,
-      resolved.value,
-      props.existingValues,
-      props.rowBaseline,
-    ),
-    ...validateDynamicValues(
-      props.schema,
-      resolved.value,
-      runtimeData.value,
-      props.editableValidationOnly,
-    ),
+    ...validateValues(props.schema, resolved.value),
+    ...validateDynamicValues(props.schema, resolved.value, runtimeData.value),
   ];
 }
-function applyValues(
-  next: FormValues,
-  generated = false,
-  restoredBaseline?: FormValues,
-) {
+function applyValues(next: FormValues, generated = false) {
   const before = copy(resolved.value);
   const issue = [
     ...subformRowLimitErrors(props.schema.fields, next, before),
@@ -456,7 +222,7 @@ function applyValues(
     changeError.value = (duplicate || operation)!.message;
     return false;
   }
-  const nextBaseline = copy(restoredBaseline || permissionBaseline.value);
+  const nextBaseline = copy(permissionBaseline.value);
   if (generated) {
     for (const field of flattenFields(props.schema.fields).filter(
       (f) => f.type === "subform",
@@ -490,7 +256,7 @@ function applyValues(
     props.schema,
     identified,
     runtimeData.value,
-    originalValues.value,
+    {},
   );
   permissionBaseline.value = nextBaseline;
   values.value = nextValues;
@@ -501,7 +267,6 @@ function applyValues(
   formIssues.value = checkFormRules(submittedCheck ? undefined : touchedRules);
   warningOpen.value = false;
   status.value = "";
-  emit("change", copy(values.value));
   return true;
 }
 function change(
@@ -542,14 +307,7 @@ function change(
   }
 }
 function activate(source: FrontendFieldChange) {
-  if (
-    props.readonly ||
-    submitted.value ||
-    submitting.value ||
-    selectionContext.value ||
-    ocrContext.value
-  )
-    return;
+  if (selectionContext.value || ocrContext.value) return;
   const field = findField(props.schema.fields, source.fieldId);
   if (field?.type === "ocr" && field.ocr) {
     const projected = frontendValueFields(props.schema, true).find(
@@ -690,9 +448,6 @@ function triggerEvents(
   eventFailures.value = [...new Set(failures)];
   return applyValues(next, generated);
 }
-function applyButton(next: FormValues) {
-  applyValues(copy(next));
-}
 async function submit(ignoreWarnings = false) {
   if (selectionContext.value) {
     status.value = "请先完成或取消数据选择";
@@ -702,14 +457,7 @@ async function submit(ignoreWarnings = false) {
     status.value = "请等待文件上传完成";
     return;
   }
-  if (
-    props.readonly ||
-    props.schema.settings.allowSubmit === false ||
-    submitted.value ||
-    submitting.value
-  )
-    return;
-  saveFailed.value = false;
+  if (props.schema.settings.allowSubmit === false) return;
   if (
     props.schema.settings.frontendEvents?.some(
       (event) => event.enabled && event.trigger === "submit",
@@ -765,48 +513,9 @@ async function submit(ignoreWarnings = false) {
     return;
   }
   warningOpen.value = false;
-  const result = prepareSubmission(
-    props.schema,
-    resolved.value,
-    originalValues.value,
-    true,
-  );
-  if (props.preview) status.value = "校验通过，预览数据未提交";
-  else {
-    submitting.value = true;
-    try {
-      if (!props.persistValues || !(await props.persistValues(result, false))) {
-        saveFailed.value = true;
-        status.value = "保存失败，请重试";
-        return;
-      }
-      editorDraft.clear();
-      baseline.value = JSON.stringify(values.value);
-      submitted.value = true;
-      status.value = props.schema.settings.successMessage || "提交成功";
-      emit("submit", result);
-    } catch {
-      saveFailed.value = true;
-      status.value = "保存失败，请重试";
-    } finally {
-      submitting.value = false;
-    }
-  }
+  status.value = "校验通过，预览数据未提交";
 }
-function continueFilling() {
-  runtimeKey.value++;
-  values.value = identifySubformRows(
-    props.schema.fields,
-    runtimeDefaults(props.schema.fields, runtimeData.value),
-  );
-  permissionBaseline.value = copy(values.value);
-  baseline.value = JSON.stringify(values.value);
-  resetValidation();
-  status.value = "";
-  submitted.value = false;
-  emit("continue");
-}
-async function saveDraft() {
+function saveDraft() {
   if (selectionContext.value) {
     status.value = "请先完成或取消数据选择";
     return;
@@ -815,90 +524,36 @@ async function saveDraft() {
     status.value = "请等待文件上传完成";
     return;
   }
-  if (
-    props.readonly ||
-    !props.schema.settings.allowDraft ||
-    submitted.value ||
-    submitting.value
-  )
-    return;
-  saveFailed.value = false;
-  submitting.value = true;
-  const snapshot = copy(values.value);
-  try {
-    if (!props.preview) {
-      if (
-        !props.persistValues ||
-        !(await props.persistValues(snapshot, true))
-      ) {
-        saveFailed.value = true;
-        status.value = "草稿保存失败，请重试";
-        return;
-      }
-      editorDraft.clear();
-      baseline.value = JSON.stringify(values.value);
-      emit("draft", snapshot);
-    }
-    status.value = props.preview
-      ? "已模拟保存草稿，预览内容未写入正式数据。"
-      : "草稿已保存";
-  } catch {
-    saveFailed.value = true;
-    status.value = "当前浏览器无法保存草稿";
-  } finally {
-    submitting.value = false;
-  }
+  if (!props.schema.settings.allowDraft) return;
+  status.value = "已模拟保存草稿，预览内容未写入正式数据。";
 }
 watch(
-  [
-    () => props.initialValues,
-    () => runtimeData.value.organization.currentUserId,
-  ],
-  ([value]) => {
+  () => runtimeData.value.organization.currentUserId,
+  () => {
     runtimeKey.value++;
     values.value = initialValues();
-    permissionBaseline.value =
-      props.rowPermissionMode === "record"
-        ? copy(values.value)
-        : subformFillingBaseline(
-            props.schema.fields,
-            runtimeData.value,
-            values.value,
-          );
-    baseline.value = JSON.stringify(values.value);
+    permissionBaseline.value = subformFillingBaseline(
+      props.schema.fields,
+      runtimeData.value,
+      values.value,
+    );
     resetValidation();
     status.value = "";
-    submitted.value = false;
   },
 );
 </script>
 <template>
   <form
     class="form-runtime"
-    :aria-busy="submitting || uploadingFiles"
+    :aria-busy="uploadingFiles"
     @submit.prevent="submit()"
   >
-    <p v-if="legacyIssue" class="field-hint" role="status">{{ legacyIssue }}</p>
-    <EditorDraftNotice
-      v-if="!readonly && !preview && !submitted"
-      :draft-key="editorDraft.key.value"
-      :disabled="submitting || uploadingFiles"
-    />
-    <SubmissionReceipt
-      v-if="submitted && schema.settings.successMode === 'page'"
-      :message="schema.settings.successMessage"
-      :can-continue="schema.settings.allowAnotherSubmission"
-      mode="page"
-      @continue="continueFilling"
-    />
-    <div v-else ref="content" class="runtime-content">
+    <div ref="content" class="runtime-content">
       <p v-if="schema.settings.description" class="runtime-description">
         {{ schema.settings.description }}
       </p>
       <p
         v-if="
-          !readonly &&
-          !submitted &&
           schema.settings.frontendEvents?.some(
             (event) => event.enabled && event.request,
           )
@@ -907,23 +562,6 @@ watch(
       >
         前端事件使用已配置的模拟返回数据，未连接外部服务器。
       </p>
-      <div
-        v-if="quickFill?.enabled && !readonly && !submitted"
-        class="quick-fill-entry"
-      >
-        <div>
-          <strong>AI 快捷填报</strong>
-          <p>输入文字，检查字段后再回填。<span>本地规则演示</span></p>
-        </div>
-        <button
-          type="button"
-          class="button"
-          :disabled="uploadingFiles"
-          @click="quickFillOpen = true"
-        >
-          快捷填报
-        </button>
-      </div>
       <FormFields
         :key="runtimeKey"
         :fields="schema.fields"
@@ -931,52 +569,28 @@ watch(
         :values="resolved"
         :errors="errors"
         :validation-attempt="validationAttempt"
-        :disabled="readonly || submitted || submitting"
-        :readonly="readonly || submitted"
-        :edit-serial="editSerial"
-        :row-baseline="rowBaseline"
         :existing-rows="permissionBaseline"
         :ignore-row-permissions="ignoreRowPermissions"
-        :entry-id="entryId"
         :device="device"
-        :external="external"
         @change="change"
         @activate="activate"
       />
     </div>
-    <footer
-      v-if="!readonly && !(submitted && schema.settings.successMode === 'page')"
-      class="runtime-footer"
-    >
-      <ul
-        v-if="eventFailures.length && !submitted"
-        class="field-error"
-        role="alert"
-      >
+    <footer class="runtime-footer">
+      <ul v-if="eventFailures.length" class="field-error" role="alert">
         <li v-for="failure in eventFailures" :key="failure">{{ failure }}</li>
       </ul>
-      <p v-if="changeError && !submitted" class="field-error" role="alert">
+      <p v-if="changeError" class="field-error" role="alert">
         {{ changeError }}
       </p>
-      <SubmissionReceipt
-        v-if="submitted"
-        :message="schema.settings.successMessage"
-        :can-continue="schema.settings.allowAnotherSubmission"
-        mode="inline"
-        @continue="continueFilling"
-      />
       <p
-        v-else-if="status"
+        v-if="status"
         role="status"
-        :class="errors.length || saveFailed ? 'field-error' : 'runtime-success'"
+        :class="errors.length ? 'field-error' : 'runtime-success'"
       >
         {{ status }}
       </p>
-      <ul
-        v-if="formIssues.length && !submitted"
-        class="form-validation-issues"
-        role="alert"
-      >
+      <ul v-if="formIssues.length" class="form-validation-issues" role="alert">
         <li
           v-for="issue in formIssues"
           :key="issue.ruleId"
@@ -987,35 +601,23 @@ watch(
           {{ issue.message }}
         </li>
       </ul>
-      <CustomButtonBar
-        v-if="!submitted && buttons?.length"
-        :buttons="buttons"
-        position="fill"
-        :schema="schema"
-        :values="resolved"
-        :form-id="formId"
-        :preview="preview"
-        @apply="applyButton"
-      />
-      <div v-if="!submitted">
+      <div>
         <button
           v-if="schema.settings.allowSubmit !== false"
           class="button primary"
           type="submit"
-          :disabled="submitting || uploadingFiles"
+          :disabled="uploadingFiles"
         >
           {{
             uploadingFiles
               ? "正在上传文件…"
-              : submitting
-                ? "正在保存…"
-                : schema.settings.submitLabel || "提交"
+              : schema.settings.submitLabel || "提交"
           }}</button
         ><button
           v-if="schema.settings.allowDraft"
           type="button"
           class="button"
-          :disabled="submitting || uploadingFiles"
+          :disabled="uploadingFiles"
           @click="saveDraft"
         >
           {{ schema.settings.draftLabel || "保存草稿" }}
@@ -1054,17 +656,6 @@ watch(
       </button></template
     >
   </BaseDialog>
-  <QuickFillDialog
-    v-if="quickFill?.enabled && !readonly && !submitted"
-    :open="quickFillOpen"
-    :config="quickFill"
-    :schema="schema"
-    :values="resolved"
-    :form-id="formId"
-    :preview="preview"
-    @close="quickFillOpen = false"
-    @apply="applyButton"
-  />
   <OcrRecognitionDialog
     v-if="ocrContext && ocrField"
     :key="ocrContext.fieldId"

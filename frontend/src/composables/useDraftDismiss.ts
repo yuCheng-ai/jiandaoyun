@@ -71,7 +71,9 @@ export function useDraftDismiss(
     if (!dirty.value) return true;
     finishLeave(false);
     requestClose();
-    return new Promise<boolean>((resolve) => { leaving = resolve; });
+    return new Promise<boolean>((resolve) => {
+      leaving = resolve;
+    });
   }
   function beforeUnload(event: BeforeUnloadEvent) {
     if (dirty.value && !editorDraft?.retained.value) event.preventDefault();
@@ -81,9 +83,10 @@ export function useDraftDismiss(
     finishLeave(false);
     window.removeEventListener("beforeunload", beforeUnload);
   });
-  function markSaved() {
+  function markSaved(snapshot: unknown = value()) {
     editorDraft?.clear();
-    initial.value = JSON.stringify(value());
+    // 保存期间可能仍有异步结果到达，只确认真正提交的那一份内容。
+    initial.value = JSON.stringify(snapshot);
     finishLeave(true);
     confirmDiscard.value = false;
   }

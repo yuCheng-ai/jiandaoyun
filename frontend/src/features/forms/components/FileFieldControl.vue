@@ -9,11 +9,7 @@ import {
   type FileValue,
   type FormField,
 } from "@platform/contracts";
-import {
-  discardFile,
-  readFile,
-  saveFiles,
-} from "../../../repositories/fileRepository";
+import { readFile, saveFiles } from "../../../repositories/fileRepository";
 import BaseDialog from "../../../components/BaseDialog.vue";
 import AppIcon from "../../../components/AppIcon.vue";
 import { useFileUploads } from "../../../composables/useFileUploads";
@@ -38,7 +34,7 @@ const pending = ref(false),
   error = ref(""),
   dragging = ref<number>(),
   input = ref<HTMLInputElement>();
-useFileUploads(pending);
+const { trackFiles, discardFiles } = useFileUploads(pending);
 const thumbs = ref<Record<number, string>>({});
 const selected = ref<{ value: FileValue; url?: string; kind?: string }>();
 const viewError = ref(""),
@@ -125,13 +121,14 @@ async function upload(selection: File[]) {
   pending.value = true;
   try {
     const added = await saveFiles(selection);
+    trackFiles(added);
     if (token !== epoch || locked.value) {
-      await Promise.allSettled(added.map(discardFile));
+      await discardFiles(added);
       return;
     }
     const uploadedIssue = fileValueIssue(props.field, added);
     if (uploadedIssue) {
-      await Promise.allSettled(added.map(discardFile));
+      await discardFiles(added);
       error.value = uploadedIssue;
       return;
     }
@@ -139,6 +136,7 @@ async function upload(selection: File[]) {
       "update:modelValue",
       props.field.multiple ? [...before, ...added] : added,
     );
+    if (!props.field.multiple) await discardFiles(before);
   } catch (cause) {
     if (token === epoch)
       error.value =
@@ -172,7 +170,7 @@ function remove(index: number) {
     "update:modelValue",
     files.value.filter((_, i) => i !== index),
   );
-  if (removed) void discardFile(removed).catch(() => {});
+  if (removed) void discardFiles([removed]);
 }
 function move(from: number, to: number) {
   if (

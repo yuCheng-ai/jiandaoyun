@@ -23,7 +23,6 @@ import {
   addressValueIssue,
 } from "../src/domain/address";
 import { displayValue } from "../src/domain/relations";
-import { restoreRuntimeDraft } from "../src/domain/editorDraftAdapters";
 import { validateFieldConfiguration } from "../src/domain/fieldValidation";
 import {
   formulaExpressionErrors,
@@ -224,19 +223,8 @@ it("changing a parent clears only downstream regions and preserves detail; revis
   );
 });
 
-it("district values survive editable draft recovery, while readonly address cells keep the current value", () => {
+it("rejects invalid address defaults and mismatched district selections", () => {
   const field = createField("address", { id: "a" });
-  expect(restoreRuntimeDraft({ a: address }, [field], { a: "" })).toEqual({
-    a: address,
-  });
-  expect(
-    restoreRuntimeDraft({ a: address }, [{ ...field, editable: false }], {
-      a: { province: "江苏省" },
-    }),
-  ).toEqual({ a: { province: "江苏省" } });
-  expect(() =>
-    restoreRuntimeDraft({ a: { ...address, unknown: "x" } }, [field], {}),
-  ).toThrow("暂存格式无效");
   expect(() =>
     parseSchema({
       ...emptySchema(),

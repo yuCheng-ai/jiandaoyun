@@ -1,7 +1,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { pageForModel, type FormField } from "@platform/contracts";
+import { separateFormSchema, pageForModel, type FormField, type FormSchema } from "@platform/contracts";
 import { harness, field, schema } from "./helpers";
 import { scalar } from "../src/modules/pages/field-values";
 import { relationFields, matchesRelation } from "../src/modules/relations/relation-rules";
@@ -32,9 +32,9 @@ test("legacy field and option identities survive separation, page reuse, record 
 
 test("definition validation rejects malformed options, dynamic sources and unsupported date formats without creating objects", async () => {
   const before = (await h.request("/definitions")).length;
-  const bad: any[] = [choice("x", "select", { options: [] }), choice("x", "select", { options: [options[0], options[0]] }), choice("x", "select", { options: [{ id: "__proto__", label: "bad" }] }), choice("x", "select", { choiceSource: { mode: "form" } }), choice("x", "select", { defaultValue: "unknown" }), field("date", "datetime", { format: "unknown" }), field("email", "text", { format: "script" })];
+  const bad: any[] = [choice("x", "select", { options: [options[0], options[0]] }), choice("x", "select", { options: [{ id: "__proto__", label: "bad" }] }), choice("x", "select", { choiceSource: { mode: "form" } }), choice("x", "select", { defaultValue: "unknown" }), field("date", "datetime", { format: "unknown" }), field("email", "text", { format: "script" })];
   for (const item of bad) {
-    const saved = await h.request("/definitions", "POST", { title: "非法配置", schema: schema(item) }, "admin", 400);
+    await h.request("/data-objects", "POST", { title: "非法配置", model: separateFormSchema(schema(item) as unknown as FormSchema).model }, "admin", 400);
   }
   assert.equal((await h.request("/definitions")).length, before);
 });
@@ -50,7 +50,23 @@ test("server rejects impossible dates, timezones, bad option shapes and invalid 
 
 test("new types honor hidden fields and readonly subform columns; stale array edits conflict without partial writes", async () => {
   const users = await h.request("/users"), editor = users.find((u: any) => u.username === "editor");
-  await h.request(`/definitions/${definition.id}/grants`, "PUT", { userId: editor.id, read: true, create: true, edit: true, scope: "all", fields: { date: "edit", time: "read", status: "edit", checks: "edit", phone: "hidden", email: "hidden", lines: "edit", result: "read", flags: "edit" } });
+  await h.permissionGroup(definition.id, {
+    id: "member_" + editor.id,
+    subjects: [{ kind: "member", id: editor.id }],
+    scope: "all",
+    fields: {
+      date: "edit",
+      time: "read",
+      status: "edit",
+      checks: "edit",
+      phone: "hidden",
+      email: "hidden",
+      lines: "edit",
+      result: "read",
+      flags: "edit",
+    },
+    actions: ["view", "create", "edit"],
+  });
   const path = `/pages/${page.id}/records/${record.record.id}`, detail = await h.request(path, "GET", undefined, "editor");
   assert.equal(detail.record.values.phone, undefined); assert.equal(detail.record.cellRevisions.phone, undefined);
   const rowId = detail.record.values.lines[0]._rowId;

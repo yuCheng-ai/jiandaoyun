@@ -11,9 +11,16 @@ async function setup(policy?: SubformPermissions) {
   const definition = await h.definition('子表权限', schema(field('name'), field('lines', 'subform', {
     children: [field('item'), field('amount', 'number')], ...(policy ? { subformPermissions: policy } : {})
   })));
-  await h.request(`/definitions/${definition.id}/grants`, 'PUT', { userId: editor.id, read: true, create: true, edit: true, scope: 'all', fields: { name: 'edit', lines: 'edit', item: 'edit', amount: 'edit' } });
+  await h.permissionGroup(definition.id, {
+    id: "member_" + editor.id,
+    subjects: [{ kind: "member", id: editor.id }],
+    scope: "all",
+    fields: { name: "edit", lines: "edit", item: "edit", amount: "edit" },
+    actions: ["view", "create", "edit"],
+  });
   const record = await h.record(definition.id, { name: '保留', lines: [{ item: 'A', amount: 1 }, { item: 'B', amount: 2 }] }, 'editor');
-  return { definition, record };
+  const defaultPage = (await h.request(`/pages?definitionId=${definition.id}`))[0];
+  return { definition, record, defaultPage };
 }
 async function page(definition: any, policy: SubformPermissions) {
   const model = (await h.request(`/data-objects/${definition.id}/draft`)).model;
@@ -24,20 +31,20 @@ async function page(definition: any, policy: SubformPermissions) {
   return draft;
 }
 const patch = (path: string, body: any, expected = 200) => h.request(path, 'PATCH', { requestId: randomUUID(), changes: [], ...body }, 'editor', expected);
-test('definition restrictions block existing-cell edits, removal and insertion atomically while permitted append and retry work', async () => {
+test('published page restrictions block existing-cell edits, removal and insertion atomically while permitted append and retry work', async () => {
   const x = await setup({ add: true, insert: false, editExisting: false, deleteExisting: false });
-  const path = `/records/${x.record.record.id}`, rowId = x.record.record.values.lines[0]._rowId;
+  const path = `/pages/${x.defaultPage.id}/records/${x.record.record.id}`, rowId = x.record.record.values.lines[0]._rowId;
   const before = await h.request(path, 'GET', undefined, 'editor');
   assert.deepEqual(before.rowActions.lines, { add: true, insert: false, editExisting: false, remove: false });
-  await patch(path, { changes: [{ fieldId: 'name', value: '不应保存', expectedRevision: 1 }, { subformId: 'lines', rowId, fieldId: 'amount', expectedRevision: 1, value: 10 }] }, 403);
-  await patch(path, { rows: [{ action: 'remove', subformId: 'lines', rowId, expectedRevision: 1, expectedCells: before.record.cellRevisions }] }, 403);
-  await patch(path, { rows: [{ action: 'insert', subformId: 'lines', beforeRowId: rowId, expectedRevision: 1, values: { item: 'C' } }] }, 403);
+  await patch(path, { pageVersion: 1, changes: [{ fieldId: 'name', value: '不应保存', expectedRevision: 1 }, { subformId: 'lines', rowId, fieldId: 'amount', expectedRevision: 1, value: 10 }] }, 403);
+  await patch(path, { pageVersion: 1, rows: [{ action: 'remove', subformId: 'lines', rowId, expectedRevision: 1, expectedCells: before.record.cellRevisions }] }, 403);
+  await patch(path, { pageVersion: 1, rows: [{ action: 'insert', subformId: 'lines', beforeRowId: rowId, expectedRevision: 1, values: { item: 'C' } }] }, 403);
   assert.deepEqual((await h.request(path, 'GET', undefined, 'editor')).record, before.record);
-  const body = { requestId: randomUUID(), rows: [{ action: 'add', subformId: 'lines', expectedRevision: 1, values: { item: 'C', amount: 3 } }] };
+  const body = { pageVersion: 1, requestId: randomUUID(), rows: [{ action: 'add', subformId: 'lines', expectedRevision: 1, values: { item: 'C', amount: 3 } }] };
   const result = await patch(path, body);
   assert.deepEqual(result.record.values.lines.map((r: any) => r.item), ['A', 'B', 'C']);
   assert.equal((await patch(path, body)).record.revision, result.record.revision);
-  assert.equal((await h.request(path + '/events')).length, 2);
+  assert.equal((await h.request(`/records/${x.record.record.id}/events`)).length, 2);
 });
 test('page insertion-only policy preserves row order, rejects old anchors and never widens a data restriction', async () => {
   const x = await setup(), p = await page(x.definition, { add: false, insert: true, editExisting: false, deleteExisting: false });
@@ -56,7 +63,13 @@ test('page insertion-only policy preserves row order, rejects old anchors and ne
   await patch(path, { ...body, requestId: randomUUID() }, 409);
   await patch(path, { pageVersion: 1, rows: [{ action: 'insert', subformId: 'lines', beforeRowId: randomUUID(), expectedRevision: 2, values: { item: '失效位置' } }] }, 409);
   assert.deepEqual((await h.request(`${path}?version=1`, 'GET', undefined, 'editor')).record, saved.record);
-  const strict = await setup({ ...newSubformPermissions(), insert: false });
+  const strict = await setup();
+  await h.permissionGroup(strict.definition.id, {
+    id: "member_" + editor.id,
+    subjects: [{ kind: "member", id: editor.id }],
+    fields: { name: "edit", lines: "read", item: "edit", amount: "edit" },
+    actions: ["view", "create", "edit"],
+  });
   const loose = await page(strict.definition, newSubformPermissions());
   const strictPath = `/pages/${loose.id}/records/${strict.record.record.id}`;
   assert.equal((await h.request(strictPath + '?version=1', 'GET', undefined, 'editor')).rowActions.lines.insert, false);
@@ -84,8 +97,8 @@ test('relation mapping cannot edit a restricted existing row and creates neither
   const selected = await h.record(target.id, { name: '来源', price: 10 });
   const relation = await h.relation({ title: '关联回填', sourceDefinitionId: x.definition.id, targetDefinitionId: target.id, sourceSubformId: 'lines', cardinality: 'one', inverseCardinality: 'many', labelFieldId: 'name', columns: ['price'], filters: [], mappings: [{ fromTargetFieldId: 'price', toSourceFieldId: 'amount' }], valueMode: 'snapshot' });
   const rowId = x.record.record.values.lines[0]._rowId;
-  await h.request(`/records/${x.record.record.id}/relations/${relation.id}/candidates?rowId=${rowId}`, 'GET', undefined, 'admin', 403);
-  await h.request(`/records/${x.record.record.id}/relations/${relation.id}/links`, 'POST', { requestId: randomUUID(), sourceRowId: rowId, targetRecordId: selected.record.id, expectedCells: x.record.record.cellRevisions }, 'admin', 403);
+  await h.request(`/pages/${x.defaultPage.id}/records/${x.record.record.id}/relations/${relation.id}/candidates?version=1&rowId=${rowId}`, 'GET', undefined, 'admin', 403);
+  await h.request(`/pages/${x.defaultPage.id}/records/${x.record.record.id}/relations/${relation.id}/links`, 'POST', { pageVersion: 1, requestId: randomUUID(), sourceRowId: rowId, targetRecordId: selected.record.id, expectedCells: x.record.record.cellRevisions }, 'admin', 403);
   assert.equal((await h.db.query('SELECT 1 FROM record_links WHERE source_record_id=$1', [x.record.record.id])).rowCount, 0);
   assert.equal((await h.request(`/records/${x.record.record.id}`)).record.values.lines[0].amount, 1);
 });

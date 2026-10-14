@@ -36,7 +36,11 @@ import {
   runFrontendEvent,
 } from "../src/domain/frontendEvents";
 import { runtimeDataKey } from "../src/composables/useRuntimeData";
-import { useWorkspaceStore } from "../src/stores/workspace";
+import {
+  seedWorkspace,
+  newForm,
+  type FormEntry,
+} from "../src/domain/workspace";
 import FormRuntime from "../src/features/forms/components/FormRuntime.vue";
 import type { WorkspaceData } from "../src/domain/workspace";
 
@@ -55,9 +59,8 @@ afterEach(() => {
 });
 type SelectionEvent = Extract<FrontendEvent, { selection: unknown }>;
 async function fixture() {
-  const store = useWorkspaceStore(),
-    created = (await store.createForm("oa", "来源订单", "form"))!;
-  const form = store.openForm(created.id)!;
+  const data = seedWorkspace();
+  const form = newForm("oa", "来源订单");
   form.schema.fields = [
     createField("text", { id: "source_code", label: "订单号" }),
     createField("number", { id: "source_qty", label: "数量" }),
@@ -80,21 +83,48 @@ async function fixture() {
       children: [createField("number", { id: "source_cost", label: "费用" })],
     }),
   ];
-  expect(await store.publishForm(form.id)).toBe(true);
-  const first = (await store.submitEntry(form.id, {
-    source_code: "ORD-甲",
-    source_qty: 2,
-    source_state: "source_ready",
-    source_date: "2026-10-10",
-    source_lines: [{ source_cost: 4 }, { source_cost: 6 }],
-  }))!;
-  const second = (await store.submitEntry(form.id, {
-    source_code: "ORD-乙",
-    source_qty: 12,
-    source_state: "source_hold",
-    source_date: "2026-10-09",
-    source_lines: [{ source_cost: 9 }],
-  }))!;
+  form.published = {
+    version: 1,
+    title: form.title,
+    schema: copy(form.schema),
+    workflow: copy(form.workflow),
+    extensions: copy(form.extensions),
+    publishedAt: form.createdAt,
+  };
+  form.versions = [copy(form.published)];
+  data.forms.push(form);
+  const first: FormEntry = {
+    id: "first",
+    formId: form.id,
+    definitionVersion: 1,
+    values: {
+      source_code: "ORD-甲",
+      source_qty: 2,
+      source_state: "source_ready",
+      source_date: "2026-10-10",
+      source_lines: [{ source_cost: 4 }, { source_cost: 6 }],
+    },
+    createdAt: form.createdAt,
+    status: "submitted",
+    history: [],
+  };
+  data.entries.push(first);
+  const second: FormEntry = {
+    id: "second",
+    formId: form.id,
+    definitionVersion: 1,
+    values: {
+      source_code: "ORD-乙",
+      source_qty: 12,
+      source_state: "source_hold",
+      source_date: "2026-10-09",
+      source_lines: [{ source_cost: 9 }],
+    },
+    createdAt: form.createdAt,
+    status: "submitted",
+    history: [],
+  };
+  data.entries.push(second);
   const schema = emptySchema();
   schema.fields = [
     createField("button", {
@@ -142,7 +172,7 @@ async function fixture() {
     },
   };
   schema.settings.frontendEvents = [event];
-  return { store, form, first, second, schema, event, data: store.data };
+  return { form, first, second, schema, event, data };
 }
 it("selection configuration retains stable references across schema/page projections and rejects ambiguous unions, duplicate columns and invalid filters", async () => {
   const { schema, event, data } = await fixture();
@@ -420,61 +450,18 @@ it("source child arrays preserve unmapped columns and row identities; protected-
     values.lines[2],
   ]);
 });
-it("runtime opens only on the configured button, cancel preserves inputs and confirmation fills before draft saving and submission", async () => {
-  const { schema, first } = await fixture(),
-    persist = vi.fn((_values: FormValues, _draft: boolean) => true);
-  const host = await mount(FormRuntime, {
-    schema,
-    formId: "selection_qa",
-    initialValues: {
-      code: "原单",
-      qty: 99,
-      state: "target_hold",
-      date: "2026-01-01",
-      lines: [],
-    },
-    preview: false,
-    persistValues: persist,
-  });
-  expect(document.querySelector('[role="dialog"]')).toBeNull();
-  await click("选择订单");
-  expect(document.body.textContent).toContain("ORD-甲");
-  await choose("ORD-甲");
-  await click("取消");
-  expect(input(host, "订单号").value).toBe("原单");
-  expect(input(host, "数量").value).toBe("99");
-  expect(persist).not.toHaveBeenCalled();
-  await click("选择订单");
-  await click("确定");
-  expect(document.body.textContent).toContain("请选择一条数据");
-  await choose("ORD-甲");
-  await click("确定");
-  expect(input(host, "订单号").value).toBe("ORD-甲");
-  expect(input(host, "数量").value).toBe("2");
-  await click("保存草稿");
-  expect(persist.mock.calls[0]?.[0]).toMatchObject({
-    code: "ORD-甲",
-    qty: 2,
-    state: "target_ready",
-  });
-  expect(persist.mock.calls[0]?.[0]).not.toHaveProperty("choose");
-  expect(persist.mock.calls[0]?.[0]).not.toHaveProperty("_links");
-  expect(persist.mock.calls[0]?.[1]).toBe(true);
-  await click("提交");
-  expect(persist.mock.calls[1]?.[1]).toBe(false);
-  expect(host.textContent).toContain("提交成功");
-  expect(first.values.source_qty).toBe(2);
-});
+
 it("runtime candidates use injected permission-scoped data and recheck source removal or revoked fields while the picker is open", async () => {
   const { schema, data, first } = await fixture(),
     scoped = shallowReactive(copy(data));
   scoped.entries = scoped.entries.filter((entry) => entry.id === first.id);
+  schema.fields[1]!.defaultValue = "原单";
+  schema.fields[2]!.defaultValue = 99;
   const host = await mount(
     FormRuntime,
     {
       schema,
       formId: "selection_qa",
-      initialValues: { code: "原单", qty: 99 },
     },
     scoped,
   );
@@ -495,9 +482,10 @@ it("schema or member changes while choosing do not apply stale choices or discar
     props = reactive({
       schema,
       formId: "selection_qa",
-      initialValues: { code: "原单", qty: 99 },
     }),
     scoped = shallowReactive(copy(data));
+  schema.fields[1]!.defaultValue = "原单";
+  schema.fields[2]!.defaultValue = 99;
   const host = await mount(FormRuntime, props, scoped);
   await click("选择订单");
   await choose("ORD-甲");
@@ -515,7 +503,7 @@ it("schema or member changes while choosing do not apply stale choices or discar
   expect(input(host, "数量").value).toBe("99");
 });
 it("a button with multiple selection events applies nothing until every choice is confirmed, including no effect when the second chooser is cancelled", async () => {
-  const { schema, event } = await fixture();
+  const { schema, event, data } = await fixture();
   schema.settings.frontendEvents!.push({
     ...copy(event),
     id: "event_second",
@@ -525,11 +513,16 @@ it("a button with multiple selection events applies nothing until every choice i
       mappings: [{ sourceFieldId: "source_qty", targetFieldId: "qty" }],
     },
   });
-  const host = await mount(FormRuntime, {
-    schema,
-    formId: "selection_qa",
-    initialValues: { code: "原单", qty: 99 },
-  });
+  schema.fields[1]!.defaultValue = "原单";
+  schema.fields[2]!.defaultValue = 99;
+  const host = await mount(
+    FormRuntime,
+    {
+      schema,
+      formId: "selection_qa",
+    },
+    data,
+  );
   await click("选择订单");
   await choose("ORD-甲");
   await click("确定");
@@ -543,32 +536,6 @@ it("a button with multiple selection events applies nothing until every choice i
   await click("确定");
   expect(input(host, "数量").value).toBe("12");
   expect(input(host, "订单号").value).toBe("ORD-甲");
-});
-it("saved selections pin published settings through reload and reject new publication when a source is archived without changing historical versions or records", async () => {
-  const { store, schema, form } = await fixture(),
-    target = (await store.createForm("oa", "选数回填验收", "form"))!,
-    current = store.openForm(target.id)!;
-  current.schema = copy(schema);
-  expect(await store.publishForm(current.id)).toBe(true);
-  const published = copy(current.versions[0]);
-  await store.submitEntry(current.id, {
-    code: "原单",
-    qty: 99,
-    state: "target_hold",
-    date: "2026-01-01",
-    lines: [],
-  });
-  const records = copy(store.data.entries);
-  setActivePinia(createPinia());
-  const fresh = useWorkspaceStore(),
-    saved = fresh.openForm(current.id)!;
-  expect(saved.schema.settings.frontendEvents).toEqual(
-    schema.settings.frontendEvents,
-  );
-  expect(await fresh.archiveForm(form.id)).toBe(true);
-  expect(await fresh.publishForm(saved.id)).toBe(false);
-  expect(saved.versions[0]).toEqual(published);
-  expect(fresh.data.entries).toEqual(records);
 });
 async function settle() {
   await nextTick();

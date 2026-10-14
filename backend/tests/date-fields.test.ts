@@ -1,7 +1,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { dateValueAt } from "@platform/contracts";
+import { separateFormSchema, dateValueAt, type FormSchema } from "@platform/contracts";
 import { harness, field, schema } from "./helpers";
 
 const h = harness();
@@ -123,19 +123,19 @@ test("invalid date modes, formats and cached default types cannot be stored", as
     { defaultValue: { malformed: true } },
   ]) {
     await h.request(
-      "/definitions",
+      "/data-objects",
       "POST",
-      { title: "非法日期配置", schema: schema(dateField("d", "date", extra)) },
+      { title: "非法日期配置", model: separateFormSchema(schema(dateField("d", "date", extra)) as unknown as FormSchema).model },
       "admin",
       400,
     );
   }
   await h.request(
-    "/definitions",
+    "/data-objects",
     "POST",
     {
       title: "非法字段默认来源",
-      schema: schema(field("text", "text", { dateDefault: "now" })),
+      model: separateFormSchema(schema(field("text", "text", { dateDefault: "now" })) as unknown as FormSchema).model,
     },
     "admin",
     400,
@@ -173,22 +173,36 @@ test("time advancing between upgrade preview and confirmation does not invalidat
       dateField("added", "datetime-second"),
       owner,
     );
-    await h.request(`/definitions/${original.id}`, "PUT", {
+    await h.request(`/data-objects/${original.id}`, "PUT", {
       title: "时间与人员升级",
       expectedRevision: 2,
-      schema: next,
+      model: separateFormSchema(next as unknown as FormSchema).model,
     });
     const preview = await h.request(
-      `/definitions/${original.id}/publish-preview`,
+      `/data-objects/${original.id}/publish-preview`,
       "POST",
       { expectedRevision: 3 },
       "admin",
       201,
     );
     await h.request(
-      `/definitions/${original.id}/publish`,
+      `/data-objects/${original.id}/publish`,
       "POST",
       { expectedRevision: 3, impactToken: preview.token },
+      "admin",
+      201,
+    );
+    const currentPage = await h.request(`/pages/${page.id}/draft`);
+    const nextPage = await h.request(`/pages/${page.id}`, "PUT", {
+      ...currentPage,
+      expectedRevision: currentPage.revision,
+      definitionVersion: 2,
+      schema: separateFormSchema(next as unknown as FormSchema).page,
+    });
+    await h.request(
+      `/pages/${page.id}/publish`,
+      "POST",
+      { expectedRevision: nextPage.revision },
       "admin",
       201,
     );

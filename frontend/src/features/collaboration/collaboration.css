@@ -196,8 +196,7 @@
   font-size: 11px;
 }
 .collab-error,
-.collab-notice,
-.collab-success {
+.collab-notice {
   padding: 12px 16px;
   border-radius: 4px;
   line-height: 1.7;
@@ -210,10 +209,6 @@
 .collab-notice {
   background: #fff7e8;
   color: #8c692f;
-}
-.collab-success {
-  background: #ecf7ee;
-  color: #3f7750;
 }
 .collab-error button,
 .collab-notice button {

@@ -2,7 +2,7 @@
 import { computed, ref } from "vue";
 import BaseDialog from "../../../components/BaseDialog.vue";
 import QuickFillDialog from "../../forms/components/QuickFillDialog.vue";
-import { useWorkspaceStore } from "../../../stores/workspace";
+import { useRuntimeData } from "../../../composables/useRuntimeData";
 import { useDraftDismiss } from "../../../composables/useDraftDismiss";
 import { copy, type FormValues } from "../../../domain/form";
 import { runtimeDefaults, displayValue } from "../../../domain/relations";
@@ -16,14 +16,13 @@ import {
 import type { FormRecord } from "../../../domain/workspace";
 const props = defineProps<{ form: FormRecord }>();
 const aliasText = ref<Record<string, string>>({});
-const store = useWorkspaceStore(),
-  open = ref(false),
+const runtimeData = useRuntimeData();
+const open = ref(false),
   draft = ref(newQuickFill()),
   errors = ref<string[]>([]),
   query = ref(""),
   previewOpen = ref(false),
-  previewValues = ref<FormValues>({}),
-  saving = ref(false);
+  previewValues = ref<FormValues>({});
 const schema = computed(() => quickFillDesignSchema(props.form)),
   fields = computed(() => quickFillFields(schema.value)),
   visibleFields = computed(() =>
@@ -35,12 +34,11 @@ const invalid = computed(() =>
   ),
 );
 const previewConfig = computed(() => ({ ...copy(draft.value), enabled: true }));
-const { confirmDiscard, requestClose, discard, markSaved, draftKey } =
-  useDraftDismiss(
-    () => open.value,
-    () => ({ config: draft.value, aliasText: aliasText.value }),
-    () => (open.value = false),
-  );
+const { confirmDiscard, requestClose, discard } = useDraftDismiss(
+  () => open.value,
+  () => ({ config: draft.value, aliasText: aliasText.value }),
+  () => (open.value = false),
+);
 function edit() {
   draft.value = parseQuickFill(
     copy(props.form.extensions?.quickFill || newQuickFill()),
@@ -69,30 +67,8 @@ function aliases(id: string, event: Event) {
 function preview() {
   errors.value = quickFillIssues(draft.value, schema.value);
   if (errors.value.length) return;
-  previewValues.value = runtimeDefaults(schema.value.fields, store.data);
+  previewValues.value = runtimeDefaults(schema.value.fields, runtimeData.value);
   previewOpen.value = true;
-}
-async function save() {
-  if (saving.value) return;
-  errors.value = draft.value.enabled
-    ? quickFillIssues(draft.value, schema.value)
-    : [];
-  if (errors.value.length) return;
-  saving.value = true;
-  try {
-    if (await store.saveQuickFill(props.form.id, copy(draft.value))) {
-      markSaved();
-      open.value = false;
-      store.notify("快捷填报配置已保存，发布新版本后生效");
-    } else
-      errors.value = [
-        store.storageError || "保存未完成，快捷填报配置已保留，请重试。",
-      ];
-  } catch {
-    errors.value = ["保存失败，快捷填报配置已保留，请重试。"];
-  } finally {
-    saving.value = false;
-  }
 }
 </script>
 <template>
@@ -125,12 +101,10 @@ async function save() {
     </p>
     <BaseDialog
       :open="open"
-      :draft-key="draftKey"
-      :busy="saving"
       title="AI 快捷填报配置"
       class-name="quick-fill-config-dialog"
       width="1000px"
-      @close="!saving && requestClose()"
+      @close="requestClose"
     >
       <div v-if="confirmDiscard" class="config-discard" tabindex="-1">
         <span>快捷填报配置尚未保存。</span
@@ -252,7 +226,7 @@ async function save() {
                 ><dt>{{ field.label }}</dt>
                 <dd>
                   {{
-                    displayValue(field, previewValues[field.id], store.data) ||
+                    displayValue(field, previewValues[field.id], runtimeData) ||
                     "空值"
                   }}
                 </dd></template
@@ -266,11 +240,12 @@ async function save() {
           <span class="field-hint quick-fill-footer-hint"
             >{{ draft.fields.length }} / 30 个字段 · 发布新版本后生效</span
           ><button class="button" @click="requestClose">取消</button
-          ><button class="button primary" @click="save">保存快捷填报</button>
+          ><button class="button primary" disabled>保存快捷填报</button>
         </div></template
       >
     </BaseDialog>
     <QuickFillDialog
+      v-if="previewOpen"
       :open="previewOpen"
       :config="previewConfig"
       :schema="schema"

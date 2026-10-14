@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { createApp, h, nextTick, reactive } from "vue";
 import { createPinia } from "pinia";
@@ -15,8 +16,7 @@ import {
   copy,
 } from "../src/domain/form";
 import { seedWorkspace } from "../src/domain/workspace";
-import { WORKSPACE_KEY } from "../src/repositories/workspaceRepository";
-import { useWorkspaceStore } from "../src/stores/workspace";
+
 import { validateFieldConfiguration } from "../src/domain/fieldValidation";
 
 import FieldCanvas from "../src/features/forms/components/FieldCanvas.vue";
@@ -26,7 +26,6 @@ const cleanups: (() => void)[] = [];
 beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
-  localStorage.setItem(WORKSPACE_KEY, JSON.stringify(seedWorkspace()));
 });
 afterEach(() => {
   cleanups.splice(0).forEach((cleanup) => cleanup());
@@ -152,68 +151,4 @@ it("updates design and runtime columns together, excludes hidden columns and kee
   );
   expect(host.querySelectorAll("tbody input")).toHaveLength(2);
   expect(values).toEqual(original);
-});
-
-it("saves widths, rejects an invalid publication and pins existing records to their original width", async () => {
-  const store = useWorkspaceStore(createPinia()),
-    form = (await store.createForm("oa", "合成子字段宽度", "form"))!;
-  store.openForm(form.id)!.schema = fixture();
-  expect(await store.publishForm(form.id)).toBe(true);
-  const version = copy(
-    store.data.forms.find((item) => item.id === form.id)!.versions[0],
-  );
-  const record = (await store.submitEntry(form.id, {
-    lines: [{ code: "A", qty: 0, note: "合成备注" }],
-  }))!;
-  const current = store.openForm(form.id)!.schema.fields[0]!.children[2]!;
-  current.subformWidth = 1001;
-  expect(await store.publishForm(form.id)).toBe(false);
-  current.subformWidth = 600;
-  expect(await store.publishForm(form.id)).toBe(true);
-  expect(
-    store.data.forms.find((item) => item.id === form.id)!.versions[0],
-  ).toEqual(version);
-  expect(
-    store.data.entries.find((item) => item.id === record.id),
-  ).toMatchObject({ definitionVersion: 1, values: record.values });
-  expect(subformColumnWidth(version!.schema.fields[0]!.children[2]!)).toBe(320);
-});
-
-it("refuses unreadable saves without replacing committed data or blocking an unrelated form", async () => {
-  const store = useWorkspaceStore(createPinia());
-  const form = (await store.createForm("oa", "合成保存检查", "form"))!;
-  const draft = store.openForm(form.id)!;
-  draft.schema = fixture();
-  expect(await store.saveForm(form.id)).toBe(true);
-  const committed = copy(store.data.forms.find((item) => item.id === form.id)!);
-  draft.schema.fields[0]!.children[2]!.subformWidth = 1001;
-  expect(await store.saveForm(form.id)).toBe(false);
-  expect(draft.schema.fields[0]!.children[2]!.subformWidth).toBe(1001);
-  expect(store.data.forms.find((item) => item.id === form.id)).toEqual(
-    committed,
-  );
-  expect(await store.createForm("oa", "合成独立新表", "form")).toBeTruthy();
-  expect(
-    store.openForm(form.id)!.schema.fields[0]!.children[2]!.subformWidth,
-  ).toBe(1001);
-  const persisted = JSON.parse(localStorage.getItem(WORKSPACE_KEY)!);
-  expect(
-    parseSchema(
-      persisted.forms.find((item: any) => item.id === form.id).schema,
-    ),
-  ).toEqual(committed.schema);
-  draft.schema.fields[0]!.children[2]!.subformWidth = 320;
-  draft.schema.fields.push(createField("divider", { dividerColor: "invalid" }));
-  expect(await store.saveForm(form.id)).toBe(false);
-  draft.schema.fields.pop();
-  expect(await store.saveForm(form.id)).toBe(true);
-});
-
-it("continues to save incomplete designs that the shared reader can reopen", async () => {
-  const store = useWorkspaceStore(createPinia());
-  const form = (await store.createForm("oa", "合成未配置字段", "form"))!;
-  const draft = store.openForm(form.id)!;
-  draft.schema.fields = [createField("select", { options: [] })];
-  expect(await store.saveForm(form.id)).toBe(true);
-  expect(parseSchema(draft.schema).fields[0]!.options).toEqual([]);
 });

@@ -6,9 +6,11 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
+import { parseFragment, type DefaultTreeAdapterMap } from "parse5";
 import {
   compareRecordSortValues,
   displayPlainFieldValue,
+  organizationIdentityLabel,
   isNumericField,
   hasFieldValue,
   maxSubformRows,
@@ -20,8 +22,8 @@ import {
   fieldDefaultValue,
   resolveCalculations,
   type RecordViewSettings,
+  type OrganizationIdentity,
   type AccessGrant,
-  type MemberGrant,
   type AccessPolicy,
   type SubjectGrant,
   type CellChange,
@@ -75,7 +77,6 @@ import { CollectionService } from "../records/collection.service";
 import { storeModelDraft, storeModelVersion } from "../records/data-projection";
 import { latestRowEvents } from "../records/record-rows";
 import { draftSchema, validateSubmittedRecord } from "../records/record-state";
-import { referencedRelationFields } from "../relations/relation-rules";
 import { dataModelImpact } from "./model-impact";
 import { assertPageActive } from "./page-lifecycle";
 import {
@@ -84,7 +85,6 @@ import {
   validatePageSubmission,
   type RecordPageScope,
 } from "./page-runtime";
-import { pageBindings } from "./page-schema";
 import { FileService, recordFileValues } from "./files.service";
 
 type Queryable = Pick<Database, "query">;
@@ -590,17 +590,12 @@ export class PlatformService {
     });
   }
 
-  /** 新建或保存表单定义草稿，并同步更新底层数据对象草稿与托管页面草稿 */
-  async saveDefinition(
-    actor: Actor,
-    body: unknown,
-    id?: string,
-    managePage = true,
-  ) {
+  /** 新建或保存数据对象草稿，页面由页面设计器独立保存与发布 */
+  async saveDefinition(actor: Actor, body: unknown, id?: string) {
     requireAdmin(actor);
     object(body);
     title(body.title);
-    const schema = parseSchema(body.schema, !managePage);
+    const schema = parseSchema(body.schema, true);
 
     return this.db.transaction(async (tx) => {
       if (!id) {
@@ -618,7 +613,7 @@ export class PlatformService {
             title: body.title.trim(),
           },
           schema,
-          managePage,
+          false,
         );
         return { id: newId, revision: 1 };
       }
@@ -629,9 +624,6 @@ export class PlatformService {
       }
 
       await this.validateStableFields(tx, id, schema);
-      if (managePage) {
-        await this.checkRelations(tx, id, schema, true);
-      }
 
       await tx.query(
         "UPDATE definitions SET title = $2, draft = $3, revision = revision + 1 WHERE id = $1",
@@ -641,14 +633,14 @@ export class PlatformService {
         tx,
         { ...def, title: body.title.trim() },
         schema,
-        managePage,
+        false,
       );
       return { id, revision: def.revision + 1 };
     });
   }
 
   /** 发布表单定义新版本，校验发布影响令牌并写入配置审计事件 */
-  async publish(actor: Actor, id: string, body: unknown, managePage = true) {
+  async publish(actor: Actor, id: string, body: unknown) {
     requireAdmin(actor);
     object(body);
     return this.db.transaction(async (tx) => {
@@ -666,7 +658,6 @@ export class PlatformService {
         tx,
         def,
         separateFormSchema(schema).model,
-        managePage,
         {
           organization: await this.organizations.snapshot(tx, actor),
           actorId: actor.id,
@@ -695,7 +686,7 @@ export class PlatformService {
       );
       const row = rows[0];
 
-      await storeModelVersion(tx, id, version, row.schema, managePage);
+      await storeModelVersion(tx, id, version, row.schema, false);
       await tx.query(
         "UPDATE definitions SET latest_version = $2, revision = revision + 1 WHERE id = $1",
         [id, version],
@@ -722,12 +713,7 @@ export class PlatformService {
   }
 
   /** 预览数据模型发布对关联配置与存量记录的影响 */
-  async modelImpact(
-    actor: Actor,
-    id: string,
-    body: unknown,
-    managePage = false,
-  ) {
+  async modelImpact(actor: Actor, id: string, body: unknown) {
     requireAdmin(actor);
     object(body);
     return this.db.transaction(async (tx) => {
@@ -741,16 +727,10 @@ export class PlatformService {
       await this.validateOrganizationModel(tx, actor, schema);
       await this.validateStableFields(tx, id, schema);
 
-      return dataModelImpact(
-        tx,
-        definition,
-        separateFormSchema(schema).model,
-        managePage,
-        {
-          organization: await this.organizations.snapshot(tx, actor),
-          actorId: actor.id,
-        },
-      );
+      return dataModelImpact(tx, definition, separateFormSchema(schema).model, {
+        organization: await this.organizations.snapshot(tx, actor),
+        actorId: actor.id,
+      });
     });
   }
 
@@ -782,52 +762,6 @@ export class PlatformService {
             "已发布字段不能变更类型或所属子表，请新建字段",
           );
         }
-      }
-    }
-  }
-
-  /** 检查被移除字段是否仍被已发布的关联关系或活跃页面引用 */
-  private async checkRelations(
-    tx: Queryable,
-    id: string,
-    schema: FormSchema,
-    managePage = false,
-  ) {
-    const relationSql = `
-      SELECT v.spec
-      FROM relation_definitions d
-      JOIN relation_versions v ON v.relation_id = d.id AND v.version = d.latest_version
-      WHERE d.source_definition_id = $1 OR d.target_definition_id = $1
-    `;
-    const { rows: relations } = await tx.query(relationSql, [id]);
-    const available = new Set(allFields(schema).map((f) => f.id));
-
-    for (const relation of relations) {
-      const hasMissingRef = [
-        ...referencedRelationFields(relation.spec, id),
-      ].some((fieldId) => !available.has(fieldId));
-      if (hasMissingRef) {
-        throw new ConflictException(
-          `字段仍被已发布关系「${relation.spec.title}」引用，请先调整并发布关系配置`,
-        );
-      }
-    }
-
-    const pageSql = `
-      SELECT p.title, v.schema
-      FROM pages p
-      JOIN page_versions v ON v.page_id = p.id AND v.version = p.latest_version
-      WHERE p.definition_id = $1 AND p.archived_at IS NULL AND (NOT $2::boolean OR NOT p.managed)
-    `;
-    const { rows: pages } = await tx.query(pageSql, [id, managePage]);
-    for (const page of pages) {
-      const hasMissingBinding = [...pageBindings(page.schema)].some(
-        (fieldId) => !available.has(fieldId),
-      );
-      if (hasMissingBinding) {
-        throw new ConflictException(
-          `字段仍被页面「${page.title}」使用，请先调整并发布页面`,
-        );
       }
     }
   }
@@ -1185,14 +1119,14 @@ export class PlatformService {
     return (await this.recordList(actor, id, state, page, transaction)).records;
   }
 
-  /** 分页查询表单或页面下的记录列表，支持按脱敏后的可见字段值排序 */
+  /** 先按权限裁剪记录，再按可见字段搜索、排序和分页。 */
   async recordList(
     actor: Actor,
     id: string,
     state = "active",
     page?: RecordPageScope,
     transaction?: Transaction,
-    options?: { settings: RecordViewSettings; page: number },
+    options?: { settings: RecordViewSettings; page: number; keyword?: string },
   ) {
     if (!["active", "draft"].includes(state)) {
       throw new BadRequestException("请选择正式记录或草稿");
@@ -1228,22 +1162,29 @@ export class PlatformService {
 
       const settings = options?.settings;
       const fieldSort = !!settings && settings.sortField !== "$createdAt";
+      const keyword = options?.keyword || "";
+      const needsVisibleValues = fieldSort || !!keyword;
 
-      // 相同的权限谓词同时驱动总数统计与行查询；被脱敏隐藏的字段绝不参与排序
-      const countRes = await tx.query(
-        `SELECT count(*) AS count FROM records r WHERE ${where}`,
-        parameters,
-      );
-      const total = Number(countRes.rows[0].count);
+      // 未搜索时保留数据库分页；搜索必须在脱敏后筛选，不能拿隐藏值推断记录是否命中。
+      let total = 0;
+      if (!keyword) {
+        const countRes = await tx.query(
+          `SELECT count(*) AS count FROM records r WHERE ${where}`,
+          parameters,
+        );
+        total = Number(countRes.rows[0].count);
+      }
 
       const pageSize = settings?.pageSize || 100;
-      const pageNumber = Math.min(
+      let pageNumber = Math.min(
         options?.page || 1,
         Math.max(1, Math.ceil(total / pageSize)),
       );
-      const offset = (pageNumber - 1) * pageSize;
+      let offset = (pageNumber - 1) * pageSize;
       const order = settings?.descending === false ? "ASC" : "DESC";
-      const limitClause = fieldSort ? "" : `LIMIT ${pageSize} OFFSET ${offset}`;
+      const limitClause = needsVisibleValues
+        ? ""
+        : `LIMIT ${pageSize} OFFSET ${offset}`;
 
       const listSql = `
         SELECT r.*, v.schema
@@ -1255,7 +1196,34 @@ export class PlatformService {
       `;
       const { rows } = await tx.query(listSql, parameters);
 
-      const result: PageRecordSummary[] = [];
+      // 同一成员可能出现在许多记录中，历史标签按本次可见结果去重后一次读取。
+      const populateIdentities = async (records: PageRecordSummary[]) => {
+        const labels = new Map<string, OrganizationIdentity>();
+        for (const record of records) {
+          const preview = record.preview;
+          if (!preview) continue;
+          preview.identities = organizationLabels(
+            { version: 1, fields: preview.fields } as FormSchema,
+            preview.values,
+            context.organization,
+          );
+          for (const identity of preview.identities) {
+            labels.set(`${identity.kind}:${identity.id}`, identity);
+          }
+        }
+        const resolved = await historicalLabels(tx, actor, [...labels.values()]);
+        const identities = new Map(
+          resolved.map((identity) => [`${identity.kind}:${identity.id}`, identity]),
+        );
+        for (const record of records) {
+          if (!record.preview) continue;
+          record.preview.identities = record.preview.identities.map(
+            (identity) => identities.get(`${identity.kind}:${identity.id}`)!,
+          );
+        }
+      };
+
+      let result: PageRecordSummary[] = [];
       for (const row of rows) {
         const record: PageRecordSummary = {
           id: row.id,
@@ -1289,24 +1257,29 @@ export class PlatformService {
             values: visible.values,
             identities: [],
           };
-
-          // 仅当按组织字段排序时，才在切片分页前提前解析身份名称
-          const sortField = visible.schema.fields.find(
-            (field) => field.id === settings?.sortField,
-          );
-          if (fieldSort && sortField && isOrganizationField(sortField.type)) {
-            record.preview.identities = await historicalLabels(
-              tx,
-              actor,
-              organizationLabels(
-                visible.schema,
-                visible.values,
-                context.organization,
-              ),
-            );
-          }
         }
         result.push(record);
+      }
+
+      // 搜索或按组织字段排序先补齐所有可见名称；普通列表只补当前页。
+      const sortByIdentity = page?.schema.fields.some(
+        (field) =>
+          field.id === settings?.sortField && isOrganizationField(field.type),
+      );
+      const identitiesBeforePagination =
+        !!keyword || (fieldSort && sortByIdentity);
+      if (identitiesBeforePagination) await populateIdentities(result);
+
+      if (keyword) {
+        result = result.filter((record) =>
+          this.recordMatchesKeyword(record, keyword),
+        );
+        total = result.length;
+        pageNumber = Math.min(
+          options?.page || 1,
+          Math.max(1, Math.ceil(total / pageSize)),
+        );
+        offset = (pageNumber - 1) * pageSize;
       }
 
       if (fieldSort) {
@@ -1338,22 +1311,10 @@ export class PlatformService {
         );
       }
 
-      const records = fieldSort
+      const records = needsVisibleValues
         ? result.slice(offset, offset + pageSize)
         : result;
-      for (const record of records) {
-        if (record.preview) {
-          record.preview.identities = await historicalLabels(
-            tx,
-            actor,
-            organizationLabels(
-              { version: 1, fields: record.preview.fields } as FormSchema,
-              record.preview.values,
-              context.organization,
-            ),
-          );
-        }
-      }
+      if (!identitiesBeforePagination) await populateIdentities(records);
 
       const fields =
         actor.role === "admin" && page
@@ -1374,6 +1335,91 @@ export class PlatformService {
     return transaction ? read(transaction) : this.db.transaction(read);
   }
 
+  /** 仅检索已脱敏的展示内容，子表逐列读取，排除行标识和富文本属性等内部值。 */
+  private recordMatchesKeyword(
+    record: PageRecordSummary,
+    keyword: string,
+  ): boolean {
+    if (record.id.toLowerCase().includes(keyword)) return true;
+    if (record.createdAt.includes(keyword)) return true;
+    if (new Date(record.createdAt).toLocaleString("zh-CN").includes(keyword))
+      return true;
+    const preview = record.preview;
+    if (!preview) return false;
+
+    const labels = {
+      identity: (id: string) => {
+        const identity = preview.identities.find((item) => item.id === id);
+        return identity
+          ? organizationIdentityLabel(identity)
+          : "无法识别的成员或部门";
+      },
+    };
+    const fieldMatches = (field: FormField, value: unknown): boolean => {
+      if (field.type === "richtext") {
+        if (typeof value !== "string") return false;
+        // HTML 用解析器取文本：链接、图片属性及脚本样式内容都不属于可见值。
+        const text = (node: DefaultTreeAdapterMap["node"]): string => {
+          if (node.nodeName === "#text")
+            return (node as DefaultTreeAdapterMap["textNode"]).value;
+          if (
+            [
+              "script",
+              "style",
+              "template",
+              "head",
+              "iframe",
+              "object",
+              "noscript",
+              "svg",
+              "math",
+              "audio",
+              "video",
+              "title",
+              "xmp",
+              "noembed",
+              "noframes",
+            ].includes(node.nodeName)
+          )
+            return "";
+          if (node.nodeName === "br") return "\n";
+          if (!("childNodes" in node)) return "";
+          const content = node.childNodes.map(text).join("");
+          const block = [
+            "p",
+            "div",
+            "li",
+            "blockquote",
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "h6",
+          ].includes(node.nodeName);
+          return block ? `\n${content}\n` : content;
+        };
+        return text(parseFragment(value))
+          .replace(/\s+/g, " ")
+          .toLocaleLowerCase()
+          .includes(keyword);
+      }
+      if (field.type === "subform" && Array.isArray(value)) {
+        const matched = value.some((row) =>
+          field.children.some((child) => fieldMatches(child, row[child.id])),
+        );
+        if (matched) return true;
+      }
+      return displayPlainFieldValue(field, value, labels)
+        .toLocaleLowerCase()
+        .includes(keyword);
+    };
+    return preview.fields.some(
+      (field) =>
+        hasFieldValue(field) && fieldMatches(field, preview.values[field.id]),
+    );
+  }
+
   /** 创建正式记录或草稿记录 */
   /** 已配置提交自动发起的表单必须走表单入口，不能通过底层记录接口绕开流程。 */
   private async requireWorkflowEntry(
@@ -1384,7 +1430,7 @@ export class PlatformService {
     const { rows } = await tx.query(
       `SELECT t.start_page_id FROM process_templates t
        JOIN pages p ON p.id=t.start_page_id
-       WHERE p.definition_id=$1 AND t.enabled AND t.latest_version>0`,
+       WHERE p.definition_id=$1 AND t.enabled AND t.active_version IS NOT NULL`,
       [definitionId],
     );
     if (rows.length && !rows.some((row) => row.start_page_id === page?.id)) {

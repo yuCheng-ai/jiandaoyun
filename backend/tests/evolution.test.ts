@@ -51,7 +51,13 @@ test("record upgrade preserves values, row identities, existing revisions and a 
 });
 test("only administrators can upgrade and new fields do not inherit broader member permissions", async () => {
   const users = await h.request("/users"), member = users.find((item: any) => item.username === "editor");
-  await h.request(`/definitions/${definition.id}/grants`, "PUT", { userId: member.id, read: true, create: true, edit: true, scope: "all", fields: { name: "edit", lines: "edit", item: "edit", quantity: "read" } });
+  await h.permissionGroup(definition.id, {
+    id: "member_" + member.id,
+    subjects: [{ kind: "member", id: member.id }],
+    scope: "all",
+    fields: { name: "edit", lines: "edit", item: "edit", quantity: "read" },
+    actions: ["view", "create", "edit"],
+  });
   await h.request(`${upgradePath(record.record.id)}?version=1`, "GET", undefined, "editor", 403);
   await h.request(upgradePath(record.record.id), "POST", { pageVersion: 1, expectedRevision: 3, requestId: randomUUID() }, "editor", 403);
   const detail = await h.request(`/pages/${newPage.id}/records/${record.record.id}`, "GET", undefined, "editor");

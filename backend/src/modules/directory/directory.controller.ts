@@ -26,12 +26,6 @@ export class OrganizationController {
     return { directory: await this.directory.get(r.actor) };
   }
 
-  /** 获取可用于通讯录角色授权的应用与表单目录列表 */
-  @Get("role-applications")
-  roleApplications(@Req() r: AuthenticatedRequest) {
-    return this.directory.applications(r.actor);
-  }
-
   /** 首次接入并初始化外部通讯录 */
   @Post("directory")
   directoryInitialize(@Req() r: AuthenticatedRequest, @Body() b: unknown) {

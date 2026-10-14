@@ -16,6 +16,8 @@ import {
   fileSettingsErrors,
   fileValueIssue,
   normalizeDateValue,
+  addressTypes,
+  richTextValueIssue,
   type FormField,
   type FileValue,
   type ChoiceValue,
@@ -78,7 +80,16 @@ export function validateFieldRules(
   if (field.type === "textarea" && field.format !== undefined && !["none", "email"].includes(field.format)) {
     throw new BadRequestException(`「${field.label}」的文本格式暂不支持`);
   }
-  if (!["text", "textarea", "datetime", "number"].includes(field.type) && field.format !== undefined && field.format !== "none") {
+  // 地址格式是省市区层级，沿用控件已有枚举，不能按普通文本格式拒绝。
+  if (
+    field.type === "address" &&
+    field.format !== undefined &&
+    field.format !== "none" &&
+    !addressTypes.some((item) => item.value === field.format)
+  ) {
+    throw new BadRequestException(`「${field.label}」的地址层级格式无效`);
+  }
+  if (!["text", "textarea", "datetime", "number", "address"].includes(field.type) && field.format !== undefined && field.format !== "none") {
     throw new BadRequestException(`「${field.label}」的格式规则暂不支持`);
   }
 
@@ -203,6 +214,14 @@ export function scalar(field: FormField, value: unknown, required = true): any {
   }
 
   // 6. 文本、日期时间与手机号校验
+  if (field.type === "richtext") {
+    const issue = richTextValueIssue(value);
+    if (issue) throw new BadRequestException(`「${field.label}」${issue}`);
+    if (required && field.required && !(value as string).trim()) {
+      throw new BadRequestException(`「${field.label}」不能为空`);
+    }
+    return value as string;
+  }
   if (typeof value !== "string" || value.length > (field.maxLength || 10000)) {
     throw new BadRequestException(`「${field.label}」的文本格式或长度不符合要求`);
   }

@@ -6,7 +6,7 @@ import DataFilterEditor from "../../forms/components/DataFilterEditor.vue";
 import FieldControl from "../../forms/components/FieldControl.vue";
 import SampleEditor from "./SampleEditor.vue";
 import { sampleValues } from "../../../domain/extensions";
-import { useWorkspaceStore } from "../../../stores/workspace";
+import { useRuntimeData } from "../../../composables/useRuntimeData";
 import { useDraftDismiss } from "../../../composables/useDraftDismiss";
 import { copy, type FormValues, type FormSchema } from "../../../domain/form";
 import { runtimeDefaults } from "../../../domain/relations";
@@ -28,16 +28,15 @@ const props = defineProps<{
   formId: string;
 }>();
 const emit = defineEmits<{ close: [] }>();
-const store = useWorkspaceStore(),
-  config = ref(newButton()),
+const runtimeData = useRuntimeData();
+const config = ref(newButton()),
   step = ref(0),
   error = ref(""),
   sample = ref<FormValues>({}),
-  trial = ref<ButtonResult>(),
-  saving = ref(false);
+  trial = ref<ButtonResult>();
 const sources = computed(() => buttonSources(props.schema));
 const destinations = computed(() =>
-  store.data.forms.filter((f) => !f.archived && f.published),
+  runtimeData.value.forms.filter((f) => !f.archived && f.published),
 );
 const destination = computed(() =>
   config.value.action === "openForm"
@@ -50,7 +49,7 @@ const targets = computed(() =>
 );
 const constantContext = computed(() => ({
   ...(destination.value
-    ? runtimeDefaults(destination.value.fields, store.data)
+    ? runtimeDefaults(destination.value.fields, runtimeData.value)
     : {}),
   ...Object.fromEntries(
     config.value.mappings
@@ -70,12 +69,11 @@ watch(
   },
   { immediate: true },
 );
-const { confirmDiscard, requestClose, discard, markSaved, draftKey } =
-  useDraftDismiss(
-    () => props.open,
-    () => config.value,
-    () => emit("close"),
-  );
+const { confirmDiscard, requestClose, discard } = useDraftDismiss(
+  () => props.open,
+  () => config.value,
+  () => emit("close"),
+);
 watch(
   [config, sample],
   () => {
@@ -89,9 +87,11 @@ function actionChange() {
   trial.value = undefined;
 }
 function next() {
-  const issue = buttonIssues(config.value, props.schema, store.data).find(
-    (i) => i.step <= step.value,
-  );
+  const issue = buttonIssues(
+    config.value,
+    props.schema,
+    runtimeData.value,
+  ).find((i) => i.step <= step.value);
   if (issue) {
     error.value = issue.message;
     step.value = issue.step;
@@ -105,34 +105,10 @@ function test() {
     config.value,
     props.schema,
     sample.value,
-    store.data,
+    runtimeData.value,
     config.value.positions[0] || "fill",
     true,
   );
-}
-async function save() {
-  if (saving.value) return;
-  const issue = buttonIssues(config.value, props.schema, store.data)[0];
-  if (issue) {
-    error.value = issue.message;
-    step.value = issue.step;
-    return;
-  }
-  saving.value = true;
-  error.value = "";
-  try {
-    if (await store.saveButton(props.formId, copy(config.value))) {
-      markSaved();
-      store.notify("按钮已保存，发布新版本后生效");
-      emit("close");
-    } else
-      error.value =
-        store.storageError || "保存未完成，按钮配置已保留，请重试。";
-  } catch {
-    error.value = "保存失败，按钮配置已保留，请重试。";
-  } finally {
-    saving.value = false;
-  }
 }
 function addMapping() {
   config.value.mappings.push({
@@ -149,11 +125,9 @@ function positionsLabel(c: CustomButton) {
 <template>
   <BaseDialog
     :open="open"
-    :draft-key="draftKey"
-    :busy="saving"
     :title="modelValue ? '编辑自定义按钮' : '新建自定义按钮'"
     width="920px"
-    @close="!saving && requestClose()"
+    @close="requestClose"
   >
     <div v-if="confirmDiscard" class="config-discard" tabindex="-1">
       <span>配置尚未保存。</span
@@ -423,10 +397,10 @@ function positionsLabel(c: CustomButton) {
         v-else
         type="button"
         class="button primary"
-        :disabled="saving"
-        @click="save"
+        disabled
+        title="暂未开放保存"
       >
-        {{ saving ? "正在保存…" : "保存按钮" }}
+        保存按钮
       </button></template
     >
   </BaseDialog>

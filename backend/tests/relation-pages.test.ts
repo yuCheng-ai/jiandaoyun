@@ -6,7 +6,15 @@ import { field, harness, schema } from "./helpers";
 const h = harness(), api = h.request;
 let source: any, target: any, record: any, chosen: any, relation: any, page: any, readPage: any, hiddenPage: any, member: any;
 const spec = () => ({ title: "关联资料", sourceDefinitionId: source.id, targetDefinitionId: target.id, cardinality: "one", inverseCardinality: "many", labelFieldId: "name", columns: ["price", "secret"], filters: [{ id: "region", sourceFieldId: "region", operator: "equals", source: "field", value: "region" }], mappings: [{ fromTargetFieldId: "price", toSourceFieldId: "price" }], valueMode: "live" });
-const sourceGrant = (extra: any = {}) => ({ userId: member.id, read: true, create: false, edit: true, scope: "all", fields: { name: "edit", region: "edit", price: "edit", hidden: "hidden" }, relations: { [relation.id]: "edit" }, ...extra });
+const sourceGrant = (extra: any = {}) => ({
+  id: "member_" + member.id,
+  subjects: [{ kind: "member", id: member.id }],
+  scope: "all",
+  fields: { name: "edit", region: "edit", price: "edit", hidden: "hidden" },
+  relations: { [relation.id]: "edit" },
+  actions: ["view", "edit"],
+  ...extra,
+});
 const path = (p = page) => `/pages/${p.id}/records/${record.record.id}/relations`;
 const command = (extra: any = {}) => ({ requestId: randomUUID(), pageVersion: 1, expectedTargetRevision: chosen.record.revision, expectedRelationVersion: relation.latestVersion, targetRecordId: chosen.record.id, expectedCells: record.record.cellRevisions, ...extra });
 before(async () => {
@@ -25,8 +33,14 @@ before(async () => {
   };
   page = await makePage("edit"); readPage = await makePage("read"); hiddenPage = await makePage("hidden");
   member = (await api("/users")).find((u: any) => u.username === "editor");
-  await h.grant(source.id, sourceGrant());
-  await h.grant(target.id, { userId: member.id, read: true, edit: false, create: false, scope: "all", fields: { name: "read", region: "read", price: "read", secret: "hidden" } });
+  await h.permissionGroup(source.id, sourceGrant());
+  await h.permissionGroup(target.id, {
+    id: "member_" + member.id,
+    subjects: [{ kind: "member", id: member.id }],
+    scope: "all",
+    fields: { name: "read", region: "read", price: "read", secret: "hidden" },
+    actions: ["view"],
+  });
 });
 after(() => h.close());
 test("a retried relation draft creation returns the same identity", async () => {
@@ -66,11 +80,11 @@ test("page-scoped linking and replay return only page-authorized fields; reverse
   let incoming = await api(`/records/${chosen.record.id}/relations`, "GET", undefined, "editor");
   assert.equal(incoming[0].direction, "incoming"); assert.equal(incoming[0].links[0].sourceRecordId, record.record.id);
   assert.equal(incoming[0].links[0].values.hidden, undefined);
-  await h.grant(source.id, sourceGrant({ relations: {} }));
+  await h.permissionGroup(source.id, sourceGrant({ relations: {} }));
   assert.deepEqual(await api(`/records/${chosen.record.id}/relations`, "GET", undefined, "editor"), []);
-  await h.grant(source.id, sourceGrant({ scope: "self" }));
+  await h.permissionGroup(source.id, sourceGrant({ scope: "self" }));
   assert.deepEqual(await api(`/records/${chosen.record.id}/relations`, "GET", undefined, "editor"), []);
-  await h.grant(source.id, sourceGrant());
+  await h.permissionGroup(source.id, sourceGrant());
   const removed = await api(`${path()}/${relation.id}/links/${result.link.id}/remove`, "POST", { pageVersion: 1, requestId: randomUUID() }, "editor", 201);
   assert.equal(removed.record.record.values.hidden, undefined); assert.equal(removed.record.record.values.price, 42);
   assert.deepEqual(await api(`/records/${chosen.record.id}/relations`, "GET", undefined, "editor"), []);

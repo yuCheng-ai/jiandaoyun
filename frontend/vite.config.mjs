@@ -20,14 +20,13 @@ export default defineConfig({
   test: {
     testTimeout: 15000,
     include: ["tests/**/*.test.ts"],
-    setupFiles: ["tests/setup.ts"],
+    // DOM 用例使用 jsdom 的存储，避免 Node 原生 Web Storage 遮蔽浏览器实现。
+    poolOptions: {
+      forks: { execArgv: ["--no-experimental-webstorage"] },
+    },
     testTransformMode: {
       web: [
-        "**/extension-editors.test.ts",
-        "**/form-runtime.test.ts",
         "**/base-dialog.test.ts",
-        "**/record-print-dialog.test.ts",
-        "**/configuration-recovery.test.ts",
       ],
     },
   },

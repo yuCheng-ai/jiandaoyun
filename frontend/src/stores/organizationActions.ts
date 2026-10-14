@@ -1,7 +1,6 @@
 import type { Ref } from "vue";
 import { copy, uid } from "../domain/form";
 import {
-  parseOrganization,
   validateDepartment,
   validateEmployee,
   type Department,
@@ -13,9 +12,7 @@ import {
 import { directoryContextMatches, validateDirectory } from "@platform/contracts";
 export function organizationActions(
   data: Ref<Organization>,
-  persist: () => boolean,
   notify: (message: string, type?: string) => void,
-  protectExperienceMember = true,
 ) {
   function mutate(
     action: (org: Organization) => void,
@@ -29,15 +26,9 @@ export function organizationActions(
       )
         throw Error("组织或授权对象已变化，请重新核对后保存");
       action(data.value);
-      if (protectExperienceMember) data.value = parseOrganization(data.value);
-      else {
-        const { currentUserId, ...spec } = data.value;
-        data.value = { ...validateDirectory(copy(spec)), currentUserId };
-      }
-      if (!persist()) {
-        data.value = previous;
-        return false;
-      }
+      // 这里只修改待提交的候选通讯录；服务端确认后 store 才更新正式状态。
+      const { currentUserId, ...spec } = data.value;
+      data.value = { ...validateDirectory(copy(spec)), currentUserId };
       return true;
     } catch (error) {
       data.value = previous;
@@ -102,12 +93,6 @@ export function organizationActions(
         )
       )
         throw Error("所选角色已停用或不存在，请重新选择");
-      if (
-        protectExperienceMember &&
-        item.id === org.currentUserId &&
-        item.status !== "active"
-      )
-        throw Error("请先切换当前体验成员，再停用此成员");
       const index = org.employees.findIndex((e) => e.id === item.id);
       if (index < 0) org.employees.push(copy(item));
       else org.employees[index] = copy(item);
@@ -124,13 +109,6 @@ export function organizationActions(
     expectedContext?: string,
   ) {
     return mutate((org) => {
-      if (
-        protectExperienceMember &&
-        action.status &&
-        action.status !== "active" &&
-        ids.includes(org.currentUserId)
-      )
-        throw Error("批量操作不能停用当前体验成员");
       for (const e of org.employees.filter((e) => ids.includes(e.id))) {
         if (action.status) e.status = action.status;
         if (action.departmentId) {
@@ -213,13 +191,6 @@ export function organizationActions(
       org.roleGroups = org.roleGroups.filter((g) => g.id !== id);
     }, expectedContext);
   }
-  function setCurrentUser(id: string) {
-    return mutate((org) => {
-      if (!org.employees.some((e) => e.id === id && e.status === "active"))
-        throw Error("请选择在职成员");
-      org.currentUserId = id;
-    });
-  }
   return {
     saveDepartment,
     archiveDepartment,
@@ -229,6 +200,5 @@ export function organizationActions(
     archiveRole,
     saveRoleGroup,
     removeRoleGroup,
-    setCurrentUser,
   };
 }

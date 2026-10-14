@@ -1,15 +1,6 @@
 import DOMPurify from "dompurify";
 
-export const richTextCharacterLimit = 30000;
-/** Preserve legacy values while allowing corrections that reduce their stored size. */
-export function richTextValueIssue(value: unknown, previous?: unknown): string {
-  if (value == null || value === "") return "";
-  if (typeof value !== "string") return "请输入富文本内容";
-  const previousLength = typeof previous === "string" ? previous.length : 0;
-  return value.length > richTextCharacterLimit && value.length > previousLength
-    ? "内容过长，请减少文字或格式（上限 3 万字符）"
-    : "";
-}
+export { richTextCharacterLimit, richTextValueIssue } from "@platform/contracts";
 
 export interface RichTextImage {
   id?: string;

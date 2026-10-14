@@ -12,8 +12,7 @@ import {
   prepareSubmission,
   validateValues,
 } from "../src/domain/form";
-import { seedWorkspace } from "../src/domain/workspace";
-import { createRelationDemo } from "../src/domain/relationDemo";
+import { seedWorkspace, newForm } from "../src/domain/workspace";
 import {
   applyFieldChange,
   resolveChoices,
@@ -23,13 +22,119 @@ import {
 } from "../src/domain/relations";
 import { emptyChoiceSource, emptyReference } from "../src/domain/fieldConfig";
 function fixture() {
-  const data = seedWorkspace(),
-    demo = createRelationDemo("oa");
-  data.forms.push(...demo.forms);
-  data.entries.push(...demo.entries);
-  const customer = demo.forms[0]!,
-    order = demo.forms[1]!,
-    fields = order.schema.fields;
+  const data = seedWorkspace();
+  const customer = newForm("oa", "客户");
+  const order = newForm("oa", "订单");
+  const name = createField("text", { id: "name", label: "客户名称" });
+  const region = createField("select", {
+    id: "region",
+    label: "所在区域",
+    options: [
+      { id: "east", label: "华东" },
+      { id: "south", label: "华南" },
+    ],
+  });
+  const contact = createField("text", { id: "contact", label: "联系人" });
+  const phone = createField("phone", { id: "phone", label: "联系电话" });
+  const regionInput = createField("select", {
+    id: "regionInput",
+    label: "业务区域",
+    options: copy(region.options),
+  });
+  const contactInput = createField("text", {
+    id: "contactInput",
+    label: "联系人",
+  });
+  const phoneInput = createField("phone", {
+    id: "phoneInput",
+    label: "联系电话",
+  });
+  const dynamic = createField("select", {
+    id: "dynamic",
+    label: "客户简称（动态选项）",
+  });
+  Object.assign(dynamic.choiceSource, {
+    mode: "form",
+    formId: customer.id,
+    labelFieldId: name.id,
+    valueFieldId: name.id,
+    sort: "asc",
+    filters: [
+      {
+        id: "region",
+        sourceFieldId: region.id,
+        operator: "equals",
+        source: "field",
+        value: regionInput.id,
+      },
+    ],
+  });
+  const relation = createField("relation", {
+    id: "relation",
+    label: "签约客户",
+    referenceFormId: customer.id,
+    referenceFieldId: name.id,
+  });
+  Object.assign(relation.reference, {
+    columns: [name.id, region.id, contact.id, phone.id],
+    filters: copy(dynamic.choiceSource.filters),
+    mappings: [
+      { sourceFieldId: contact.id, targetFieldId: contactInput.id },
+      { sourceFieldId: phone.id, targetFieldId: phoneInput.id },
+    ],
+  });
+  const team = createField("department", { id: "team", label: "负责部门" });
+  team.organization.defaultMode = "currentDepartment";
+  const owner = createField("member", { id: "owner", label: "业务负责人" });
+  owner.organization.defaultMode = "currentUser";
+  owner.organization.scope.mode = "fieldDepartment";
+  owner.organization.scope.fieldId = team.id;
+  const reverse = createField("relationTable", {
+    id: "reverse",
+    label: "客户订单",
+    referenceFormId: order.id,
+    referenceFieldId: contactInput.id,
+  });
+  Object.assign(reverse.reference, {
+    mode: "reverse",
+    reverseFieldId: relation.id,
+    columns: [relation.id, contactInput.id],
+  });
+  customer.schema.fields = [name, region, contact, phone, reverse];
+  order.schema.fields = [
+    regionInput,
+    dynamic,
+    relation,
+    contactInput,
+    phoneInput,
+    team,
+    owner,
+  ];
+  for (const form of [customer, order]) {
+    form.published = {
+      version: 1,
+      title: form.title,
+      schema: copy(form.schema),
+      workflow: copy(form.workflow),
+      publishedAt: form.createdAt,
+    };
+    form.versions = [copy(form.published)];
+    data.forms.push(form);
+  }
+  data.entries = [
+    ["青禾设计", "east", "林小禾", "13800000001"],
+    ["南屿科技", "south", "陈知南", "13800000002"],
+    ["星河制造", "east", "周星远", "13800000003"],
+  ].map(([n, r, c, p], index) => ({
+    id: `customer-${index}`,
+    formId: customer.id,
+    definitionVersion: 1,
+    values: { name: n, region: r, contact: c, phone: p },
+    createdAt: customer.createdAt,
+    status: "submitted",
+    history: [],
+  }));
+  const fields = order.schema.fields;
   const byLabel = (label: string) => fields.find((f) => f.label === label)!;
   return { data, customer, order, byLabel, fields };
 }
@@ -47,11 +152,15 @@ describe("cross-form runtime", () => {
       region = byLabel("业务区域");
     expect(resolveChoices(field, data, {})).toEqual([]);
     expect(
-      resolveChoices(field, data, { [region.id]: "east" }, fields).map((o) => o.label),
+      resolveChoices(field, data, { [region.id]: "east" }, fields).map(
+        (o) => o.label,
+      ),
     ).toEqual(["青禾设计", "星河制造"]);
     data.entries[0]!.status = "draft";
     expect(
-      resolveChoices(field, data, { [region.id]: "east" }, fields).map((o) => o.label),
+      resolveChoices(field, data, { [region.id]: "east" }, fields).map(
+        (o) => o.label,
+      ),
     ).toEqual(["星河制造"]);
   });
   it("updates options when source records change and supports sort and deduplication", () => {
@@ -59,14 +168,14 @@ describe("cross-form runtime", () => {
       field = byLabel("客户简称（动态选项）"),
       region = byLabel("业务区域");
     data.entries.push({ ...copy(data.entries[0]!), id: "duplicate" });
-    expect(resolveChoices(field, data, { [region.id]: "east" }, fields)).toHaveLength(
-      2,
-    );
+    expect(
+      resolveChoices(field, data, { [region.id]: "east" }, fields),
+    ).toHaveLength(2);
     field.choiceSource.valueFieldId = "";
     field.choiceSource.deduplicate = false;
-    expect(resolveChoices(field, data, { [region.id]: "east" }, fields)).toHaveLength(
-      3,
-    );
+    expect(
+      resolveChoices(field, data, { [region.id]: "east" }, fields),
+    ).toHaveLength(3);
   });
   it("selects a record, maps multiple fields, and clears them when upstream selection changes", () => {
     const { data, byLabel, fields } = fixture(),

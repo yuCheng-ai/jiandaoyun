@@ -8,7 +8,6 @@ import type {
 import { usePlatformSession } from "../../stores/platformSession";
 import { platformApi } from "../../repositories/platformApi";
 import ProcessStartDialog from "./ProcessStartDialog.vue";
-import ProcessDetail from "./ProcessDetail.vue";
 const props = defineProps<{ applications: ApplicationSummary[] }>();
 const session = usePlatformSession(),
   router = useRouter();
@@ -17,26 +16,34 @@ const templates = ref<(ProcessTemplateDraft & { applicationTitle: string })[]>(
 );
 const busy = ref(false),
   error = ref(""),
-  starting = ref<ProcessTemplateDraft>(),
-  processId = ref("");
+  starting = ref<ProcessTemplateDraft>();
 async function load() {
   if (busy.value) return;
   busy.value = true;
   error.value = "";
   try {
-    templates.value = (
-      await Promise.all(
-        props.applications.map(async (app) =>
-          (
-            await platformApi<ProcessTemplateDraft[]>(
-              `/process-templates?applicationId=${app.id}`,
-            )
-          )
-            .filter((item) => item.latestVersion && item.enabled)
-            .map((item) => ({ ...item, applicationTitle: app.title })),
-        ),
-      )
-    ).flat();
+    const results = await Promise.allSettled(
+      props.applications.map(async (app) => {
+        const available = await platformApi<ProcessTemplateDraft[]>(
+          `/process-templates?applicationId=${app.id}`,
+        );
+        const published = available.filter(
+          (item) => item.activeVersion && item.enabled,
+        );
+        return published.map((item) => ({
+          ...item,
+          applicationTitle: app.title,
+        }));
+      }),
+    );
+    templates.value = results.flatMap((result) =>
+      result.status === "fulfilled" ? result.value : [],
+    );
+    if (results.some((result) => result.status === "rejected")) {
+      error.value = templates.value.length
+        ? "部分流程未能读取，请重试。"
+        : "流程未能读取，请重试。";
+    }
   } catch (cause) {
     error.value = (cause as Error).message;
   } finally {
@@ -61,7 +68,10 @@ onMounted(load);
       <h2>发起流程</h2>
       <button class="button" :disabled="busy" @click="load">刷新</button>
     </header>
-    <p v-if="error" class="collab-error" role="alert">{{ error }}</p>
+    <p v-if="error" class="collab-error" role="alert">
+      {{ error }}
+      <button class="text-button" :disabled="busy" @click="load">重试</button>
+    </p>
     <p v-if="busy" role="status">正在读取…</p>
     <div class="process-start-list">
       <button
@@ -84,19 +94,14 @@ onMounted(load);
   <ProcessStartDialog
     v-if="starting"
     :template-id="starting.id"
-    :version="starting.latestVersion"
+    :version="starting.activeVersion"
     @close="starting = undefined"
     @started="
       (id) => {
         starting = undefined;
-        processId = id;
+        router.push({ name: 'home', query: { tab: 'started', process: id } });
       }
     "
-  />
-  <ProcessDetail
-    v-if="processId"
-    :process-id="processId"
-    @close="processId = ''"
   />
 </template>
 <style scoped>

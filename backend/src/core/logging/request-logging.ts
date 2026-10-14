@@ -4,6 +4,44 @@ import { ArgumentsHost, Catch, ExceptionFilter, HttpException } from "@nestjs/co
 import type { NextFunction, Request, Response } from "express";
 import type { AuthenticatedRequest } from "../auth/auth.service";
 
+/** HTTP 与后台任务共用脱敏诊断，只保留异常类别、SQLSTATE 和调用位置。 */
+export function safeFailure(
+  exception: unknown,
+  status = exception instanceof HttpException ? exception.getStatus() : 500,
+) {
+  const error = exception as { stack?: unknown; code?: unknown } | undefined;
+  let kind = "RequestBodyError";
+  if (exception instanceof HttpException) {
+    kind = exception.constructor.name;
+  } else if (status === 500) {
+    kind = "InternalError";
+  }
+
+  const databaseCode =
+    status === 500 && typeof error?.code === "string" && /^[0-9A-Z]{5}$/.test(error.code)
+      ? error.code
+      : undefined;
+  let locations: string[] | undefined;
+  if (status === 500 && exception instanceof Error && typeof exception.stack === "string") {
+    // 错误消息可能跨行；先完整移除消息，不能把其中的“at …”误当安全调用位置。
+    const heading = `${exception.name}: ${exception.message}`;
+    if (exception.stack.startsWith(heading)) {
+      locations = exception.stack
+        .slice(heading.length)
+        .split("\n")
+        .filter((line) => /^\s+at /.test(line))
+        .slice(0, 8)
+        .map((line) => line.trim());
+    }
+  }
+
+  return {
+    kind,
+    ...(databaseCode ? { databaseCode } : {}),
+    ...(locations ? { locations } : {}),
+  };
+}
+
 /**
  * 全局请求审计日志中间件：
  * - 为每个请求分配唯一 `requestId` 并通过 `X-Request-ID` 响应头返回；
@@ -81,37 +119,7 @@ export class RequestExceptionFilter implements ExceptionFilter {
       status = parserStatus;
     }
 
-    // 2. 构造安全错误诊断摘要（仅供服务端日志使用）
-    let failureKind = "RequestBodyError";
-    if (exception instanceof HttpException) {
-      failureKind = exception.constructor.name;
-    } else if (status === 500) {
-      failureKind = "InternalError";
-    }
-
-    const hasSqlState =
-      status === 500 &&
-      typeof parseError?.code === "string" &&
-      /^[0-9A-Z]{5}$/.test(parseError.code);
-
-    const hasStackLocations = status === 500 && typeof parseError?.stack === "string";
-
-    res.locals.failure = {
-      kind: failureKind,
-      // 记录 5 位 SQLSTATE 错误码以定位数据库错误，不暴露具体查询参数值
-      ...(hasSqlState ? { databaseCode: parseError!.code } : {}),
-      // 截取前 8 行堆栈位置辅助排障，不记录异常消息文本
-      ...(hasStackLocations
-        ? {
-            locations: parseError!
-              .stack!.split("\n")
-              .slice(1)
-              .filter((line) => /^\s+at /.test(line))
-              .slice(0, 8)
-              .map((line) => line.trim()),
-          }
-        : {}),
-    };
+    res.locals.failure = safeFailure(exception, status);
 
     if (res.headersSent) return;
 

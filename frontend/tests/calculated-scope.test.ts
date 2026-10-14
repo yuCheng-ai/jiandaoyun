@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
+// @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { createApp, h, nextTick, reactive } from "vue";
 import { createPinia, setActivePinia } from "pinia";
 import { createMemoryHistory, createRouter } from "vue-router";
 import {
-  copy,
   createField,
   emptySchema,
   parseSchema,
@@ -22,12 +22,8 @@ import {
   validateFieldConfiguration,
   validateDynamicValues,
 } from "../src/domain/fieldValidation";
-import { newForm, seedWorkspace } from "../src/domain/workspace";
-import {
-  LocalWorkspaceRepository,
-  WORKSPACE_KEY,
-} from "../src/repositories/workspaceRepository";
-import { useWorkspaceStore } from "../src/stores/workspace";
+import { seedWorkspace } from "../src/domain/workspace";
+
 import FormulaEditor from "../src/features/forms/components/FormulaEditor.vue";
 
 const calc = (expression: string, format = "number") =>
@@ -54,14 +50,6 @@ const evaluate = (expression: string, format = "number") => {
 };
 async function flush() {
   for (let i = 0; i < 6; i++) await nextTick();
-}
-function seed(form: ReturnType<typeof newForm>) {
-  const data = seedWorkspace();
-  data.forms = [form];
-  data.entries = [];
-  data.recentFormIds = [];
-  localStorage.setItem(WORKSPACE_KEY, JSON.stringify(data));
-  return useWorkspaceStore();
 }
 it("restricts calculated variables to supported main fields, including tab contents and organization arrays", () => {
   const schema = emptySchema();
@@ -293,68 +281,6 @@ it("enforces calculated configuration and execution at publication and submissio
   ).toContain("不支持函数");
   schema.fields = [calc('LEFT("abc",-1)', "text")];
   expect(validateDynamicValues(schema, {}, data)).toEqual([]);
-});
-it("normalizes new and changed calculations before save and publication while preserving an immutable legacy version", async () => {
-  const form = newForm("oa", "历史计算");
-  const old = createField("calculated", { id: "old", expression: "SUM(1,2)" });
-  form.schema.fields = [old];
-  form.published = {
-    version: 1,
-    title: form.title,
-    schema: copy(form.schema),
-    workflow: copy(form.workflow),
-    publishedAt: "2026-10-10",
-  };
-  form.versions = [copy(form.published)];
-  const store = seed(form),
-    draft = store.openForm(form.id)!;
-  const originalVersion = copy(store.data.forms[0]!.published!);
-  draft.title = "只改标题";
-  expect(await store.saveForm(form.id)).toBe(true);
-  expect(draft.schema.fields[0]?.calculationVersion).toBeUndefined();
-  draft.schema.fields[0]!.expression = "SUM(2,3)";
-  expect(await store.saveForm(form.id)).toBe(false);
-  expect(draft.schema.fields[0]!.expression).toBe("SUM(2,3)");
-  expect(
-    new LocalWorkspaceRepository().load()!.forms[0]!.schema.fields[0]!
-      .expression,
-  ).toBe("SUM(1,2)");
-  draft.schema.fields[0]!.expression = "2+3";
-  expect(await store.publishForm(form.id)).toBe(true);
-  const persisted = new LocalWorkspaceRepository().load()!.forms[0]!;
-  expect(persisted.schema.fields[0]?.calculationVersion).toBe(1);
-  expect(persisted.published?.schema.fields[0]?.calculationVersion).toBe(1);
-  expect(persisted.versions?.[0]).toEqual(originalVersion);
-  expect(
-    formulaValue(
-      originalVersion.schema.fields[0]!,
-      originalVersion.schema.fields,
-      {},
-    ).value,
-  ).toBe(3);
-});
-it("rejects direct new-form bypasses and downgrades while allowing unfinished drafts to save", async () => {
-  const form = newForm("oa", "新计算"),
-    store = seed(form),
-    draft = store.openForm(form.id)!;
-  const field = createField("calculated", { expression: "SUM(1,2)" });
-  draft.schema.fields = [field];
-  expect(await store.saveForm(form.id)).toBe(false);
-  expect(await store.publishForm(form.id)).toBe(false);
-  expect(field.expression).toBe("SUM(1,2)");
-  field.expression = "";
-  expect(await store.saveForm(form.id)).toBe(true);
-  expect(field.calculationVersion).toBe(1);
-  expect(await store.publishForm(form.id)).toBe(false);
-  delete field.calculationVersion;
-  field.expression = "SUM(1,2)";
-  expect(await store.saveForm(form.id)).toBe(false);
-  field.expression = "2";
-  expect(await store.publishForm(form.id)).toBe(true);
-  expect(
-    new LocalWorkspaceRepository().load()!.forms[0]?.published?.schema.fields[0]
-      ?.calculationVersion,
-  ).toBe(1);
 });
 it("filters actual editor common/search menus and retains invalid input until corrected", async () => {
   const schema = emptySchema(),

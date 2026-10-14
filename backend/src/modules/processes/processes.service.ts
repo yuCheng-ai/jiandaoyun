@@ -4,7 +4,6 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
-  Logger,
   NotFoundException,
   OnModuleDestroy,
   OnModuleInit,
@@ -21,14 +20,35 @@ import type {
   FormValues,
   ProcessRuntimeSource,
   ProcessSpec,
+  ProcessSummary,
   ProcessView,
+  RecordDetail,
   TaskSpec,
 } from "@platform/contracts";
 import { Actor, requireAdmin, tokenHash } from "../../core/auth/auth.service";
 import { Database, Transaction } from "../../core/database/database";
+import { safeFailure } from "../../core/logging/request-logging";
 import { PlatformService } from "../pages/platform.service";
+import { PageService } from "../pages/pages.service";
 import { TaskContextService } from "./task-context.service";
-import { identifier, object, uuid, title } from "../../core/database/schema";
+import {
+  identifier,
+  object,
+  uuid,
+  title,
+} from "../../core/database/schema";
+
+/** 后台异常不经过 HTTP 过滤器，沿用相同的安全摘要记录，不能输出表单或异常原文。 */
+function logRefreshFailure(error: unknown, context?: { id: string; workspace_id: string }) {
+  const entry = {
+    timestamp: new Date().toISOString(),
+    level: "error",
+    event: "process.refresh.failed",
+    ...(context ? { processId: context.id, workspaceId: context.workspace_id } : {}),
+    failure: safeFailure(error),
+  };
+  process.stdout.write(JSON.stringify(entry) + "\n");
+}
 
 /** 校验任务依赖有向无环图（DAG）：确保任务标识唯一、前置依赖存在且无环 */
 export function checkTaskGraph(tasks: { id: string; dependsOn: string[] }[]) {
@@ -68,12 +88,12 @@ export function checkTaskGraph(tasks: { id: string; dependsOn: string[] }[]) {
 export class ProcessService implements OnModuleInit, OnModuleDestroy {
   private timer?: ReturnType<typeof setInterval>;
   private refreshJob?: Promise<void>;
-  private readonly logger = new Logger(ProcessService.name);
 
   constructor(
     private readonly db: Database,
     private readonly platform: PlatformService,
     private readonly context: TaskContextService,
+    private readonly pages: PageService,
   ) {}
 
   /** 启动后台定时轮询：每 5 秒检查一次运行中流程的等待条件变化 */
@@ -81,7 +101,7 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
     this.timer = setInterval(() => {
       if (!this.refreshJob) {
         this.refreshJob = this.refreshPending()
-          .catch(() => this.logger.warn("任务条件检查暂时失败，将在下一轮重试"))
+          .catch((error) => logRefreshFailure(error))
           .finally(() => {
             this.refreshJob = undefined;
           });
@@ -512,12 +532,13 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
     return row;
   }
 
-  /** 查询指定任务并校验当前用户是否为该任务的处理人（或管理员） */
+  /** 办理限于当前处理人或管理员；读取时允许曾委托该任务的成员查看。 */
   private async task(
     tx: Transaction,
     actor: Actor,
     processId: string,
     taskId: string,
+    allowDelegatedRead = false,
   ) {
     uuid(taskId);
     const { rows } = await tx.query(
@@ -525,8 +546,19 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
       [taskId, processId],
     );
     const task = rows[0];
-    if (!task || (actor.role !== "admin" && task.assignee_id !== actor.id)) {
+    if (!task) {
       throw new ForbiddenException("不是此任务的处理人");
+    }
+    if (actor.role !== "admin" && task.assignee_id !== actor.id) {
+      const delegated = allowDelegatedRead
+        ? await tx.query(
+            "SELECT 1 FROM process_events WHERE process_id=$1 AND task_id=$2 AND actor_id=$3 AND action='delegated' LIMIT 1",
+            [processId, taskId, actor.id],
+          )
+        : undefined;
+      if (!delegated?.rowCount) {
+        throw new ForbiddenException("不是此任务的处理人");
+      }
     }
     if (
       actor.role !== "admin" &&
@@ -618,6 +650,7 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
         kind: t.spec.kind || "approval",
         canOpen:
           actor.role === "admin" ||
+          delegatedIds.has(t.id) ||
           (t.assignee_id === actor.id &&
             (t.spec.kind !== "copy" || t.status === "completed")),
         canHandle:
@@ -645,6 +678,114 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
         createdAt: e.created_at.toISOString(),
       })),
     };
+  }
+
+  /** 正文优先采用本人待办；申请人查看原申请单，其他参与人沿用自己的节点视野。 */
+  async record(actor: Actor, id: string): Promise<RecordDetail> {
+    return this.db.transaction(async (tx) => {
+      const process = await this.process(tx, actor, id);
+      const records = await this.lockBindings(tx, actor, process.bindings);
+      await tx.query("SELECT id FROM processes WHERE id=$1 FOR UPDATE", [id]);
+      await this.reconcile(tx, actor, id, records, process.bindings);
+      const { rows: tasks } = await tx.query(
+        `SELECT t.*, EXISTS (
+           SELECT 1 FROM process_events e WHERE e.process_id=t.process_id
+             AND e.task_id=t.id AND e.actor_id=$2 AND e.action='delegated'
+         ) AS delegated
+         FROM tasks t WHERE t.process_id=$1`,
+        [id, actor.id],
+      );
+      const position = new Map<string, number>(
+        (process.spec.tasks as TaskSpec[]).map((task, index) => [task.id, index]),
+      );
+      tasks.sort((a, b) => position.get(a.task_key)! - position.get(b.task_key)!);
+      const current = tasks.find(
+        (task) =>
+          task.assignee_id === actor.id &&
+          task.status === "ready" &&
+          task.spec.kind !== "copy",
+      );
+      if (current) return this.context.record(tx, actor, id, current);
+
+      if (
+        process.submission_record_id &&
+        (process.created_by === actor.id || actor.role === "admin")
+      ) {
+        let origin = process.spec.origin as
+          | { pageId: string; pageVersion: number }
+          | undefined;
+        if (!origin) {
+          // 旧实例仅在记录数据版本唯一对应一个原页面版本时恢复；否则使用记录自身结构。
+          const versions = await tx.query(
+            `SELECT v.page_id, v.version FROM process_templates t
+             JOIN page_versions v ON v.page_id=t.start_page_id
+             JOIN records r ON r.id=$1 AND r.definition_id=v.definition_id
+               AND r.definition_version=v.definition_version
+             WHERE t.id=$2 AND v.created_at<=$3 ORDER BY v.version DESC LIMIT 2`,
+            [process.submission_record_id, process.template_id, process.created_at],
+          );
+          if (versions.rows.length === 1) {
+            origin = {
+              pageId: versions.rows[0].page_id,
+              pageVersion: versions.rows[0].version,
+            };
+          }
+        }
+        const scope = origin
+          ? await this.pages.recordScope(
+              actor,
+              origin.pageId,
+              origin.pageVersion,
+              tx,
+              true,
+            )
+          : undefined;
+        const detail = await this.platform.detailIn(
+          tx,
+          actor,
+          process.submission_record_id,
+          scope,
+        );
+        if (!detail.access.read) {
+          throw new ForbiddenException("当前没有申请记录的查看权限");
+        }
+        // 流程正文的申请视图始终只读；编辑只从当前待办的节点入口执行。
+        detail.access.edit = false;
+        for (const fieldId of Object.keys(detail.access.fields)) {
+          if (detail.access.fields[fieldId] === "edit") {
+            detail.access.fields[fieldId] = "read";
+          }
+        }
+        for (const actions of Object.values(detail.rowActions || {})) {
+          actions.add = false;
+          actions.insert = false;
+          actions.remove = false;
+          actions.editExisting = false;
+        }
+        return detail;
+      }
+
+      const available = tasks.filter(
+        (task) =>
+          (actor.role === "admin" || task.assignee_id === actor.id) &&
+          (task.spec.kind !== "copy" || task.status === "completed"),
+      );
+      const selected =
+        available.find((task) => task.status === "ready") ||
+        available.filter((task) => task.status === "completed").at(-1) ||
+        available[0] ||
+        tasks.find((task) => task.delegated);
+      if (!selected) {
+        throw new ForbiddenException("当前没有流程正文的查看权限");
+      }
+      return this.context.record(
+        tx,
+        actor,
+        id,
+        selected,
+        actor.role !== "admin" && selected.assignee_id !== actor.id,
+      );
+    });
   }
 
   /** 获取流程详情，若传入 completeTaskId 则同时校验并完成该任务节点 */
@@ -743,7 +884,7 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
       await tx.query("SELECT id FROM processes WHERE id=$1 FOR UPDATE", [id]);
       await this.reconcile(tx, actor, id, records, process.bindings);
 
-      const task = await this.task(tx, actor, id, taskId);
+      const task = await this.task(tx, actor, id, taskId, body === undefined);
       if (body !== undefined) {
         const scope = await this.context.scope(actor, task.spec, tx);
         if (scope) {
@@ -784,11 +925,13 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
         await this.reconcile(tx, actor, id, records, process.bindings);
       }
 
+      const latestTask = await this.task(tx, actor, id, taskId, body === undefined);
       return this.context.record(
         tx,
         actor,
         id,
-        await this.task(tx, actor, id, taskId),
+        latestTask,
+        actor.role !== "admin" && latestTask.assignee_id !== actor.id,
       );
     });
   }
@@ -809,14 +952,13 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
       for (const user of rows) {
         try {
           const recipient: Actor = { ...user, workspaceId: actor.workspaceId };
-          const source = await this.context.load(
+          await this.context.assertDelegateRecipient(
             tx,
             recipient,
             task.record_id,
             task.spec,
           );
-          if (source.access.edit)
-            candidates.push({ id: user.id, name: user.name });
+          candidates.push({ id: user.id, name: user.name });
         } catch (error) {
           if (
             !(error instanceof ForbiddenException) &&
@@ -852,16 +994,12 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
         throw new BadRequestException("请选择其他处理人");
       const recipient = await this.member(tx, actor, body.assigneeId);
       const spec = { ...task.spec, assigneeId: recipient.id };
-      const access = await this.context.load(
+      await this.context.assertDelegateRecipient(
         tx,
         recipient,
         task.record_id,
         spec,
       );
-      if (!access.access.edit)
-        throw new ForbiddenException(
-          "该成员没有任务记录的编辑权限，请先由管理员配置权限",
-        );
       await tx.query("UPDATE tasks SET assignee_id=$2,spec=$3 WHERE id=$1", [
         task.id,
         recipient.id,
@@ -890,7 +1028,11 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** 按工作空间、应用与任务范围（待办 / 我发起的 / 我处理的）查询流程列表 */
-  async list(actor: Actor, applicationId?: string, scope?: string) {
+  async list(
+    actor: Actor,
+    applicationId?: string,
+    scope?: string,
+  ): Promise<ProcessSummary[]> {
     if (applicationId) uuid(applicationId);
     if (
       scope &&
@@ -899,57 +1041,92 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException("流程范围无效");
     }
 
+    // 先限定可见流程，再批量补充人员元数据；列表不读取业务正文。
     const sql = `
+      WITH visible_processes AS (
+        SELECT
+          p.id,
+          p.spec->>'title' AS title,
+          p.status,
+          p.template_version,
+          p.created_at,
+          p.created_by
+        FROM processes p
+        WHERE p.workspace_id = $1
+          AND ($4::uuid IS NULL OR p.application_id = $4)
+          AND (
+            $2 = 'admin'
+            OR p.created_by = $3
+            OR EXISTS (
+              SELECT 1 FROM tasks t
+              WHERE t.process_id = p.id AND t.assignee_id = $3
+                AND (COALESCE(t.spec->>'kind','approval') <> 'copy' OR t.status='completed')
+            )
+            OR EXISTS (SELECT 1 FROM process_events e WHERE e.process_id=p.id AND e.actor_id=$3 AND e.action='delegated')
+          )
+          AND (
+            $5::text IS NULL
+            OR (
+              $5 = 'todo'
+              AND EXISTS (
+                SELECT 1 FROM tasks t
+                WHERE t.process_id = p.id
+                  AND t.assignee_id = $3
+                  AND t.status IN ('ready', 'blocked')
+                  AND COALESCE(t.spec->>'kind','approval') <> 'copy'
+              )
+            )
+            OR ($5 = 'started' AND p.created_by = $3)
+            OR ($5 = 'copied' AND EXISTS (
+              SELECT 1 FROM tasks t WHERE t.process_id=p.id AND t.assignee_id=$3 AND t.spec->>'kind'='copy' AND t.status='completed'
+            ))
+            OR ($5 = 'delegation' AND (
+              EXISTS (SELECT 1 FROM tasks t WHERE t.process_id=p.id AND t.assignee_id=$3 AND t.status='ready' AND COALESCE(t.spec->>'kind','approval')<>'copy')
+              OR EXISTS (SELECT 1 FROM process_events e WHERE e.process_id=p.id AND e.actor_id=$3 AND e.action='delegated')
+            ))
+            OR (
+              $5 = 'handled'
+              AND EXISTS (
+                SELECT 1 FROM process_events e
+                WHERE e.process_id = p.id
+                  AND e.actor_id = $3
+                  AND e.action = 'completed'
+              )
+            )
+          )
+        ORDER BY p.created_at DESC, p.id DESC
+        LIMIT 100
+      )
       SELECT
         p.id,
-        p.spec->>'title' AS title,
+        p.title,
         p.status,
-        p.template_version AS "templateVersion"
-      FROM processes p
-      WHERE p.workspace_id = $1
-        AND ($4::uuid IS NULL OR p.application_id = $4)
+        p.template_version AS "templateVersion",
+        p.created_at AS "createdAt",
+        creator.name AS "createdByName",
+        COALESCE(
+          array_agg(DISTINCT assignee.name ORDER BY assignee.name)
+            FILTER (WHERE assignee.id IS NOT NULL),
+          ARRAY[]::text[]
+        ) AS "currentAssigneeNames"
+      FROM visible_processes p
+      LEFT JOIN users creator ON creator.id = p.created_by
+      LEFT JOIN tasks t ON t.process_id = p.id
+        AND t.status IN ('ready', 'blocked')
+        AND COALESCE(t.spec->>'kind', 'approval') <> 'copy'
         AND (
           $2 = 'admin'
           OR p.created_by = $3
+          OR t.assignee_id = $3
           OR EXISTS (
-            SELECT 1 FROM tasks t
-            WHERE t.process_id = p.id AND t.assignee_id = $3
-              AND (COALESCE(t.spec->>'kind','approval') <> 'copy' OR t.status='completed')
-          )
-          OR EXISTS (SELECT 1 FROM process_events e WHERE e.process_id=p.id AND e.actor_id=$3 AND e.action='delegated')
-        )
-        AND (
-          $5::text IS NULL
-          OR (
-            $5 = 'todo'
-            AND EXISTS (
-              SELECT 1 FROM tasks t
-              WHERE t.process_id = p.id
-                AND t.assignee_id = $3
-                AND t.status IN ('ready', 'blocked')
-                AND COALESCE(t.spec->>'kind','approval') <> 'copy'
-            )
-          )
-          OR ($5 = 'started' AND p.created_by = $3)
-          OR ($5 = 'copied' AND EXISTS (
-            SELECT 1 FROM tasks t WHERE t.process_id=p.id AND t.assignee_id=$3 AND t.spec->>'kind'='copy' AND t.status='completed'
-          ))
-          OR ($5 = 'delegation' AND (
-            EXISTS (SELECT 1 FROM tasks t WHERE t.process_id=p.id AND t.assignee_id=$3 AND t.status='ready' AND COALESCE(t.spec->>'kind','approval')<>'copy')
-            OR EXISTS (SELECT 1 FROM process_events e WHERE e.process_id=p.id AND e.actor_id=$3 AND e.action='delegated')
-          ))
-          OR (
-            $5 = 'handled'
-            AND EXISTS (
-              SELECT 1 FROM process_events e
-              WHERE e.process_id = p.id
-                AND e.actor_id = $3
-                AND e.action = 'completed'
-            )
+            SELECT 1 FROM process_events e
+            WHERE e.process_id = p.id AND e.task_id = t.id
+              AND e.actor_id = $3 AND e.action = 'delegated'
           )
         )
-      ORDER BY p.created_at DESC
-      LIMIT 100
+      LEFT JOIN users assignee ON assignee.id = t.assignee_id
+      GROUP BY p.id, p.title, p.status, p.template_version, p.created_at, creator.name
+      ORDER BY p.created_at DESC, p.id DESC
     `;
     const { rows } = await this.db.query(sql, [
       actor.workspaceId,
@@ -958,7 +1135,10 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
       applicationId || null,
       scope || null,
     ]);
-    return rows;
+    return rows.map((row) => ({
+      ...row,
+      createdAt: row.createdAt.toISOString(),
+    }));
   }
 
   /** 后台定时扫描运行中的流程并刷新等待条件与任务状态 */
@@ -996,7 +1176,8 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
           },
           process.id,
         );
-      } catch {
+      } catch (error) {
+        logRefreshFailure(error, process);
         await this.db.query(
           "UPDATE processes SET checked_at=now(),refresh_error='条件检查暂时失败，请重试检查' WHERE id=$1",
           [process.id],

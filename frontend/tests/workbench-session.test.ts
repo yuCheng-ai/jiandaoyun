@@ -4,6 +4,7 @@ import { createApp, h, nextTick } from "vue";
 import { createPinia } from "pinia";
 import { createMemoryHistory, createRouter, RouterView } from "vue-router";
 import WorkbenchView from "../src/features/workspace/WorkbenchView.vue";
+import PlatformLogin from "../src/features/session/PlatformLogin.vue";
 import { installSessionGuard } from "../src/router/sessionGuard";
 import { platformApi, PlatformError } from "../src/repositories/platformApi";
 import App from "../src/App.vue";
@@ -63,9 +64,10 @@ async function mount(path = "/") {
   router = createRouter({
     history: createMemoryHistory(),
     routes: applicationRouter.options.routes.map((route) => {
+      if (route.name === "login") return { path: route.path, name: route.name, component: PlatformLogin };
       if (route.name === "home") return { path: route.path, name: route.name, component: WorkbenchView };
       if (route.name === "data-workspace") return { path: route.path, name: route.name, component: { template: "<p>应用记录入口</p>" } };
-      if (route.name === "organization") return { path: route.path, name: route.name, component: { template: "<p>组织管理入口</p>" } };
+      if (route.name === "organization") return { path: route.path, name: route.name, meta: route.meta, component: { template: "<p>组织管理入口</p>" } };
       return route;
     }),
   });
@@ -171,7 +173,7 @@ it("administrator sees only server applications and can open the existing organi
 
 it("guards deep links, resumes the exact authorized destination after login, and rejects member access to local administration", async () => {
   await mount("/applications/editor-app?tab=pages");
-  expect(router.currentRoute.value.path).toBe("/");
+  expect(router.currentRoute.value.path).toBe("/login");
   await login("editor");
   expect(router.currentRoute.value.fullPath).toBe(
     "/applications/editor-app?tab=pages",
@@ -179,7 +181,7 @@ it("guards deep links, resumes the exact authorized destination after login, and
   await router.push("/apps/oa");
   await settle();
   expect(router.currentRoute.value.path).toBe("/");
-  expect(document.body.textContent).toContain("此旧入口已停用");
+  expect(document.body.textContent).not.toContain("此旧入口已停用");
   expect(document.body.textContent).not.toContain("原应用管理员入口");
   await router.push("/admin/organization");
   await settle();
@@ -187,30 +189,26 @@ it("guards deep links, resumes the exact authorized destination after login, and
 });
 it.each(["/apps/oa", "/apps/oa/forms/expense/design", "/apps/oa/forms/expense/fill", "/apps/oa/forms/expense/flow", "/apps/oa/forms/expense/extensions", "/admin/payments"])("retires %s without guessing server IDs or opening local data", async (path) => {
   const { pinia } = await mount(path);
-  expect(router.currentRoute.value.fullPath).toBe("/?notice=legacy-link");
-  expect(document.body.textContent).toContain("此旧入口已停用");
+  expect(router.currentRoute.value.fullPath).toBe("/login");
+  expect(document.body.textContent).not.toContain("此旧入口已停用");
   expect(pinia.state.value.workspace).toBeUndefined();
   expect(vi.mocked(platformApi).mock.calls.some(([url]) => url.includes("oa") || url.includes("expense"))).toBe(false);
 });
 
-it("focus rechecks revoked sessions and preserves local resources; network failure offers retry", async () => {
+it("focus rechecks revoked sessions after a temporary network failure", async () => {
   signedIn = "editor";
   await mount();
-  signedIn = "";
-  window.dispatchEvent(new Event("focus"));
-  await settle();
-  expect(document.body.textContent).not.toContain("录入业务");
-  expect(document.body.textContent).toContain("登录");
   vi.mocked(platformApi).mockRejectedValueOnce(
     new PlatformError("无法连接", 0),
   );
   window.dispatchEvent(new Event("focus"));
   await settle();
-  expect(document.querySelector("[role=alert]")?.textContent).toContain(
-    "无法连接",
-  );
-  await click("重试");
-  expect(document.querySelector("[role=alert]")).toBeNull();
+  signedIn = "";
+  window.dispatchEvent(new Event("focus"));
+  await settle();
+  expect(router.currentRoute.value.path).toBe("/login");
+  expect(document.body.textContent).not.toContain("录入业务");
+  expect(document.body.textContent).toContain("登录");
 });
 it("creates an application through the server and opens its returned identity", async () => {
   signedIn = "admin";
@@ -225,7 +223,7 @@ it("creates an application through the server and opens its returned identity", 
 });
 
 it("ignores external and recursive sign-in destinations", async () => {
-  await mount("/?next=https://example.com");
+  await mount("/login?next=https://example.com");
   await login("editor");
   expect(router.currentRoute.value.path).toBe("/");
   expect(document.body.textContent).toContain("录入业务");

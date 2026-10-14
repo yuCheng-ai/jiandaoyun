@@ -27,6 +27,7 @@ import { validateFieldConfiguration } from "../../../domain/fieldValidation";
 import { formulaLabel } from "../../../domain/formValidation";
 import { escapeText, serializeFieldText } from "./fieldText";
 import { useRuntimeData } from "../../../composables/useRuntimeData";
+import { useNotices } from "../../../stores/notices";
 import {
   batchExcludedFunctions,
   recordBatchFormulaErrors,
@@ -43,13 +44,13 @@ const emit = defineEmits<{
   updateValidation: [patch: Pick<FormValidationRule, "expression" | "remark">];
 }>();
 const runtime = useRuntimeData();
+const { notify } = useNotices();
 const open = ref(false),
   full = ref(false),
   code = ref(""),
   remark = ref(""),
   html = ref(""),
   error = ref(""),
-  notice = ref(""),
   fieldSearch = ref(""),
   functionSearch = ref(""),
   activeFunction = ref(""),
@@ -197,7 +198,6 @@ function input() {
     ? serializeFieldText(editor.value, editor.value)
     : "";
   error.value = "";
-  notice.value = "";
   remember();
 }
 function remember() {
@@ -211,7 +211,6 @@ async function start() {
   remark.value = props.validation?.remark ?? props.field?.formulaRemark ?? "";
   html.value = render(code.value);
   error.value = "";
-  notice.value = "";
   panel.value = "";
   full.value = false;
   fieldSearch.value = "";
@@ -261,9 +260,9 @@ function paste(event: ClipboardEvent) {
 async function copyFormula() {
   try {
     await navigator.clipboard.writeText(code.value);
-    notice.value = "公式已复制";
+    notify("公式已复制");
   } catch {
-    notice.value = "复制失败，请重试";
+    notify("复制失败，请重试", "warning");
   }
 }
 function replace() {
@@ -562,7 +561,6 @@ function apply() {
       </div>
     </div>
     <p v-if="error" class="field-error" role="alert">{{ error }}</p>
-    <p v-if="notice" role="status">{{ notice }}</p>
     <div
       v-if="dismiss.confirmDiscard.value"
       class="config-discard"

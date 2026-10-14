@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { onBeforeRouteLeave } from "vue-router";
+import { onBeforeRouteLeave, onBeforeRouteUpdate } from "vue-router";
 import {
   groupActionNames,
   groupScopeNames,
+  groupFilterOperators,
   type RecordGroupConfiguration,
   type RecordPermissionGroup,
   type ServerDefinition,
@@ -14,7 +15,10 @@ import {
 import BaseDialog from "../../components/BaseDialog.vue";
 import { platformApi, PlatformError } from "../../repositories/platformApi";
 import { useDraftDismiss } from "../../composables/useDraftDismiss";
-const props = defineProps<{ definition: ServerDefinition; inline?: boolean }>();
+const props = defineProps<{
+  definition: Pick<ServerDefinition, "id" | "schema">;
+  inline?: boolean;
+}>();
 const emit = defineEmits<{ close: []; saved: [] }>();
 const state = ref<RecordGroupConfiguration>({
     revision: 0,
@@ -39,6 +43,7 @@ const { requestClose, confirmLeave, confirmDiscard, discard, markSaved } = useDr
   () => emit("close"),
 );
 onBeforeRouteLeave(() => !busy.value && confirmLeave());
+onBeforeRouteUpdate(() => !busy.value && confirmLeave());
 async function load() {
   busy.value = true;
   error.value = "";
@@ -74,7 +79,7 @@ const fields = computed(() =>
   ]),
 );
 const mainFields = computed(() =>
-  props.definition.schema.fields.filter((f) => f.type !== "subform"),
+  props.definition.schema.fields.filter((field) => groupFilterOperators(field).length > 0),
 );
 const subjectKind = ref<"member" | "department" | "role">("member"),
   subjectId = ref("");
@@ -126,6 +131,24 @@ function addSubject() {
 }
 const filterField = (filter: DataFilter) =>
   mainFields.value.find((field) => field.id === filter.sourceFieldId);
+const filterOperatorLabels: Record<DataFilter["operator"], string> = {
+  equals: "等于",
+  notEquals: "不等于",
+  contains: "包含",
+  notEmpty: "不为空",
+  greater: "大于",
+  less: "小于",
+};
+function changeFilterField(filter: DataFilter, event: Event) {
+  filter.sourceFieldId = (event.target as HTMLSelectElement).value;
+  const operators = groupFilterOperators(filterField(filter));
+  if (!operators.includes(filter.operator)) {
+    filter.operator = operators[0] || "notEmpty";
+  }
+  // 更换字段后，原成员来源或比较值可能已不适用。
+  filter.source = "constant";
+  filter.value = "";
+}
 const filterChoices = (filter: DataFilter) => {
   const field = filterField(filter);
   if (!field) return undefined;
@@ -142,11 +165,13 @@ const filterChoices = (filter: DataFilter) => {
   return undefined;
 };
 function addFilter() {
+  const field = mainFields.value[0];
+  if (!field) return;
   group.value?.filters.push({
     id: `filter_${crypto.randomUUID().replaceAll("-", "")}`,
-    sourceFieldId: mainFields.value[0]?.id || "",
+    sourceFieldId: field.id,
     source: "constant",
-    operator: "equals",
+    operator: groupFilterOperators(field)[0]!,
     value: "",
   });
 }
@@ -157,7 +182,7 @@ function reconcileActions(action: keyof typeof groupActionNames) {
   else if (!['create', 'view'].includes(action) && current.actions.includes(action) && !current.actions.includes('view')) current.actions.push('view');
 }
 async function save() {
-  if (!loaded.value) return;
+  if (!loaded.value || busy.value) return;
   busy.value = true;
   error.value = "";
   try {
@@ -180,15 +205,16 @@ async function save() {
     busy.value = false;
   }
 }
-defineExpose({ confirmLeave: () => !busy.value && confirmLeave() });
 </script>
 <template>
+  <!-- 内嵌权限页也锁定保存中的输入，避免响应覆盖尚未提交的新修改。 -->
   <component
     :is="inline ? 'div' : BaseDialog"
     :open="true"
     title="权限组管理"
     width="850px"
     :busy="busy"
+    :inert="(inline && busy) || undefined"
     :class="{ 'publish-card': inline }"
     @close="requestClose"
   >
@@ -328,27 +354,42 @@ defineExpose({ confirmLeave: () => !busy.value && confirmLeave() });
             class="group-filter-row"
           >
             <select
-              v-model="filter.sourceFieldId"
+              :value="filter.sourceFieldId"
               :aria-label="`条件${index + 1}字段`"
+              @change="changeFilterField(filter, $event)"
             >
+              <option v-if="!filterField(filter)" :value="filter.sourceFieldId" disabled>
+                原字段不可用于筛选
+              </option>
               <option
                 v-for="field in mainFields"
                 :key="field.id"
                 :value="field.id"
               >
                 {{ field.label }}
-              </option></select
-            ><select
+              </option>
+            </select>
+            <select
               v-model="filter.operator"
               :aria-label="`条件${index + 1}关系`"
             >
-              <option value="equals">等于</option>
-              <option value="notEquals">不等于</option>
-              <option value="contains">包含</option>
-              <option value="notEmpty">不为空</option>
-              <option value="greater">大于</option>
-              <option value="less">小于</option></select
-            ><select
+              <option
+                v-if="!groupFilterOperators(filterField(filter)).includes(filter.operator)"
+                :value="filter.operator"
+                disabled
+              >
+                {{ filterOperatorLabels[filter.operator] }}（请调整）
+              </option>
+              <option
+                v-for="operator in groupFilterOperators(filterField(filter))"
+                :key="operator"
+                :value="operator"
+              >
+                {{ filterOperatorLabels[operator] }}
+              </option>
+            </select>
+            <select
+              v-if="filter.operator !== 'notEmpty'"
               v-model="filter.source"
               :aria-label="`条件${index + 1}来源`"
             >
@@ -404,7 +445,7 @@ defineExpose({ confirmLeave: () => !busy.value && confirmLeave() });
               移除
             </button>
           </div>
-          <button class="button" @click="addFilter">添加筛选条件</button>
+          <button class="button" :disabled="!mainFields.length" @click="addFilter">添加筛选条件</button>
         </template>
         </template>
         <h3>字段与明细列</h3>

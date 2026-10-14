@@ -1,7 +1,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { harness, field, schema } from "./helpers";
-import { maxChoiceOptions } from "@platform/contracts";
+import { separateFormSchema, maxChoiceOptions, type FormSchema } from "@platform/contracts";
 const h = harness();
 before(() => h.start());
 after(() => h.close());
@@ -80,11 +80,11 @@ test("too many options and long labels fail atomically while incomplete empty dr
     [{ id: "long", label: "字".repeat(101) }],
   ]) {
     await h.request(
-      "/definitions",
+      "/data-objects",
       "POST",
       {
         title: "非法选项",
-        schema: schema(choice("bad", "radio", { options: invalid })),
+        model: separateFormSchema(schema(choice("bad", "radio", { options: invalid })) as unknown as FormSchema).model,
       },
       "admin",
       400,

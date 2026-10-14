@@ -10,10 +10,40 @@ before(async () => {
   object = await h.request(`/data-objects/${definition.id}/draft`); page = (await h.request(`/pages?definitionId=${definition.id}`))[0];
   record = await h.record(definition.id, { name: "不能出现在预览的业务值", quantity: 8, lines: [{ count: 1 }] });
   const users = await h.request("/users"); member = users.find((u: any) => u.username === "editor");
-  await h.request(`/definitions/${definition.id}/grants`, "PUT", { userId: member.id, read: true, create: false, edit: false, scope: "all", fields: { name: "read" } });
+  await h.permissionGroup(definition.id, {
+    id: "member_" + member.id,
+    subjects: [{ kind: "member", id: member.id }],
+    scope: "all",
+    fields: { name: "read" },
+    actions: ["view"],
+  });
   related = await h.definition("参考资料", schema(field("name")));
   await h.relation({ title: "参考关系", sourceDefinitionId: definition.id, targetDefinitionId: related.id, cardinality: "many", inverseCardinality: "many", labelFieldId: "name", columns: ["name"], filters: [], mappings: [], valueMode: "live" });
-  const spec = { title: "使用此页的流程", bindings: [{ id: "business", title: "业务数据", definitionId: definition.id, definitionVersion: 1 }], tasks: [{ id: "review", title: "阅读确认", assigneeId: member.id, recordBinding: "business", pageId: page.id, pageVersion: 1, requiredFields: [], dependsOn: [] }] };
+  const spec = {
+    title: "使用此页的流程",
+    startTaskIds: ["review"],
+    endTaskIds: ["review"],
+    bindings: [
+      {
+        id: "business",
+        title: "业务数据",
+        definitionId: definition.id,
+        definitionVersion: 1,
+      },
+    ],
+    tasks: [
+      {
+        id: "review",
+        title: "阅读确认",
+        assigneeId: member.id,
+        recordBinding: "business",
+        pageId: page.id,
+        pageVersion: 1,
+        requiredFields: [],
+        dependsOn: [],
+      },
+    ],
+  };
   template = await h.request("/process-templates", "POST", { applicationId: object.applicationId, requestId: randomUUID(), spec }, "admin", 201);
   await h.request(`/process-templates/${template.id}/publish`, "POST", { expectedRevision: template.revision }, "admin", 201);
   const preview = await h.request(`/process-templates/${template.id}/versions/1/preview`, "POST", { bindings: { business: record.record.id } }, "admin", 201);

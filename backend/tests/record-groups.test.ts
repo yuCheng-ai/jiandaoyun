@@ -1,3 +1,4 @@
+import { separateFormSchema, type FormSchema } from "@platform/contracts";
 import { before, after, test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -73,59 +74,6 @@ const record = (id: string, name = "ready") =>
     secret: "内部内容",
     lines: [{ a: "A", b: "B" }],
   });
-test("explicit selection never auto-merges and replaces dormant direct grants without deleting them", async () => {
-  const def = await create(),
-    rec = await record(def.id);
-  await h.request(`/definitions/${def.id}/grants`, "PUT", {
-    userId: editor.id,
-    read: true,
-    create: true,
-    edit: true,
-    scope: "all",
-    fields: { name: "edit", secret: "edit" },
-  });
-  const config = await save(def.id, [
-    group("read"),
-    group("hidden", { fields: { name: "read" } }),
-  ]);
-  await h.request(`/records/${rec.record.id}`, "GET", undefined, "editor", 403);
-  await request(`/records/${rec.record.id}`, def.id, "*", 403);
-  const detail = await request(`/records/${rec.record.id}`, def.id, "read");
-  assert.equal(detail.record.values.secret, undefined);
-  assert.equal(detail.access.create, false);
-  assert.equal((await h.request(`/definitions/${def.id}/grants`)).length, 1);
-  await h.request(
-    `/definitions/${def.id}/grants`,
-    "PUT",
-    {
-      userId: editor.id,
-      read: true,
-      create: true,
-      edit: true,
-      scope: "all",
-      fields: {},
-    },
-    "admin",
-    409,
-  );
-  assert.equal(
-    (
-      await h.request(
-        `/definitions/${def.id}/permission-groups/options`,
-        "GET",
-        undefined,
-        "editor",
-      )
-    ).groups.length,
-    2,
-  );
-  await save(def.id, config.groups, false, config.revision, "direct");
-  assert.equal(
-    (await h.request(`/records/${rec.record.id}`, "GET", undefined, "editor"))
-      .record.values.secret,
-    "内部内容",
-  );
-});
 test("merged fields clamp each group operation and parent before union; forged or ineligible selections fail", async () => {
   const def = await create(),
     rec = await record(def.id),
@@ -543,14 +491,13 @@ test("relation candidates filter permission scopes before paging and never use a
     mappings: [],
     valueMode: "live",
   });
-  await h.request(`/definitions/${source.id}/grants`, "PUT", {
-    userId: editor.id,
-    read: true,
-    create: false,
-    edit: true,
+  await h.permissionGroup(source.id, {
+    id: "member_" + editor.id,
+    subjects: [{ kind: "member", id: editor.id }],
     scope: "all",
     fields: { name: "edit" },
     relations: { [relation.id]: "edit" },
+    actions: ["view", "edit"],
   });
   await save(target.id, [
     group("allowed", {
@@ -901,24 +848,44 @@ test("an inactive historical filter cannot be reactivated after its scope field 
       ],
     });
   await save(def.id, [inactive]);
-  const update = await h.request(`/definitions/${def.id}`, "PUT", {
+  // 先发布移除控件的页面，再验证历史权限筛选本身是否阻止模型变更。
+  const page = (await h.request(`/pages?definitionId=${def.id}`))[0];
+  const currentPage = await h.request(`/pages/${page.id}/draft`);
+  const nextPage = await h.request(`/pages/${page.id}`, "PUT", {
+    ...currentPage,
+    expectedRevision: currentPage.revision,
+    schema: {
+      ...currentPage.schema,
+      controls: currentPage.schema.controls.filter(
+        (control: any) => control.binding?.fieldId !== "name",
+      ),
+    },
+  });
+  await h.request(
+    `/pages/${page.id}/publish`,
+    "POST",
+    { expectedRevision: nextPage.revision },
+    "admin",
+    201,
+  );
+  const update = await h.request(`/data-objects/${def.id}`, "PUT", {
     expectedRevision: 2,
     title: "历史范围",
-    schema: schema(
+    model: separateFormSchema(schema(
       field("amount", "number"),
       field("secret"),
       field("lines", "subform", { children: [field("a"), field("b")] }),
-    ),
+    ) as unknown as FormSchema).model,
   });
   const preview = await h.request(
-    `/definitions/${def.id}/publish-preview`,
+    `/data-objects/${def.id}/publish-preview`,
     "POST",
     { expectedRevision: update.revision },
     "admin",
     201,
   );
   await h.request(
-    `/definitions/${def.id}/publish`,
+    `/data-objects/${def.id}/publish`,
     "POST",
     { expectedRevision: update.revision, impactToken: preview.token },
     "admin",

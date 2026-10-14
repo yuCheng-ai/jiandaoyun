@@ -7,12 +7,12 @@ import {
   expandedPrintFieldIds,
   type PrintTemplate,
 } from "../../../domain/presentation";
-import { useWorkspaceStore } from "../../../stores/workspace";
+import { useRuntimeData } from "../../../composables/useRuntimeData";
 import AppIcon from "../../../components/AppIcon.vue";
 import PrintTemplateEditor from "./PrintTemplateEditor.vue";
 const props = defineProps<{ form: FormRecord; query: string }>();
-const store = useWorkspaceStore(),
-  archived = ref(false),
+const runtimeData = useRuntimeData();
+const archived = ref(false),
   open = ref(false),
   editing = ref<PrintTemplate>();
 const templates = computed(() =>
@@ -29,19 +29,6 @@ function duplicate(t: PrintTemplate) {
   next.id = uid("print");
   next.name += " 副本";
   edit(next);
-}
-async function archive(t: PrintTemplate) {
-  if (
-    await store.savePrintTemplate(props.form.id, {
-      ...copy(t),
-      archived: !t.archived,
-    })
-  )
-    store.notify(
-      t.archived
-        ? "模板已恢复，发布后生效"
-        : "模板已归档，历史发布版本不受影响",
-    );
 }
 </script>
 <template>
@@ -88,23 +75,24 @@ async function archive(t: PrintTemplate) {
           <span class="mode-tag">{{ t.archived ? "已归档" : "本地打印" }}</span>
         </div>
         <p
-          v-if="printTemplateIssues(t, form.schema, store.data).length"
+          v-if="printTemplateIssues(t, form.schema, runtimeData).length"
           class="config-warning"
         >
-          {{ printTemplateIssues(t, form.schema, store.data)[0] }}
+          {{ printTemplateIssues(t, form.schema, runtimeData)[0] }}
         </p>
         <div class="config-card-footer">
           <span>{{ t.title || form.title }}</span
           ><button class="text-button" @click="edit(t)">编辑与预览</button
           ><button v-if="!t.archived" class="text-button" @click="duplicate(t)">
             复制模板</button
-          ><button class="text-button" @click="archive(t)">
+          ><button class="text-button" disabled>
             {{ t.archived ? "恢复模板" : "归档模板" }}
           </button>
         </div>
       </article>
     </div>
     <PrintTemplateEditor
+      v-if="open"
       :open="open"
       :model-value="editing"
       :schema="form.schema"

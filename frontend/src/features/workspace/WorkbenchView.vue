@@ -4,19 +4,16 @@ import { useRoute, useRouter } from "vue-router";
 import type { ApplicationSummary } from "@platform/contracts";
 import { usePlatformSession } from "../../stores/platformSession";
 import { platformApi, PlatformError } from "../../repositories/platformApi";
-import { signInDestination } from "../../router/sessionGuard";
 import AppIcon from "../../components/AppIcon.vue";
 import BaseDialog from "../../components/BaseDialog.vue";
 import WorkspaceHeader from "../../components/shared/WorkspaceHeader.vue";
-import PlatformLogin from "../session/PlatformLogin.vue";
 import ProcessWorkspace from "../processes/ProcessWorkspace.vue";
 import WorkbenchProcessStart from "../processes/WorkbenchProcessStart.vue";
 import "../collaboration/collaboration.css";
 const session = usePlatformSession();
 const router = useRouter(),
   route = useRoute();
-const query = ref(""),
-  tab = ref("apps");
+const query = ref("");
 const workMenu = [
   { id: "todo", title: "我的待办", icon: "bell" },
   { id: "started", title: "我发起的", icon: "start" },
@@ -25,6 +22,20 @@ const workMenu = [
   { id: "launch", title: "发起流程", icon: "logout" },
   { id: "delegation", title: "待办委托", icon: "people" },
 ];
+// 所在栏目跟随路由，刷新和浏览器返回都能回到原来的列表。
+const tab = computed(() => {
+  const selected = route.query.tab;
+  return typeof selected === "string" &&
+    workMenu.some((item) => item.id === selected)
+    ? selected
+    : "apps";
+});
+function selectTab(selected: string) {
+  void router.push({
+    name: "home",
+    query: selected === "apps" ? {} : { tab: selected },
+  });
+}
 const processScope = computed(() =>
   ["todo", "started", "handled", "copied", "delegation"].includes(tab.value)
     ? (tab.value as "todo" | "started" | "handled" | "copied" | "delegation")
@@ -58,18 +69,26 @@ async function load() {
   busy.value = true;
   error.value = "";
   try {
-    await session.restore();
+    try {
+      await session.restore();
+    } catch (cause) {
+      // 保留已读内容，并使用页面现有的重试入口恢复首次加载失败。
+      if (!disposed) {
+        error.value =
+          cause instanceof Error
+            ? cause.message
+            : "暂时无法连接服务，请稍后重试。";
+      }
+      return;
+    }
     if (disposed) return;
     if (!session.user || loadedActor.value !== session.user.id) {
       applications.value = [];
       dialog.value = false;
-      tab.value = "apps";
     }
     loadedActor.value = session.user?.id || "";
-    if (!session.user) return;
-    const next = signInDestination(router, route.query.next);
-    if (next) {
-      await router.replace(next);
+    if (!session.user) {
+      await router.replace("/login");
       return;
     }
     const actor = session.user.id;
@@ -79,7 +98,7 @@ async function load() {
     applications.value = [];
     if (cause instanceof PlatformError && cause.status === 401) {
       try {
-        await session.restore();
+        await router.replace("/login");
       } catch (failure) {
         error.value = (failure as Error).message;
       }
@@ -98,8 +117,7 @@ async function logout() {
     applications.value = [];
     loadedActor.value = "";
     dialog.value = false;
-    tab.value = "apps";
-    await router.replace("/");
+    await router.replace("/login");
   } catch (cause) {
     error.value = (cause as Error).message;
   } finally {
@@ -132,7 +150,7 @@ async function createApp() {
     saving.value = false;
   }
 }
-// Recheck the session and authorized app list when returning from another tab.
+// 切回应用列表时重新核对登录身份和有权访问的应用。
 function focused() {
   if (!dialog.value && tab.value === "apps") void load();
 }
@@ -151,37 +169,17 @@ onBeforeUnmount(() => {
       v-if="session.user && ready"
       :account="session.user"
       :busy="busy"
-      @home="tab = 'apps'"
+      @home="selectTab('apps')"
       @directory="router.push('/admin/organization')"
       @logout="logout"
     />
-    <header v-else class="workspace-header">
-      <div class="workspace-brand">
-        <AppIcon name="cloud" :size="27" class="brand-cloud" /><strong
-          >工作台</strong
-        >
-      </div>
-    </header>
     <main class="workbench-scroll">
       <div class="workbench-content">
-        <p
-          v-if="route.query.notice === 'legacy-link'"
-          class="workbench-message"
-          role="status"
-        >
-          此旧入口已停用。请{{
-            session.user ? "" : "登录后"
-          }}从“我的应用”打开表单；找不到原有表单时，请联系管理员。
-        </p>
         <p v-if="error" class="collab-error workbench-message" role="alert">
           {{ error }}
           <button class="button" :disabled="busy" @click="load">重试</button>
         </p>
         <p v-if="busy" class="workbench-message" role="status">正在读取…</p>
-        <PlatformLogin
-          v-show="ready && !session.user && !busy && !error"
-          @signed-in="load"
-        />
         <div
           v-if="ready && session.user && loadedActor === session.user.id"
           class="workbench-columns"
@@ -195,7 +193,7 @@ onBeforeUnmount(() => {
                 'menu-separator': item.id === 'launch',
               }"
               :aria-current="tab === item.id ? 'page' : undefined"
-              @click="tab = item.id"
+              @click="selectTab(item.id)"
             >
               <AppIcon :name="item.icon" :size="18" />{{ item.title }}
             </button>
@@ -211,7 +209,7 @@ onBeforeUnmount(() => {
             <button
               v-if="tab !== 'apps'"
               class="text-button workbench-back"
-              @click="tab = 'apps'"
+              @click="selectTab('apps')"
             >
               返回我的应用
             </button>

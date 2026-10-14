@@ -1310,16 +1310,6 @@
 }
 
 /* Custom actions share published field schemas with the form runtime. */
-.custom-button-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 12px 0;
-}
-.custom-button-bar.compact {
-  display: inline-flex;
-  margin: 0 0 0 8px;
-}
 .button-editor-steps {
   display: flex;
   gap: 16px;

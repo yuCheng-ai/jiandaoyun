@@ -1,3 +1,4 @@
+import { separateFormSchema, type FormSchema } from "@platform/contracts";
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -41,9 +42,9 @@ test("1000 predefined choices plus temporary selections survive drafts, submissi
     allowCustomChoices: true,
     selectionLimit: { enabled: true, min: 1001, max: 1001 },
   };
-  await h.request("/definitions", "POST", {
+  await h.request("/data-objects", "POST", {
     title: "预设项数边界",
-    schema: schema(choice("multi", "checkbox", { ...settings, options: [...fixedOptions, { id: "overflow", label: "多余预设" }] })),
+    model: separateFormSchema(schema(choice("multi", "checkbox", { ...settings, options: [...fixedOptions, { id: "overflow", label: "多余预设" }] })) as unknown as FormSchema).model,
   }, "admin", 400);
   const definition = await h.definition("临时选项总数边界", schema(
     choice("multi", "multiselect", settings),
@@ -165,20 +166,20 @@ test("Other text and temporary choices persist in pages, rows and revisions with
       ],
     }),
   );
-  await h.request(`/definitions/${definition.id}`, "PUT", {
+  await h.request(`/data-objects/${definition.id}`, "PUT", {
     title: "选项补充验收",
     expectedRevision: 2,
-    schema: draftSchema,
+    model: separateFormSchema(draftSchema as unknown as FormSchema).model,
   });
   const preview = await h.request(
-    `/definitions/${definition.id}/publish-preview`,
+    `/data-objects/${definition.id}/publish-preview`,
     "POST",
     { expectedRevision: 3 },
     "admin",
     201,
   );
   await h.request(
-    `/definitions/${definition.id}/publish`,
+    `/data-objects/${definition.id}/publish`,
     "POST",
     { expectedRevision: 3, impactToken: preview.token },
     "admin",
@@ -220,9 +221,9 @@ test("invalid shapes, unauthorized custom choices and malformed definitions fail
     }),
   ])
     await h.request(
-      "/definitions",
+      "/data-objects",
       "POST",
-      { title: "无效定义", schema: schema(invalid) },
+      { title: "无效定义", model: separateFormSchema(schema(invalid) as unknown as FormSchema).model },
       "admin",
       400,
     );
@@ -283,13 +284,12 @@ test("invalid shapes, unauthorized custom choices and malformed definitions fail
   const editor = (await h.request("/users")).find(
     (u: any) => u.username === "editor",
   );
-  await h.request(`/definitions/${def.id}/grants`, "PUT", {
-    userId: editor.id,
-    read: true,
-    create: true,
-    edit: true,
+  await h.permissionGroup(def.id, {
+    id: "member_" + editor.id,
+    subjects: [{ kind: "member", id: editor.id }],
     scope: "all",
     fields: { single: "read", multi: "edit", fixed: "hidden" },
+    actions: ["view", "create", "edit"],
   });
   await h.request(
     `/records/${record.record.id}`,

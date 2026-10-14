@@ -87,30 +87,6 @@ export class PlatformController {
     return this.platform.definitions(r.actor);
   }
 
-  /** 预览表单定义发布对关联页面、关系、流程及记录的影响 */
-  @Post("definitions/:id/publish-preview")
-  definitionImpact(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Body() b: unknown) {
-    return this.platform.modelImpact(r.actor, id, b, true);
-  }
-
-  /** 新建表单定义草稿 */
-  @Post("definitions")
-  create(@Req() r: AuthenticatedRequest, @Body() b: unknown) {
-    return this.platform.saveDefinition(r.actor, b);
-  }
-
-  /** 保存指定表单定义草稿 */
-  @Put("definitions/:id")
-  save(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Body() b: unknown) {
-    return this.platform.saveDefinition(r.actor, b, id);
-  }
-
-  /** 发布表单定义新版本 */
-  @Post("definitions/:id/publish")
-  publish(@Req() r: AuthenticatedRequest, @Param("id") id: string, @Body() b: unknown) {
-    return this.platform.publish(r.actor, id, b);
-  }
-
   /** 获取已发布的最新表单定义与填写上下文 */
   @Get("definitions/:id")
   published(@Req() r: AuthenticatedRequest, @Param("id") id: string) {
@@ -278,6 +254,12 @@ export class PageController {
     return this.pages.draft(r.actor, id);
   }
 
+  /** 获取页面已发布版本的快照摘要 */
+  @Get("pages/:id/versions")
+  versions(@Req() r: AuthenticatedRequest, @Param("id") id: string) {
+    return this.pages.versions(r.actor, id);
+  }
+
   /** 获取页面指定已发布版本的配置与数据模型 */
   @Get("pages/:id")
   published(
@@ -344,6 +326,7 @@ export class PageController {
     @Query("version") version?: string,
     @Query("state") state?: string,
     @Query("page") page?: string,
+    @Query("keyword") keyword?: string,
   ) {
     return this.pages.recordList(
       r.actor,
@@ -351,6 +334,7 @@ export class PageController {
       version ? Number(version) : undefined,
       state,
       page === undefined ? 1 : Number(page),
+      keyword,
     );
   }
 

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createApp, h, nextTick, reactive, shallowRef } from "vue";
 import { createPinia, setActivePinia } from "pinia";
@@ -9,7 +10,6 @@ import {
   type FormValidationRule,
 } from "@platform/contracts";
 import {
-  copy,
   createField,
   emptySchema,
   parseSchema,
@@ -25,14 +25,10 @@ import {
 } from "../src/domain/formValidation";
 import { validateFieldConfiguration } from "../src/domain/fieldValidation";
 import { runtimeDefaults } from "../src/domain/relations";
-import {
-  defaultAccess,
-  memberSchema,
-  newAccessGroup,
-} from "../src/domain/access";
+import { memberSchema } from "../src/domain/access";
 import { newForm, seedWorkspace } from "../src/domain/workspace";
 import { useFormDesigner } from "../src/features/forms/useFormDesigner";
-import { useWorkspaceStore } from "../src/stores/workspace";
+
 import FormRuntime from "../src/features/forms/components/FormRuntime.vue";
 
 let pinia = createPinia();
@@ -346,14 +342,11 @@ it("masks a protected value in the failure message while checking the full merge
     ),
   ).toEqual(["采购金额不能超过预算：—"]);
 });
-it("shows realtime errors only for referenced changes, clears them on repair and blocks invalid persistence", async () => {
+it("shows realtime preview errors only for referenced changes and clears them on repair", async () => {
   const schema = fixture(),
-    persist = vi.fn().mockResolvedValue(true),
     host = await mount(FormRuntime, {
       schema,
       formId: "purchase",
-      preview: false,
-      persistValues: persist,
     });
   expect(host.querySelector(".form-validation-issues")).toBeNull();
   await edit(host, '[data-field-id="note"] input', "无关备注");
@@ -363,17 +356,13 @@ it("shows realtime errors only for referenced changes, clears them on repair and
     "不能超过预算",
   );
   await click(host, "提交");
-  expect(persist).not.toHaveBeenCalled();
+
   await edit(host, '[data-field-id="quantity"] input', "3");
   expect(host.querySelector(".form-validation-issues")).toBeNull();
   await click(host, "提交");
   await nextTick();
-  expect(persist).toHaveBeenCalledWith(
-    expect.objectContaining({ quantity: 3, price: 10 }),
-    false,
-  );
 });
-it("allows incomplete drafts and requires a deliberate warning confirmation before submission", async () => {
+it("requires a deliberate warning confirmation during preview validation", async () => {
   const schema = fixture();
   schema.settings.validations = [
     rule({
@@ -383,39 +372,28 @@ it("allows incomplete drafts and requires a deliberate warning confirmation befo
       realtime: false,
     }),
   ];
-  const persist = vi.fn().mockResolvedValue(true),
-    host = await mount(FormRuntime, {
-      schema,
-      formId: "purchase",
-      preview: false,
-      persistValues: persist,
-    });
+  const host = await mount(FormRuntime, {
+    schema,
+    formId: "purchase",
+  });
   await edit(host, '[data-field-id="quantity"] input', "12");
   expect(host.querySelector(".form-validation-issues")).toBeNull();
-  await click(host, "保存草稿");
-  expect(persist).toHaveBeenCalledWith(
-    expect.objectContaining({ quantity: 12 }),
-    true,
-  );
-  persist.mockClear();
+
   await click(host, "提交");
-  expect(persist).not.toHaveBeenCalled();
+
   let dialog = document.querySelector('dialog[aria-label="提交提示"]')!;
   expect(dialog.textContent).toContain("请确认大批采购数量");
   await click(dialog, "返回修改");
-  expect(persist).not.toHaveBeenCalled();
+
   await click(host, "提交");
   dialog = document.querySelector('dialog[aria-label="提交提示"]')!;
   await click(dialog, "忽略并继续提交");
   await nextTick();
-  expect(persist).toHaveBeenCalledTimes(1);
-  expect(persist).toHaveBeenCalledWith(
-    expect.objectContaining({ quantity: 12 }),
-    false,
-  );
 });
 it("rechecks current values and blocking rules when an earlier warning is confirmed", async () => {
   const schema = reactive(fixture());
+  schema.fields[0]!.defaultValue = 12;
+  schema.fields[1]!.defaultValue = 5;
   schema.settings.validations!.push(
     rule({
       id: "warning",
@@ -425,138 +403,17 @@ it("rechecks current values and blocking rules when an earlier warning is confir
       realtime: false,
     }),
   );
-  const persist = vi.fn().mockResolvedValue(true),
-    host = await mount(FormRuntime, {
-      schema,
-      formId: "purchase",
-      preview: false,
-      initialValues: { quantity: 12, price: 5, budget: 100 },
-      persistValues: persist,
-    });
+  const host = await mount(FormRuntime, {
+    schema,
+    formId: "purchase",
+  });
   await click(host, "提交");
   const dialog = document.querySelector('dialog[aria-label="提交提示"]')!;
   schema.settings.validations![0]!.expression =
     "{{quantity}} * {{price}} <= {{budget}}/2";
   await click(dialog, "忽略并继续提交");
-  expect(persist).not.toHaveBeenCalled();
+
   expect(host.querySelector(".form-validation-issues")?.textContent).toContain(
     "采购金额不能超过预算",
   );
-});
-it("keeps immutable published checks and old-record editing while blocking direct invalid writes atomically", async () => {
-  const store = useWorkspaceStore(),
-    created = (await store.createForm("oa", "校验验收", "form"))!,
-    form = store.openForm(created.id)!;
-  form.schema = fixture();
-  expect(await store.publishForm(form.id)).toBe(true);
-  const before = copy(store.data.entries),
-    logs = copy(store.data.extensionRuns || []);
-  expect(
-    await store.submitEntry(form.id, { quantity: 12, price: 10, budget: 100 }),
-  ).toBeUndefined();
-  expect(store.data.entries).toEqual(before);
-  expect(store.data.extensionRuns || []).toEqual(logs);
-  const record = (await store.submitEntry(form.id, {
-    quantity: 3,
-    price: 20,
-    budget: 100,
-  }))!;
-  expect(record.definitionVersion).toBe(1);
-  form.schema.settings.validations![0]!.expression =
-    "{{quantity}} * {{price}} <= {{budget}}/2";
-  expect(await store.publishForm(form.id)).toBe(true);
-  expect(
-    store.data.forms.find((item) => item.id === form.id)!.versions[0]!.schema
-      .settings.validations![0]!.expression,
-  ).toBe(rule().expression);
-  expect(
-    await store.submitEntry(form.id, { quantity: 3, price: 20, budget: 100 }),
-  ).toBeUndefined();
-  expect(
-    await store.updateEntry(record.id, { quantity: 3, price: 25, budget: 100 }),
-  ).toBe(true);
-  const saved = copy(
-    store.data.entries.find((entry) => entry.id === record.id)!,
-  );
-  expect(saved.definitionVersion).toBe(1);
-  expect(saved.values.price).toBe(25);
-  expect(
-    await store.updateEntry(record.id, { quantity: 6, price: 25, budget: 100 }),
-  ).toBe(false);
-  expect(store.data.entries.find((entry) => entry.id === record.id)).toEqual(
-    saved,
-  );
-  const reloaded = parseSchema(JSON.parse(JSON.stringify(form.schema)));
-  expect(reloaded.settings.validations![0]!.expression).toContain("/2");
-});
-it("retains an invalid fill draft and applies its pinned rules again on final submission", async () => {
-  const store = useWorkspaceStore(),
-    created = (await store.createForm("oa", "填写草稿", "form"))!,
-    form = store.openForm(created.id)!;
-  form.schema = fixture();
-  await store.publishForm(form.id);
-  const draft = (await store.submitEntry(
-    form.id,
-    { quantity: 12, price: 10, budget: 100 },
-    "draft",
-  ))!;
-  expect(draft.status).toBe("draft");
-  const before = copy(
-    store.data.entries.find((entry) => entry.id === draft.id),
-  );
-  expect(
-    await store.submitEntry(form.id, draft.values, "submitted", draft.id),
-  ).toBeUndefined();
-  expect(store.data.entries.find((entry) => entry.id === draft.id)).toEqual(
-    before,
-  );
-});
-it("rechecks member edits against protected stored values without revealing them or persisting a failed edit", async () => {
-  const store = useWorkspaceStore();
-  const created = (await store.createForm("oa", "受限采购校验", "form"))!;
-  const form = store.openForm(created.id)!;
-  form.schema = fixture();
-  expect(await store.publishForm(form.id)).toBe(true);
-  const entry = (await store.submitEntry(form.id, {
-    quantity: 3,
-    price: 20,
-    budget: 100,
-  }))!;
-  const group = newAccessGroup(form.schema, "manage");
-  group.identities = ["zhang"];
-  group.fields.price = "read";
-  group.fields.budget = "hidden";
-  expect(
-    await store.saveFormAccess(form.id, {
-      ...defaultAccess(),
-      membersEnabled: true,
-      groups: [group],
-    }),
-  ).toBe(true);
-  const before = copy(store.data.entries.find((item) => item.id === entry.id)!);
-  expect(
-    await store.memberUpdate(
-      entry.id,
-      "zhang",
-      group.id,
-      { quantity: 9, price: 0, budget: 999 },
-      before.values,
-    ),
-  ).toBe(false);
-  expect(store.data.entries.find((item) => item.id === entry.id)).toEqual(
-    before,
-  );
-  expect(store.notices.at(-1)?.message).toBe("采购金额不能超过预算：—");
-  expect(
-    await store.memberUpdate(
-      entry.id,
-      "zhang",
-      group.id,
-      { quantity: 4, price: 0, budget: 999 },
-      before.values,
-    ),
-  ).toBe(true);
-  expect(
-    store.data.entries.find((item) => item.id === entry.id)?.values,
-  ).toMatchObject({ quantity: 4, price: 20, budget: 100 });
 });

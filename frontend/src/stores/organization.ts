@@ -1,5 +1,5 @@
 import { computed, ref, watch, type Ref } from "vue";
-import { defineStore, storeToRefs } from "pinia";
+import { defineStore } from "pinia";
 import {
   directoryCanonical,
   type DirectorySnapshot,
@@ -12,7 +12,7 @@ import { organizationActions } from "./organizationActions";
 import { usePlatformSession } from "./platformSession";
 import { useNotices } from "./notices";
 
-type Actions = Omit<ReturnType<typeof organizationActions>, "setCurrentUser">;
+type Actions = ReturnType<typeof organizationActions>;
 type AsyncActions = {
   [K in keyof Actions]: (...args: Parameters<Actions[K]>) => Promise<boolean>;
 };
@@ -22,13 +22,13 @@ const specOf = ({ currentUserId: _, ...spec }: Organization): DirectorySpec =>
 export const useOrganizationStore = defineStore("organization", () => {
   const session = usePlatformSession(),
     feedback = useNotices();
-  const { notices } = storeToRefs(feedback);
   const organization = ref(emptyOrganization()) as Ref<Organization>;
   const snapshot = ref<DirectorySnapshot>();
   const loaded = ref(false),
     loading = ref(false),
     pending = ref(false),
-    error = ref("");
+    error = ref(""),
+    actionError = ref("");
   const namespace = computed(() => snapshot.value?.namespace || "");
   const ready = computed(() => loaded.value && session.user?.role === "admin");
   let generation = 0,
@@ -44,6 +44,7 @@ export const useOrganizationStore = defineStore("organization", () => {
       snapshot.value = undefined;
       loaded.value = loading.value = pending.value = false;
       error.value = previous = requestId = initialNamespace = "";
+      actionError.value = "";
       inFlight = undefined;
     },
     { flush: "sync" },
@@ -101,25 +102,29 @@ export const useOrganizationStore = defineStore("organization", () => {
     "saveRoleGroup",
     "removeRoleGroup",
   ];
+  function reportAction(message: string, type = "success") {
+    // 编辑器直接读取本次保存错误，不从会去重、自动消失的全局提示反推结果。
+    if (type !== "success") actionError.value = message;
+    feedback.notify(message, type);
+  }
   const actions = Object.fromEntries(
     names.map((name) => [
       name,
       async (...args: any[]) => {
+        actionError.value = "";
         if (pending.value || loading.value) {
-          feedback.notify("通讯录正在保存或读取，请稍候", "warning");
+          reportAction("通讯录正在保存或读取，请稍候", "warning");
           return false;
         }
         if (!ready.value) {
-          feedback.notify("请先读取通讯录，再保存修改", "warning");
+          reportAction("请先读取通讯录，再保存修改", "warning");
           return false;
         }
         const requested = generation;
         const candidate = ref(copy(organization.value)) as Ref<Organization>;
         const reducer = organizationActions(
           candidate,
-          () => true,
-          feedback.notify,
-          false,
+          reportAction,
         );
         if (
           !(reducer[name] as (...args: any[]) => boolean)(
@@ -158,7 +163,7 @@ export const useOrganizationStore = defineStore("organization", () => {
           if (cause instanceof PlatformError && cause.status === 409)
             await load();
           if (requested === generation)
-            feedback.notify((cause as Error).message, "warning");
+            reportAction((cause as Error).message, "warning");
           return false;
         } finally {
           if (requested === generation) pending.value = false;
@@ -174,8 +179,8 @@ export const useOrganizationStore = defineStore("organization", () => {
     loading,
     pending,
     error,
+    actionError,
     load,
-    notices,
     notify: feedback.notify,
     ...actions,
   };

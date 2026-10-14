@@ -25,8 +25,9 @@ const props = withDefaults(
     scope?: SelectionScope;
     values?: FormValues;
     allowRoles?: boolean;
+    includeInactive?: boolean;
   }>(),
-  { kind: "member", multiple: true, values: () => ({}), allowRoles: true },
+  { kind: "member", multiple: true, values: () => ({}), allowRoles: true, includeInactive: false },
 );
 const emit = defineEmits<{ "update:modelValue": [ids: string[]]; close: [] }>();
 const runtimeData = useRuntimeData();
@@ -39,7 +40,10 @@ const query = ref(""),
   selected = ref<string[]>([]);
 const scope = computed(() => props.scope || emptyScope());
 const eligibleMembers = computed(() =>
-  allowedEmployees(org.value, scope.value, props.values),
+  // 管理员查询权限时允许选停用/离职成员，业务填写仍只提供在职成员。
+  props.includeInactive && scope.value.mode === "all"
+    ? org.value.employees
+    : allowedEmployees(org.value, scope.value, props.values),
 );
 const eligibleDepartments = computed(() =>
   allowedDepartments(org.value, scope.value, props.values),

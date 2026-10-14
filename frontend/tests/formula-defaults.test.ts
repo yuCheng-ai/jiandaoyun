@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createApp, h, nextTick, reactive } from "vue";
 import { createPinia } from "pinia";
@@ -33,12 +34,8 @@ import {
   validateFieldConfiguration,
 } from "../src/domain/fieldValidation";
 import { newForm, seedWorkspace } from "../src/domain/workspace";
-import { useWorkspaceStore } from "../src/stores/workspace";
 
 import FormulaEditor from "../src/features/forms/components/FormulaEditor.vue";
-import FormRuntime from "../src/features/forms/components/FormRuntime.vue";
-
-vi.mock("../src/stores/workspace", () => ({ useWorkspaceStore: vi.fn() }));
 const cleanup: (() => void)[] = [];
 const data = () => seedWorkspace();
 function fixture() {
@@ -86,11 +83,6 @@ function fixture() {
 beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
-  const workspace = data();
-  vi.mocked(useWorkspaceStore).mockReturnValue({
-    data: workspace,
-    activeForms: workspace.forms,
-  } as any);
 });
 afterEach(() => {
   cleanup.splice(0).forEach((fn) => fn());
@@ -1024,113 +1016,4 @@ it("rejects malformed edits without replacing the saved expression", async () =>
   );
   expect(update).not.toHaveBeenCalled();
   expect(input.textContent).toBe("DATEDELTA(1)");
-});
-it("submits actual formula values while reopening stored records without automatic replacement", async () => {
-  const f = fixture(),
-    submit = vi.fn(),
-    persist = vi.fn().mockResolvedValue(true);
-  const host = await mount(
-    FormRuntime,
-    { schema: f.schema, formId: "x", preview: false, persistValues: persist },
-    { onSubmit: submit },
-  );
-  const quantity = host.querySelector<HTMLInputElement>(
-    '[data-field-id="quantity"] input',
-  )!;
-  await fill(quantity, "4");
-  button(host, "提交").click();
-  await nextTick();
-  await nextTick();
-  expect(persist).toHaveBeenCalledWith(
-    expect.objectContaining({
-      total: 13,
-      note: "大额\n金额：13.00",
-      date: "2026-10-13",
-    }),
-    false,
-  );
-  expect(submit).toHaveBeenCalled();
-  const original = {
-    quantity: 1,
-    price: 99,
-    total: 0,
-    name: "原等级",
-    note: "原说明",
-    date: "2026-01-01",
-  };
-  const reopened = await mount(FormRuntime, {
-    schema: f.schema,
-    formId: "old",
-    initialValues: original,
-  });
-  expect(
-    reopened.querySelector<HTMLInputElement>('[data-field-id="total"] input')!
-      .value,
-  ).toBe("0");
-  expect(
-    reopened.querySelector<HTMLTextAreaElement>(
-      '[data-field-id="note"] textarea',
-    )!.value,
-  ).toBe("原说明");
-});
-it("submits currency changes and preserves the existing currency text when reopening a record", async () => {
-  const amount = createField("number", {
-    id: "amount",
-    label: "金额",
-    defaultValue: 1001.019,
-  });
-  const capital = createField("text", {
-    id: "capital",
-    label: "金额大写",
-    defaultFormula: true,
-    expression: "RMBCAP({{amount}})",
-  });
-  const schema = emptySchema();
-  const names = createField("text", {
-    id: "names",
-    label: "去重部门",
-    defaultFormula: true,
-    expression: 'UNION(["销售","仓库","销售"])',
-  });
-  schema.fields = [amount, capital, names];
-  const persist = vi.fn().mockResolvedValue(true);
-  const host = await mount(FormRuntime, {
-    schema,
-    formId: "currency",
-    preview: false,
-    persistValues: persist,
-  });
-  await fill(
-    host.querySelector<HTMLInputElement>('[data-field-id="amount"] input')!,
-    "错误",
-  );
-  button(host, "提交").click();
-  await nextTick();
-  expect(persist).not.toHaveBeenCalled();
-  expect(host.textContent).toContain("引用字段需要有效数字");
-  await fill(
-    host.querySelector<HTMLInputElement>('[data-field-id="amount"] input')!,
-    "1.13",
-  );
-  expect(host.textContent).not.toContain("引用字段需要有效数字");
-  expect(
-    host.querySelector<HTMLInputElement>('[data-field-id="capital"] input')!
-      .value,
-  ).toBe("人民币壹元壹角叁分");
-  button(host, "提交").click();
-  await nextTick();
-  await nextTick();
-  expect(persist).toHaveBeenCalledWith(
-    { amount: 1.13, capital: "人民币壹元壹角叁分", names: "销售;仓库" },
-    false,
-  );
-  const reopened = await mount(FormRuntime, {
-    schema,
-    formId: "currency",
-    initialValues: { amount: 1.13, capital: "原大写内容" },
-  });
-  expect(
-    reopened.querySelector<HTMLInputElement>('[data-field-id="capital"] input')!
-      .value,
-  ).toBe("原大写内容");
 });

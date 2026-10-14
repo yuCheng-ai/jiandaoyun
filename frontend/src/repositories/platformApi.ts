@@ -9,26 +9,65 @@ export class PlatformError extends Error {
     readonly requestId?: string,
   ) {
     super(message);
+    this.name = "PlatformError";
   }
 }
 
+/** 请求层只归一化错误和日志，由操作所在页面展示一次，不在此弹窗或跳转。 */
+function fail(
+  error: PlatformError,
+  method: string,
+  event = "api.request_failed",
+): never {
+  if (error.status !== 401) {
+    const log =
+      error.status === 0 ||
+      error.status >= 500 ||
+      event === "api.invalid_response"
+        ? console.error
+        : console.warn;
+    log(event, { method, status: error.status, requestId: error.requestId });
+  }
+  throw error;
+}
+
 async function responseData(response: Response, method: string) {
+  if (response.status === 204) return undefined;
   try {
     return await response.json();
   } catch {
     const requestId = response.headers.get("X-Request-ID") || undefined;
-    console.error("api.invalid_response", {
+    fail(
+      new PlatformError(
+        "服务返回异常，请重试。",
+        response.status,
+        undefined,
+        requestId,
+      ),
       method,
-      status: response.status,
-      requestId,
-    });
-    throw new PlatformError(
-      "服务返回异常，当前输入已保留，请重试。",
-      response.status,
-      undefined,
-      requestId,
+      "api.invalid_response",
     );
   }
+}
+
+function failureMessage(status: number, data: Record<string, unknown>) {
+  // 服务端内部异常可能包含 SQL 或堆栈，不直接展示到界面。
+  if (status >= 500) return "服务暂时不可用，请稍后重试。";
+  if (status === 413) return "提交内容过大，请减少内容后重试。";
+  if (typeof data.message === "string" && data.message.trim())
+    return data.message;
+  if (Array.isArray(data.message)) {
+    const messages = data.message.filter(
+      (item): item is string => typeof item === "string" && !!item.trim(),
+    );
+    if (messages.length) return messages.join("\n");
+  }
+  if (status === 401) return "请先登录后继续操作。";
+  if (status === 403) return "没有权限执行此操作。";
+  if (status === 404) return "请求的内容不存在或已被移除。";
+  if (status === 409) return "内容已更新，请重新读取后再操作。";
+  if (status === 429) return "操作过于频繁，请稍后重试。";
+  return "操作失败，请检查输入后重试。";
 }
 
 /** JSON、文件上传与下载共用登录态、权限组选取和错误日志。 */
@@ -61,42 +100,35 @@ export async function platformRequest(
       body: payload,
     });
   } catch {
-    console.error("api.request_failed", { method, status: 0 });
-    throw new PlatformError(
-      "暂时无法连接服务，当前输入已保留，请稍后重试。",
-      0,
-    );
+    fail(new PlatformError("网络连接失败，请检查连接后重试。", 0), method);
   }
   if (response.ok) return response;
 
   const requestId = response.headers.get("X-Request-ID") || undefined;
-  if (response.status !== 401) {
-    const log = response.status >= 500 ? console.error : console.warn;
-    log("api.request_failed", { method, status: response.status, requestId });
-  }
-  if (response.status === 413) {
-    throw new PlatformError(
-      "本次内容超过服务端接收容量，尚未保存；原内容与当前输入保留。",
-      413,
-      undefined,
-      requestId,
-    );
-  }
-  const data = await responseData(response, method);
+  // 代理层可能返回 HTML、空正文或 JSON null；它们都不应覆盖原 HTTP 状态。
+  const bodyData: unknown = await response.json().catch(() => undefined);
+  const data =
+    bodyData && typeof bodyData === "object" && !Array.isArray(bodyData)
+      ? (bodyData as Record<string, unknown>)
+      : {};
   const collection = data.collection;
   const hasCollection =
-    typeof collection?.accepting === "boolean" &&
-    typeof collection?.code === "string" &&
-    typeof collection?.checkedAt === "string";
-  const message =
-    typeof data.message === "string"
-      ? data.message
-      : "操作失败，请检查输入后重试。";
-  throw new PlatformError(
-    message,
-    response.status,
-    hasCollection ? collection : undefined,
-    requestId,
+    !!collection &&
+    typeof collection === "object" &&
+    "accepting" in collection &&
+    typeof collection.accepting === "boolean" &&
+    "code" in collection &&
+    typeof collection.code === "string" &&
+    "checkedAt" in collection &&
+    typeof collection.checkedAt === "string";
+  fail(
+    new PlatformError(
+      failureMessage(response.status, data),
+      response.status,
+      hasCollection ? (collection as CollectionStatus) : undefined,
+      requestId,
+    ),
+    method,
   );
 }
 

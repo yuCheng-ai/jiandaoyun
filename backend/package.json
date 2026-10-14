@@ -4,6 +4,7 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
+    "prebuild": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/src/main.js",
     "dev": "node ../scripts/dev-backend.mjs",
@@ -14,12 +15,13 @@
     "@nestjs/core": "^12.1.2",
     "@nestjs/platform-express": "^12.1.2",
     "@platform/contracts": "*",
+    "parse5": "^7.3.0",
     "pg": "^8.23.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
   },
   "devDependencies": {
-    "@types/pg": "^8.15.0",
-    "@types/express": "^5.0.0"
+    "@types/express": "^5.0.0",
+    "@types/pg": "^8.15.0"
   }
 }

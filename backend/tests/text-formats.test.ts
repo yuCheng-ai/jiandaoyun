@@ -89,7 +89,7 @@ test("existing publication review presents business format names instead of raw 
   ).model;
   const tx = {
     query: async (sql: string) => ({
-      rows: sql.startsWith("SELECT v.title,m.model")
+      rows: /FROM\s+data_object_versions\s+m\b/.test(sql)
         ? [{ title: "编码", model: old }]
         : [],
     }),

@@ -12,11 +12,41 @@ const apply = (impact: any, expected = 201) => h.request(`/pages/${impact.pageId
 async function fixture(title: string) {
   const object = await h.definition(title, schema(field('name'), field('note'))), page = (await h.request(`/pages?definitionId=${object.id}`))[0];
   const data = await h.request(`/data-objects/${object.id}/draft`), record = await h.record(object.id, { name: '保留记录', note: '' });
-  await h.request(`/definitions/${object.id}/grants`, 'PUT', { userId: editor.id, read: true, create: true, edit: true, scope: 'all', fields: { name: 'read', note: 'edit' } });
+  await h.permissionGroup(object.id, {
+    id: "member_" + editor.id,
+    subjects: [{ kind: "member", id: editor.id }],
+    scope: "all",
+    fields: { name: "read", note: "edit" },
+    actions: ["view", "create", "edit"],
+  });
   return { object, page: await draft(page.id), data, record };
 }
 async function template(f: Awaited<ReturnType<typeof fixture>>) {
-  const spec = { title: '生命周期处理', bindings: [{ id: 'main', title: '业务', definitionId: f.object.id, definitionVersion: 1 }], tasks: [{ id: 'handle', title: '处理记录', recordBinding: 'main', pageId: f.page.id, pageVersion: 1, assigneeId: editor.id, requiredFields: ['note'], dependsOn: [] }] };
+  const spec = {
+    title: "生命周期处理",
+    startTaskIds: ["handle"],
+    endTaskIds: ["handle"],
+    bindings: [
+      {
+        id: "main",
+        title: "业务",
+        definitionId: f.object.id,
+        definitionVersion: 1,
+      },
+    ],
+    tasks: [
+      {
+        id: "handle",
+        title: "处理记录",
+        recordBinding: "main",
+        pageId: f.page.id,
+        pageVersion: 1,
+        assigneeId: editor.id,
+        requiredFields: ["note"],
+        dependsOn: [],
+      },
+    ],
+  };
   const saved = await h.request('/process-templates', 'POST', { requestId: randomUUID(), applicationId: f.data.applicationId, spec }, 'admin', 201);
   const published = await h.request(`/process-templates/${saved.id}/publish`, 'POST', { expectedRevision: saved.revision }, 'admin', 201);
   const path = `/process-templates/${published.id}/versions/1`, bindings = { main: f.record.record.id };
@@ -53,7 +83,7 @@ test('archive hides ordinary entry points, preserves pending fields and records,
   assert.deepEqual(restored.schema, f.page.schema); assert.deepEqual(restored.additions, f.page.additions);
   assert.equal((await h.request(`${path}/form?version=1`)).definition.version, 1);
   const events = (await h.db.query("SELECT * FROM configuration_events WHERE resource_id=$1 ORDER BY created_at,id", [f.page.id])).rows;
-  assert.deepEqual(events.map(e => e.action), ['archive', 'restore']);
+  assert.deepEqual(events.map(e => e.action), ['publish', 'archive', 'restore']);
   await assert.rejects(h.db.query('DELETE FROM configuration_events WHERE id=$1', [events[0].id]), /immutable/);
 });
 test('archived pages reject new process starts but already issued tasks keep pinned pages and current permissions after restart', async () => {
@@ -67,7 +97,7 @@ test('archived pages reject new process starts but already issued tasks keep pin
   await h.request(`${t.path}/start`, 'POST', { ...start, requestId: randomUUID() }, 'admin', 409);
   assert.equal((await h.request(`${t.path}/start`, 'POST', start, 'admin', 201)).id, process.id);
   await h.request('/processes', 'POST', { requestId: randomUUID(), spec: { title: '绕过模板', tasks: t.spec.tasks }, bindings: t.bindings }, 'admin', 409);
-  await h.request('/process-templates', 'POST', { requestId: randomUUID(), applicationId: f.data.applicationId, spec: t.spec }, 'admin', 409);
+  await h.request('/process-templates', 'POST', { requestId: randomUUID(), applicationId: f.data.applicationId, spec: t.spec }, 'admin', 201);
   const retainedDraft = await h.request(`/process-templates/${t.saved.id}`, 'PUT', { expectedRevision: 2, spec: { ...t.spec, title: '保留原引用的草稿' } });
   await h.request(`/process-templates/${t.saved.id}/publish`, 'POST', { expectedRevision: retainedDraft.revision }, 'admin', 409);
   const taskPath = `/processes/${process.id}/tasks/${task.id}`;
@@ -91,13 +121,6 @@ test('archived page dependencies do not block model changes; restore reviews dif
   const form = await h.request(`/pages/${f.page.id}/form?version=1`); assert.equal(form.definition.version, 1); assert.ok(form.definition.schema.fields.some((field: any) => field.id === 'note'));
   const current = await h.request(`/data-objects/${f.object.id}/draft`); assert.equal(current.latestVersion, 2); assert.equal(current.model.fields.length, 1);
   const blocked = await h.request(`/data-objects/${f.object.id}/publish-preview`, 'POST', { expectedRevision: current.revision }, 'admin', 201); assert.ok(blocked.blockers.length);
-});
-test('legacy definition publication skips archived managed default pages', async () => {
-  const f = await fixture('兼容入口保护'), archived = await apply(await review(f.page));
-  const saved = await h.request(`/definitions/${f.object.id}`, 'PUT', { expectedRevision: f.data.revision, title: '新版数据名称', schema: schema(field('name'), field('note'), field('new')) });
-  const impact = await h.request(`/definitions/${f.object.id}/publish-preview`, 'POST', { expectedRevision: saved.revision }, 'admin', 201); assert.equal(impact.defaultPageWillPublish, false);
-  await h.request(`/definitions/${f.object.id}/publish`, 'POST', { expectedRevision: saved.revision, impactToken: impact.token }, 'admin', 201);
-  assert.deepEqual(await draft(f.page.id), archived);
 });
 test('review tokens, page revisions, audit rollback and ownership protect lifecycle changes', async () => {
   const f = await fixture('归档检查与回滚'), impact = await review(f.page);

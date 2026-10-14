@@ -1,7 +1,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { fieldValueLabel } from "@platform/contracts";
+import { separateFormSchema, fieldValueLabel, type FormSchema } from "@platform/contracts";
 import { harness, field, schema } from "./helpers";
 
 const h = harness();
@@ -121,17 +121,17 @@ test("configuration rejects malformed formatting and flags; disabled bounds reta
     { min: 10, max: 1 },
   ]) {
     await h.request(
-      "/definitions",
+      "/data-objects",
       "POST",
       {
         title: "非法数字配置",
-        schema: schema(
+        model: separateFormSchema(schema(
           field("n", "number", {
             format: "number",
             retainPrecision: true,
             ...extra,
           }),
-        ),
+        ) as unknown as FormSchema).model,
       },
       "admin",
       400,

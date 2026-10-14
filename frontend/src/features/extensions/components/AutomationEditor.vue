@@ -6,7 +6,7 @@ import DataFilterEditor from "../../forms/components/DataFilterEditor.vue";
 import SampleEditor from "./SampleEditor.vue";
 import RunTrace from "./RunTrace.vue";
 import AutomationStepEditor from "./AutomationStepEditor.vue";
-import { useWorkspaceStore } from "../../../stores/workspace";
+import { useRuntimeData } from "../../../composables/useRuntimeData";
 import { useDraftDismiss } from "../../../composables/useDraftDismiss";
 import { copy, type FormValues, type FormSchema } from "../../../domain/form";
 import { buttonSources } from "../../../domain/buttons";
@@ -29,9 +29,8 @@ const props = defineProps<{
   formId: string;
 }>();
 const emit = defineEmits<{ close: [] }>();
-const saving = ref(false);
-const store = useWorkspaceStore(),
-  config = ref(newAutomation()),
+const runtimeData = useRuntimeData();
+const config = ref(newAutomation()),
   step = ref(0),
   error = ref(""),
   sample = ref<FormValues>({}),
@@ -59,12 +58,11 @@ watch(
   },
   { immediate: true },
 );
-const { confirmDiscard, requestClose, discard, markSaved, draftKey } =
-  useDraftDismiss(
-    () => props.open,
-    () => config.value,
-    () => emit("close"),
-  );
+const { confirmDiscard, requestClose, discard } = useDraftDismiss(
+  () => props.open,
+  () => config.value,
+  () => emit("close"),
+);
 watch(
   [config, sample, trialEvent],
   () => {
@@ -81,9 +79,11 @@ async function locate(issue: ConfigIssue) {
   el?.focus({ preventScroll: true });
 }
 async function next() {
-  const issue = automationIssues(config.value, props.schema, store.data).find(
-    (i) => i.step <= step.value,
-  );
+  const issue = automationIssues(
+    config.value,
+    props.schema,
+    runtimeData.value,
+  ).find((i) => i.step <= step.value);
   if (issue) {
     await locate(issue);
     return;
@@ -97,50 +97,25 @@ function move(index: number, direction: number) {
   next.splice(index + direction, 0, removed);
   config.value.steps = next;
 }
-async function test() {
+// 试算只更新当前对话框，不写入业务记录或执行日志。
+function test() {
   const result = prepareAutomation(
     config.value,
     props.schema,
     sample.value,
     trialEvent.value,
-    store.data,
+    runtimeData.value,
     { formId: props.formId, trial: true },
   );
   trial.value = result.run;
-  await store.recordExtensionRun(result.run, props.formId);
-}
-async function save() {
-  if (saving.value) return;
-  const issue = automationIssues(config.value, props.schema, store.data)[0];
-  if (issue) {
-    await locate(issue);
-    return;
-  }
-  saving.value = true;
-  error.value = "";
-  try {
-    if (await store.saveAutomation(props.formId, copy(config.value))) {
-      markSaved();
-      store.notify("智能助手已保存，发布新版本后用于新记录");
-      emit("close");
-    } else
-      error.value =
-        store.storageError || "保存未完成，助手配置已保留，请重试。";
-  } catch {
-    error.value = "保存失败，助手配置已保留，请重试。";
-  } finally {
-    saving.value = false;
-  }
 }
 </script>
 <template>
   <BaseDialog
     :open="open"
-    :draft-key="draftKey"
-    :busy="saving"
     :title="modelValue ? '编辑智能助手' : '新建智能助手'"
     width="1080px"
-    @close="!saving && requestClose()"
+    @close="requestClose"
   >
     <div v-if="confirmDiscard" class="config-discard" tabindex="-1">
       <span>配置尚未保存。</span
@@ -230,7 +205,7 @@ async function save() {
       </section>
       <section v-else class="button-config-fields">
         <div class="automation-safety-note">
-          试运行读取当前本地记录，只展示预计变更并保存测试日志。发布后由表单事件真正写入本地数据。
+          试运行只展示预计变更，不保存测试日志或业务数据。
         </div>
         <label
           >模拟触发事件<select v-model="trialEvent">
@@ -248,9 +223,7 @@ async function save() {
           试运行整组动作
         </button>
         <RunTrace v-if="trial" :run="trial" @locate="locate" />
-        <p class="field-hint">
-          记录与配置在发布前可能变化，实际执行会重新检查。保存配置不会执行动作。
-        </p>
+        <p class="field-hint">当前仅供配置预览，保存与自动执行尚未开放。</p>
       </section>
     </div>
     <template #footer
@@ -276,10 +249,10 @@ async function save() {
         v-else
         type="button"
         class="button primary"
-        :disabled="saving"
-        @click="save"
+        disabled
+        title="暂未开放保存"
       >
-        {{ saving ? "正在保存…" : "保存助手" }}
+        保存助手
       </button></template
     >
   </BaseDialog>

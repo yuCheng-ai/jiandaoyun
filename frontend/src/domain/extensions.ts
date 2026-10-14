@@ -22,7 +22,6 @@ import {
   buttonReferences,
   type CustomButton,
 } from "./buttons";
-import type { WebhookCredential } from "./webhookSecurity";
 import {
   parseReminders,
   reminderIssues,
@@ -60,6 +59,10 @@ import { resolveIdentities } from "./organization";
 
 import { pushEvents, type PushEvent, type AutomationEvent } from "./events";
 export { pushEvents, type PushEvent } from "./events";
+/** 配置预览只需要凭证标识，浏览器不生成或保存推送密钥。 */
+export interface WebhookCredential {
+  id: string;
+}
 export interface WebhookConfig {
   id: string;
   name: string;

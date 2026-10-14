@@ -23,10 +23,11 @@ const { zIndex } = useDialogLayer(dialog, () => emit("close"));
         aria-modal="true"
         tabindex="-1"
         class="form-preview-dialog"
-        aria-label="表单预览"
+        :aria-label="`${title} · 表单预览`"
         @cancel.prevent="emit('close')"
       >
         <header>
+          <span class="form-preview-title" :title="title">{{ title }}</span>
           <div class="segmented device-tabs">
             <button
               aria-label="电脑预览"

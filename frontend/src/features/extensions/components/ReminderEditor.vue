@@ -6,7 +6,7 @@ import DataFilterEditor from "../../forms/components/DataFilterEditor.vue";
 import SampleEditor from "./SampleEditor.vue";
 import RunTrace from "./RunTrace.vue";
 import { useDraftDismiss } from "../../../composables/useDraftDismiss";
-import { useWorkspaceStore } from "../../../stores/workspace";
+import { useRuntimeData } from "../../../composables/useRuntimeData";
 import { copy, type FormSchema, type FormValues } from "../../../domain/form";
 import {
   pushEvents,
@@ -35,8 +35,8 @@ const props = defineProps<{
   formId: string;
 }>();
 const emit = defineEmits<{ close: [] }>();
-const store = useWorkspaceStore(),
-  config = ref(newReminder()),
+const runtimeData = useRuntimeData();
+const config = ref(newReminder()),
   step = ref(0),
   issues = ref<ConfigIssue[]>([]),
   values = ref<FormValues>({}),
@@ -44,15 +44,13 @@ const store = useWorkspaceStore(),
   failure = ref(false),
   event = ref<PushEvent>("data_create"),
   testTime = ref(""),
-  tested = ref(""),
-  saving = ref(false),
-  saveError = ref("");
+  tested = ref("");
 const fields = computed(() => reminderFields(props.schema));
 const recipientFields = computed(() =>
   fields.value.filter((f) => recipientFieldTypes.includes(f.type)),
 );
 const recipients = computed(() =>
-  reminderRecipients(config.value, values.value, store.data),
+  reminderRecipients(config.value, values.value, runtimeData.value),
 );
 const due = computed(() => reminderDueAt(config.value, values.value));
 const fingerprint = computed(() =>
@@ -63,7 +61,7 @@ const fingerprint = computed(() =>
     event.value,
     failure.value,
     testTime.value,
-    store.data.organization,
+    runtimeData.value.organization,
   ]),
 );
 const stale = computed(
@@ -77,7 +75,6 @@ watch(
     config.value = copy(props.modelValue || newReminder());
     step.value = 0;
     issues.value = [];
-    saveError.value = "";
     tested.value = "";
     values.value = sampleValues(props.schema);
     result.value = undefined;
@@ -106,7 +103,8 @@ function insert(key: "title" | "message", e: Event) {
   if (select.value) config.value[key] += "{{" + select.value + "}}";
   select.value = "";
 }
-async function trial() {
+// 试算只更新当前对话框，不写入业务记录或执行日志。
+function trial() {
   const now = new Date(testTime.value);
   if (config.value.trigger === "date" && !Number.isFinite(now.getTime())) {
     issues.value = [
@@ -123,7 +121,7 @@ async function trial() {
     config.value,
     props.schema,
     values.value,
-    store.data,
+    runtimeData.value,
     {
       event: config.value.trigger === "event" ? event.value : undefined,
       now: config.value.trigger === "date" ? now : undefined,
@@ -133,48 +131,20 @@ async function trial() {
   if (result.value?.status === "failed") nextRun.retryOf = result.value.id;
   result.value = nextRun;
   tested.value = fingerprint.value;
-  await store.recordExtensionRun(nextRun, props.formId);
 }
-async function save() {
-  if (saving.value) return;
-  saveError.value = "";
-  issues.value = reminderIssues(config.value, props.schema);
-  if (issues.value.length) {
-    locate(issues.value[0]!);
-    return;
-  }
-  saving.value = true;
-  try {
-    if (await store.saveReminder(props.formId, copy(config.value))) {
-      markSaved();
-      store.notify("提醒已保存，发布新版本后生效");
-      emit("close");
-    } else
-      saveError.value =
-        store.storageError || "保存未完成，提醒配置已保留，请重试。";
-  } catch {
-    saveError.value = "保存失败，提醒配置已保留，请重试。";
-  } finally {
-    saving.value = false;
-  }
-}
-const { confirmDiscard, requestClose, discard, markSaved, draftKey } =
-  useDraftDismiss(
-    () => props.open,
-    () => config.value,
-    () => emit("close"),
-  );
+const { confirmDiscard, requestClose, discard } = useDraftDismiss(
+  () => props.open,
+  () => config.value,
+  () => emit("close"),
+);
 </script>
 <template>
   <BaseDialog
     :open="open"
-    :draft-key="draftKey"
-    :busy="saving"
     :title="modelValue ? '编辑推送提醒' : '新建推送提醒'"
     width="1100px"
-    @close="!saving && requestClose()"
+    @close="requestClose"
   >
-    <p v-if="saveError" class="field-error" role="alert">{{ saveError }}</p>
     <div
       v-if="confirmDiscard"
       class="config-discard"
@@ -285,7 +255,7 @@ const { confirmDiscard, requestClose, discard, markSaved, draftKey } =
                 表示当天，正数表示延后。取字段中的日期，按当前浏览器时区的指定时刻提醒。
               </p>
               <p class="config-notice">
-                保存并发布后，在提醒列表点击「检查到期提醒」。成功触发的同一记录、版本与日期不会重复提醒；页面关闭后不会在后台检查。
+                当前可预览提醒时间与内容，定时检查和消息发送尚未开放。
               </p>
             </template>
             <h4>只提醒符合条件的数据</h4>
@@ -460,13 +430,13 @@ const { confirmDiscard, requestClose, discard, markSaved, draftKey } =
           >
           <h3>
             {{
-              renderReminderText(config.title, schema, values, store.data) ||
+              renderReminderText(config.title, schema, values, runtimeData) ||
               "消息标题"
             }}
           </h3>
           <p class="reminder-message">
             {{
-              renderReminderText(config.message, schema, values, store.data) ||
+              renderReminderText(config.message, schema, values, runtimeData) ||
               "插入字段后，在这里查看实际消息内容。"
             }}
           </p>
@@ -483,7 +453,7 @@ const { confirmDiscard, requestClose, discard, markSaved, draftKey } =
             >
           </div>
           <p class="field-hint">
-            试运行和事件触发均使用本地模拟，不发送真实消息。
+            试运行仅生成提醒样例，不触发通知或保存执行记录。
           </p>
         </aside>
       </div>
@@ -493,8 +463,8 @@ const { confirmDiscard, requestClose, discard, markSaved, draftKey } =
       ><button v-if="step > 0" class="button" @click="step--">上一步</button
       ><button v-if="step < 3" class="button primary" @click="next">
         下一步</button
-      ><button v-else class="button primary" :disabled="saving" @click="save">
-        {{ saving ? "正在保存…" : "保存提醒" }}
+      ><button v-else class="button primary" disabled title="暂未开放保存">
+        保存提醒
       </button></template
     >
   </BaseDialog>

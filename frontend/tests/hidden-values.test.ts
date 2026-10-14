@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
+// @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { createApp, h, nextTick } from "vue";
+
 import { createPinia, setActivePinia } from "pinia";
-import { createRouter, createMemoryHistory } from "vue-router";
+
 import {
   createField,
   emptySchema,
   parseSchema,
   prepareSubmission,
   resolveFormValues,
-  copy,
 } from "../src/domain/form";
 import {
   applyFieldChange,
@@ -18,10 +18,8 @@ import {
 } from "../src/domain/relations";
 import { newForm, seedWorkspace } from "../src/domain/workspace";
 import { validateFieldConfiguration } from "../src/domain/fieldValidation";
-import { useWorkspaceStore } from "../src/stores/workspace";
-import FormRuntime from "../src/features/forms/components/FormRuntime.vue";
+
 let pinia = createPinia();
-const cleanup: (() => void)[] = [];
 beforeEach(() => {
   localStorage.clear();
   sessionStorage.clear();
@@ -29,7 +27,6 @@ beforeEach(() => {
   setActivePinia(pinia);
 });
 afterEach(() => {
-  cleanup.splice(0).forEach((fn) => fn());
   document.body.innerHTML = "";
   vi.restoreAllMocks();
 });
@@ -59,42 +56,6 @@ function fixture() {
   ];
   return schema;
 }
-async function mount(component: any, props: Record<string, unknown>) {
-  const host = document.createElement("div");
-  document.body.append(host);
-  const router = createRouter({
-    history: createMemoryHistory(),
-    routes: [{ path: "/", component: { render: () => null } }],
-  });
-  await router.push("/");
-  await router.isReady();
-  const app = createApp({ render: () => h(component, props) });
-  app.use(pinia);
-  app.use(router);
-  app.mount(host);
-  cleanup.push(() => app.unmount());
-  await nextTick();
-  return host;
-}
-const button = (label: string) =>
-  Array.from(document.querySelectorAll<HTMLButtonElement>("button")).find(
-    (el) =>
-      el.getAttribute("aria-label") === label ||
-      el.textContent?.trim() === label,
-  )!;
-async function click(label: string) {
-  button(label).click();
-  await nextTick();
-}
-async function field(label: string, value: string) {
-  const el = document.querySelector<HTMLInputElement>(
-    `input[aria-label="${label}"]`,
-  )!;
-  el.value = value;
-  el.dispatchEvent(new Event("input", { bubbles: true }));
-  await nextTick();
-}
-
 it("new ordinary forms use assignment rules while historical and workflow schemas keep their original behavior", () => {
   expect(newForm("oa", "普通表").schema.settings.hiddenValueRules).toEqual({});
   expect(
@@ -254,58 +215,4 @@ it("a field first revealed by a visibility rule receives its normal default and 
     static: 7,
   });
   expect(hidden).not.toHaveProperty("static");
-});
-it("runtime preview/submission use the same rule and keep drafts intact until formal submission", async () => {
-  const schema = fixture();
-  schema.settings.hiddenValueRules = { amount: "recalculate" };
-  const persist = vi.fn().mockResolvedValue(true);
-  await mount(FormRuntime, {
-    schema,
-    formId: "synthetic",
-    preview: false,
-    persistValues: persist,
-  });
-  await field("数量", "4");
-  await click("保存草稿");
-  expect(persist.mock.calls[0]![1]).toBe(true);
-  await click("提交");
-  expect(persist.mock.calls[1]![0]).toMatchObject({ quantity: 4, amount: 40 });
-  expect(persist.mock.calls[1]![0]).not.toHaveProperty("static");
-});
-it("real record writes pin assignment versions and failures do not mutate records", async () => {
-  const store = useWorkspaceStore(),
-    created = (await store.createForm("oa", "隐藏赋值验收", "form"))!,
-    form = store.openForm(created.id)!;
-  form.schema = fixture();
-  form.schema.settings.hiddenValueRules = { amount: "recalculate" };
-  expect(await store.publishForm(form.id)).toBe(true);
-  const entry = (await store.submitEntry(form.id, {
-    quantity: 2,
-    static: 999,
-    amount: 999,
-    echo: 21,
-  }))!;
-  expect(entry.values).toMatchObject({ quantity: 2, amount: 20 });
-  expect(entry.values).not.toHaveProperty("static");
-  form.schema.settings.hiddenValueRules = { amount: "retain" };
-  expect(await store.publishForm(form.id)).toBe(true);
-  expect(
-    await store.updateEntry(entry.id, { quantity: 4, amount: 999, echo: 41 }),
-  ).toBe(true);
-  expect(
-    store.data.entries.find((item) => item.id === entry.id)!.values.amount,
-  ).toBe(40);
-  const fresh = (await store.submitEntry(form.id, {
-    quantity: 4,
-    amount: 999,
-    echo: 41,
-  }))!;
-  expect(fresh.values).not.toHaveProperty("amount");
-  const before = copy(store.data.entries.find((item) => item.id === entry.id)!);
-  expect(
-    await store.updateEntry(entry.id, { quantity: "bad", amount: 999 }),
-  ).toBe(false);
-  expect(store.data.entries.find((item) => item.id === entry.id)).toEqual(
-    before,
-  );
 });

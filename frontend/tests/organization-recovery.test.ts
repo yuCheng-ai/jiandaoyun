@@ -15,13 +15,7 @@ import { platformApi } from "../src/repositories/platformApi";
 import { usePlatformSession } from "../src/stores/platformSession";
 import { runtimeDataKey } from "../src/composables/useRuntimeData";
 import { newEmployee } from "../src/domain/organization";
-import {
-  restoreBulkOrganizationDraft,
-  restoreDepartmentDraft,
-  restoreEmployeeDraft,
-  restoreRoleDraft,
-  restoreRoleGroupDraft,
-} from "../src/domain/organizationDrafts";
+import { restoreBulkOrganizationDraft, restoreDepartmentDraft, restoreEmployeeDraft, restoreRoleDraft, restoreRoleGroupDraft } from "../src/domain/organizationDrafts";
 
 vi.mock("../src/repositories/platformApi", async (original) => ({
   ...(await original<typeof import("../src/repositories/platformApi")>()),
@@ -54,25 +48,22 @@ function makeStore() {
     data: seedWorkspace(),
     organization: seedWorkspace().organization,
     namespace: "10000000-0000-4000-8000-000000000001",
-    activeForms: [] as ReturnType<typeof seedWorkspace>["forms"],
     writePending: false,
-    notices: [] as { id: string; type: string; message: string }[],
+    actionError: "",
     notify: vi.fn(),
     ...Object.fromEntries(actionNames.map((name) => [name, vi.fn()])),
   } as {
     data: ReturnType<typeof seedWorkspace>;
     organization: ReturnType<typeof seedWorkspace>["organization"];
     namespace: string;
-    activeForms: ReturnType<typeof seedWorkspace>["forms"];
     writePending: boolean;
-    notices: { id: string; type: string; message: string }[];
+    actionError: string;
     notify: ReturnType<typeof vi.fn>;
   } & Record<(typeof actionNames)[number], ReturnType<typeof vi.fn>>;
   return reactive(source) as unknown as typeof source;
 }
 let actorId = "admin";
 let store: ReturnType<typeof makeStore>,
-  persist: ReturnType<typeof vi.fn>,
   actions: ReturnType<typeof organizationActions>;
 beforeEach(() => {
   localStorage.clear();
@@ -80,29 +71,19 @@ beforeEach(() => {
   document.body.innerHTML = '<div id="app"></div>';
   actorId = "admin";
   store = makeStore();
-  store.notify.mockImplementation((message: string, type = "success") =>
-    store.notices.push({ id: `notice-${store.notices.length}`, message, type }),
-  );
-  store.activeForms = store.data.forms.filter((form) => !form.archived);
-  persist = vi.fn(() => true);
+  store.notify.mockImplementation((message: string, type = "success") => {
+    if (type !== "success") store.actionError = message;
+  });
   actions = organizationActions(
     toRef(store, "organization"),
-    persist,
     store.notify,
   );
   for (const name of actionNames)
-    store[name].mockImplementation(async (...args: any[]) =>
-      (actions[name] as (...args: any[]) => boolean)(...args),
-    );
+    store[name].mockImplementation(async (...args: any[]) => {
+      store.actionError = "";
+      return (actions[name] as (...args: any[]) => boolean)(...args);
+    });
   vi.mocked(platformApi).mockImplementation(async (path) => {
-    if (path === "/organization/role-applications")
-      return store.data.apps.map((app) => ({
-        id: app.id,
-        name: app.name,
-        forms: store.activeForms
-          .filter((form) => form.appId === app.id)
-          .map((form) => ({ id: form.id, title: form.title, grouped: false })),
-      }));
     throw new Error(path);
   });
   vi.mocked(useOrganizationStore).mockReturnValue(store as any);
@@ -314,52 +295,6 @@ it("restores new role groups with stable identities and explicit cancel/discard 
   ).toBe(false);
 });
 
-it("recovers role grants without widening scope or applying them before save", async () => {
-  const first = await mount("roles");
-  await click("新建角色");
-  await edit("角色名称", "复核角色");
-  await edit("角色说明", "恢复授权配置");
-  await click("权限配置", document.querySelector("dialog")!);
-  await click("添加授权");
-  await edit("授权1应用", store.data.apps[0]!.id);
-  await edit("授权1数据范围", "department");
-  await check("授权1 填写提交", false);
-  const formId = store.activeForms.find(
-    (form) => form.appId === store.data.apps[0]!.id,
-  )!.id;
-  const grant = first.drafts.entries[0]!.value as any;
-  // Use the actual form checkbox rendered by RoleGrantEditor.
-  const forms = [
-    ...document.querySelectorAll<HTMLInputElement>(".grant-form-select input"),
-  ];
-  expect(forms.length).toBeGreaterThan(0);
-  forms[0]!.checked = true;
-  forms[0]!.dispatchEvent(new Event("change", { bubbles: true }));
-  await nextTick();
-  const id = grant.id;
-  first.unmount();
-  const second = await mount("roles");
-  await click("新建角色");
-  await restore();
-  expect(store.organization.roles.some((role) => role.id === id)).toBe(false);
-  await click("权限配置", document.querySelector("dialog")!);
-  expect(named<HTMLSelectElement>("授权1数据范围").value).toBe("department");
-  expect(named<HTMLInputElement>("授权1 填写提交").checked).toBe(false);
-  await click("保存");
-  await vi.waitFor(() => expect(document.querySelector("dialog")).toBeNull());
-  expect(
-    store.organization.roles.find((role) => role.id === id)?.grants,
-  ).toEqual([
-    {
-      appId: store.data.apps[0]!.id,
-      formIds: [formId],
-      actions: ["view"],
-      dataScope: "department",
-    },
-  ]);
-  expect(second.drafts.entries).toHaveLength(0);
-});
-
 it("blocks restoring or overwriting organization edits after the source or current member changes", async () => {
   const first = await mount();
   await click("编辑王五");
@@ -390,12 +325,21 @@ it("protects route navigation until changes are explicitly discarded", async () 
   const current = await mount("roles");
   await click("新建角色");
   await edit("角色名称", "未保存角色");
-  await current.router.push("/other");
+  const firstNavigation = current.router.push("/other");
+  await nextTick();
+  await vi.waitFor(() =>
+    expect(document.body.textContent).toContain("修改尚未保存"),
+  );
   expect(current.router.currentRoute.value.path).toBe("/admin/roles");
   expect(document.body.textContent).toContain("修改尚未保存");
   await click("继续编辑");
-  await current.router.push("/other");
+  await firstNavigation;
+  const secondNavigation = current.router.push("/other");
+  await vi.waitFor(() =>
+    expect(document.body.textContent).toContain("修改尚未保存"),
+  );
   await click("放弃修改");
+  await secondNavigation;
   await vi.waitFor(() =>
     expect(current.router.currentRoute.value.path).toBe("/other"),
   );
@@ -462,7 +406,6 @@ it("rechecks the organization baseline inside the persistence action after an as
     (employee) => employee.id === "wang",
   )!.position = "另一方的新岗位";
   expect(actions.saveEmployee(employee, [], baseline)).toBe(false);
-  expect(persist).not.toHaveBeenCalled();
   expect(
     store.organization.employees.find((employee) => employee.id === "wang")!
       .position,

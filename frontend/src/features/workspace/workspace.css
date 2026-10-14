@@ -540,9 +540,6 @@
 .extension-cards .app-icon {
   color: #00a89d;
 }
-.global-notices {
-  z-index: 200;
-}
 .dialog-description {
   font-size: 13px;
   color: #7c8999;

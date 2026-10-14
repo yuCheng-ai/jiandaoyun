@@ -24,12 +24,14 @@ const props = defineProps<{
   tab: string;
   fields: FormField[];
   pages: PageSummary[];
+  taskPageTitle?: string;
   organization?: ServerOrganization;
   formLinked: boolean;
+  readonly?: boolean;
 }>();
 const emit = defineEmits<{
   "update:tab": [value: string];
-  page: [task: ProcessTemplateTask];
+  page: [task: ProcessTemplateTask, pageId: string];
   disable: [];
 }>();
 const terminalDescription = computed(() => {
@@ -94,6 +96,7 @@ const memberCount = computed(() => {
   ).length;
 });
 function openMembers() {
+  if (props.readonly) return;
   memberKind.value = props.task?.assigneeSelector?.kind || "member";
   memberId.value =
     props.task?.assigneeSelector?.id || props.task?.assigneeId || "";
@@ -103,6 +106,7 @@ function openMembers() {
 }
 function confirmMembers() {
   if (
+    props.readonly ||
     !props.task ||
     !candidates.value.some((item) => item.id === memberId.value)
   )
@@ -185,14 +189,19 @@ function changeScope() {
         <div class="label-line">
           <label for="node-name"><span class="required">*</span>节点名称</label>
         </div>
-        <input id="node-name" v-model="task.title" maxlength="100" />
+        <input
+          id="node-name"
+          v-model="task.title"
+          maxlength="100"
+          :readonly="readonly"
+        />
       </div>
       <div class="form-group owner-group">
         <label
           ><span class="required">*</span
           >{{ task.kind === "copy" ? "抄送成员" : "节点负责人" }}</label
         >
-        <button class="member-picker" @click="openMembers">
+        <button class="member-picker" :disabled="readonly" @click="openMembers">
           <span v-if="owner" class="member-chip"
             ><AppIcon name="approval" :size="12" />{{ owner }}</span
           >
@@ -223,6 +232,7 @@ function changeScope() {
         v-if="detailTab === 'fields'"
         :task="task"
         :fields="fields"
+        :readonly="readonly"
       />
       <template v-else-if="detailTab === 'rules'">
         <div class="form-group">
@@ -230,10 +240,22 @@ function changeScope() {
           <div class="select-wrap">
             <select
               id="node-page"
-              v-model="task.pageId"
-              @change="emit('page', task)"
+              :value="task.pageId"
+              :disabled="readonly"
+              @change="
+                emit('page', task, ($event.target as HTMLSelectElement).value)
+              "
             >
               <option value="">请选择已发布表单</option>
+              <option
+                v-if="
+                  task.pageId && !pages.some((page) => page.id === task?.pageId)
+                "
+                :value="task.pageId"
+                disabled
+              >
+                {{ taskPageTitle || "原办理表单" }}（已不可选）
+              </option>
               <option v-for="page in pages" :key="page.id" :value="page.id">
                 {{ page.title }}
               </option></select
@@ -246,6 +268,7 @@ function changeScope() {
             <select
               id="node-scope"
               v-model="task.subformId"
+              :disabled="readonly"
               @change="changeScope"
             >
               <option :value="undefined">整条记录</option>
@@ -296,6 +319,7 @@ function changeScope() {
             ><input
               type="checkbox"
               :checked="!!task.waitFor"
+              :disabled="readonly"
               @change="toggleWait(($event.target as HTMLInputElement).checked)"
             />同时等待字段满足条件</label
           >
@@ -303,6 +327,7 @@ function changeScope() {
             <div class="select-wrap">
               <select
                 v-model="task.waitFor.fieldId"
+                :disabled="readonly"
                 aria-label="等待字段"
                 @change="changeWaitField"
               >
@@ -322,6 +347,7 @@ function changeScope() {
               :field="waitField"
               :identities="identities"
               :model-value="task.waitFor.equals"
+              :disabled="readonly"
               input-id="process-wait-value"
               label="等待值"
               @update:model-value="
@@ -382,12 +408,19 @@ function changeScope() {
     <div v-else class="property-content flow-properties">
       <div class="form-group">
         <label for="flow-title">流程名称</label
-        ><input id="flow-title" v-model="spec.title" maxlength="100" />
+        ><input
+          id="flow-title"
+          v-model="spec.title"
+          maxlength="100"
+          :readonly="readonly"
+        />
       </div>
       <div class="flow-summary">
         <span
-          >当前版本<strong>{{
-            saved?.latestVersion ? `V${saved.latestVersion}` : "未启用"
+          >启用版本<strong>{{
+            saved?.enabled && saved.activeVersion
+              ? `V${saved.activeVersion}`
+              : "未启用"
           }}</strong></span
         ><span
           >流程节点<strong>{{ spec.tasks.length }} 个</strong></span
@@ -397,13 +430,13 @@ function changeScope() {
         保存只更新草稿；启用后，新提交按新版本执行，已有流程保持原版本。
       </p>
       <button
-        v-if="saved?.latestVersion && saved.enabled"
+        v-if="saved?.activeVersion && saved.enabled"
         class="button full-width"
         @click="emit('disable')"
       >
         停用流程
       </button>
-      <p v-if="saved?.latestVersion && !saved.enabled" class="field-hint">
+      <p v-if="saved?.activeVersion && !saved.enabled" class="field-hint">
         流程已停用，已有待办仍可继续办理。
       </p>
     </div>

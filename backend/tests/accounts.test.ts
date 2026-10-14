@@ -127,14 +127,12 @@ test("disabling revokes all sessions, retains identity and role grants, and enab
     spec: organization.spec,
   });
   const definition = await h.definition("账号授权验收", schema(field("name")));
-  await h.request(`/definitions/${definition.id}/subject-grants`, "PUT", {
-    subject: { kind: "role", id: roleId },
-    expectedRevision: 0,
-    read: true,
-    create: true,
-    edit: true,
+  await h.permissionGroup(definition.id, {
+    id: "role_" + roleId,
+    subjects: [{ kind: "role", id: roleId }],
     scope: "self",
     fields: { name: "edit" },
+    actions: ["view", "create", "edit"],
   });
   await h.login(command.username, password, "first-session");
   await h.login(command.username, password, "second-session");

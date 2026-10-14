@@ -38,7 +38,7 @@ test("external themes round-trip through page publication and restart without al
   const def = await h.definition("外链样式", styled);
   const page = (await h.request(`/pages?definitionId=${def.id}`))[0];
   const model = await h.request(`/data-objects/${def.id}/draft`);
-  const grants = await h.request(`/definitions/${def.id}/grants`);
+  const grants = await h.request(`/definitions/${def.id}/permission-groups`);
   const saved = await h.request(
     `/pages/${page.id}/records`,
     "POST",
@@ -77,7 +77,10 @@ test("external themes round-trip through page publication and restart without al
     record,
   );
   assert.deepEqual(await h.request(`/data-objects/${def.id}/draft`), model);
-  assert.deepEqual(await h.request(`/definitions/${def.id}/grants`), grants);
+  assert.deepEqual(
+    await h.request(`/definitions/${def.id}/permission-groups`),
+    grants,
+  );
   draft = await h.request(`/pages/${page.id}/draft`);
   draft.schema.settings.externalStyle = { theme: 4, custom };
   draft = await h.request(`/pages/${page.id}`, "PUT", {
@@ -106,7 +109,10 @@ test("external themes round-trip through page publication and restart without al
     record,
   );
   assert.deepEqual(await h.request(`/data-objects/${def.id}/draft`), model);
-  assert.deepEqual(await h.request(`/definitions/${def.id}/grants`), grants);
+  assert.deepEqual(
+    await h.request(`/definitions/${def.id}/permission-groups`),
+    grants,
+  );
 });
 test("invalid templates fail atomically on definition and page saves instead of dropping settings", async () => {
   const input = schema(field("name"));
@@ -158,19 +164,6 @@ test("invalid templates fail atomically on definition and page saves instead of 
     },
     { theme: 4, custom: { ...custom, buttonColor: "url(https://unknown)" } },
   ]) {
-    await h.request(
-      "/definitions",
-      "POST",
-      {
-        title: "非法样式",
-        schema: {
-          ...input,
-          settings: { ...input.settings, externalStyle: style },
-        },
-      },
-      "admin",
-      400,
-    );
     await h.request(
       `/pages/${page.id}`,
       "PUT",

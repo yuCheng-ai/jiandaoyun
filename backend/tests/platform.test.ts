@@ -1,8 +1,12 @@
+import { separateFormSchema, type FormSchema } from "@platform/contracts";
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import type { INestApplication } from "@nestjs/common";
 import { Pool } from "pg";
+import { savePermissionGroup } from "./helpers";
+const permissionGroup = (id: string, group: any) =>
+  savePermissionGroup(request, id, group);
 
 process.env.DATABASE_SCHEMA = `platform_test_${randomUUID().replaceAll("-", "")}`;
 const { createApp } = require("../src/app") as typeof import("../src/app");
@@ -90,12 +94,11 @@ async function login(username: string) {
   return cookie.split(";")[0]!;
 }
 const grant = (userId: string, fields: any, extra: any = {}) => ({
-  userId,
-  read: true,
-  create: true,
-  edit: true,
+  id: "member_" + userId,
+  subjects: [{ kind: "member", id: userId }],
   scope: "all",
   fields,
+  actions: ["view", "create", "edit"],
   ...extra,
 });
 const all = {
@@ -128,9 +131,9 @@ test("authentication, origin validation and administrator boundaries", async () 
   await request("/definitions", "GET", undefined, "", 401);
   await request("/users", "GET", undefined, editor, 403);
   await request(
-    "/definitions",
+    "/data-objects",
     "POST",
-    { title: "伪造管理员", schema, role: "admin" },
+    { title: "伪造管理员", model: separateFormSchema(schema as unknown as FormSchema).model, role: "admin" },
     editor,
     403,
   );
@@ -140,42 +143,42 @@ test("authentication, origin validation and administrator boundaries", async () 
   });
   assert.equal(response.status, 403);
 });
-test("server rejects unsupported rules and malformed definitions", async () => {
+test("server rejects malformed data models", async () => {
+  await request("/data-objects", "POST", {
+    title: "重复字段",
+    model: separateFormSchema({ ...schema, fields: [basic("a"), basic("a")] } as unknown as FormSchema).model,
+  }, admin, 409);
   for (const invalid of [
-    { ...schema, fields: [basic("a", "calculated")] },
-    { ...schema, fields: [basic("a"), basic("a")] },
     { ...schema, fields: [basic("a", "text", { unique: true })] },
     { ...schema, fields: [basic("a", "text", { defaultLink: { enabled: true, formId: "source", fieldId: "field", match: "all", filters: [] } })] },
-    { ...schema, fields: [basic("a", "text", { defaultFormula: true })] },
     { ...schema, fields: [basic("a", "number", { defaultFormula: true, expression: "UNKNOWN_FUNCTION(1, 2)" })] },
-    { ...schema, settings: { rules: [{}] } },
   ])
     await request(
-      "/definitions",
+      "/data-objects",
       "POST",
-      { title: "不支持", schema: invalid },
+      { title: "不支持", model: separateFormSchema(invalid as unknown as FormSchema).model },
       admin,
       400,
     );
 });
 test("create, publish and immutable database versions", async () => {
   const result = await request(
-    "/definitions",
+    "/data-objects",
     "POST",
-    { title: "通用协作", schema },
+    { title: "通用协作", model: separateFormSchema(schema as unknown as FormSchema).model },
     admin,
     201,
   );
   def = result.id;
   await request(
-    `/definitions/${def}/publish`,
+    `/data-objects/${def}/publish`,
     "POST",
     { expectedRevision: 1 },
     admin,
     201,
   );
   await request(
-    `/definitions/${def}/publish`,
+    `/data-objects/${def}/publish`,
     "POST",
     { expectedRevision: 1 },
     admin,
@@ -241,9 +244,8 @@ test("record creation is transactional, idempotent and supplies stable row ident
   assert.equal((await request(`/definitions/${def}/records`)).length, 1);
 });
 test("column policies mask schema, values and revision metadata; policy updates apply immediately", async () => {
-  await request(
-    `/definitions/${def}/grants`,
-    "PUT",
+  await permissionGroup(
+    def,
     grant(users.find((u) => u.username === "editor").id, {
       name: "edit",
       state: "read",
@@ -252,9 +254,8 @@ test("column policies mask schema, values and revision metadata; policy updates 
       checked: "read",
     }),
   );
-  await request(
-    `/definitions/${def}/grants`,
-    "PUT",
+  await permissionGroup(
+    def,
     grant(users.find((u) => u.username === "reviewer").id, {
       name: "read",
       state: "edit",
@@ -412,13 +413,13 @@ test("a mixed valid and forbidden patch rolls back every field and its audit", a
 });
 test("publishing V2 preserves V1 records and forbids reusing IDs for different types", async () => {
   const next = { ...schema, fields: [...schema.fields, basic("newField")] };
-  await request(`/definitions/${def}`, "PUT", {
+  await request(`/data-objects/${def}`, "PUT", {
     title: "通用协作 V2",
-    schema: next,
+    model: separateFormSchema(next as unknown as FormSchema).model,
     expectedRevision: 2,
   });
   await request(
-    `/definitions/${def}/publish`,
+    `/data-objects/${def}/publish`,
     "POST",
     { expectedRevision: 3 },
     admin,
@@ -428,11 +429,11 @@ test("publishing V2 preserves V1 records and forbids reusing IDs for different t
   assert.equal(old.definition.version, 1);
   assert.equal(old.definition.schema.fields.length, 4);
   await request(
-    `/definitions/${def}`,
+    `/data-objects/${def}`,
     "PUT",
     {
       title: "非法",
-      schema: { ...schema, fields: [basic("name", "number")] },
+      model: separateFormSchema({ ...schema, fields: [basic("name", "number")] } as unknown as FormSchema).model,
       expectedRevision: 4,
     },
     admin,
@@ -464,46 +465,41 @@ test("cross-workspace IDs and self-only scopes are enforced", async () => {
     /记录不存在/,
   );
   const user = users.find((u) => u.username === "editor");
-  await request(
-    `/definitions/${def}/grants`,
-    "PUT",
-    grant(user.id, all, { scope: "self", expectedRevision: (await request(`/definitions/${def}/grants`)).find((item: any) => item.userId === user.id).revision }),
-  );
+  await permissionGroup(def, grant(user.id, all, { scope: "self" }));
   assert.equal(
     (await request(`/definitions/${def}/records`, "GET", undefined, editor))
       .length,
     0,
   );
   await request(`/records/${record.id}`, "GET", undefined, editor, 403);
-  await request(`/definitions/${def}/grants`, "PUT", grant(user.id, all, { expectedRevision: (await request(`/definitions/${def}/grants`)).find((item: any) => item.userId === user.id).revision }));
+  await permissionGroup(def, grant(user.id, all, {}));
 });
 test("two generic process configurations reuse record bindings, parallel tasks, joins and cross-record waits", async () => {
   const editorId = users.find((u) => u.username === "editor").id,
     reviewerId = users.find((u) => u.username === "reviewer").id;
   const relatedDef = await request(
-    "/definitions",
+    "/data-objects",
     "POST",
     {
       title: "关联确认",
-      schema: {
+      model: separateFormSchema({
         ...schema,
         fields: [basic("name", "text", { required: true }), basic("state")],
-      },
+      } as unknown as FormSchema).model,
     },
     admin,
     201,
   );
   await request(
-    `/definitions/${relatedDef.id}/publish`,
+    `/data-objects/${relatedDef.id}/publish`,
     "POST",
     { expectedRevision: 1 },
     admin,
     201,
   );
   for (const userId of [editorId, reviewerId])
-    await request(
-      `/definitions/${relatedDef.id}/grants`,
-      "PUT",
+    await permissionGroup(
+      relatedDef.id,
       grant(userId, { name: "edit", state: "edit" }),
     );
   const related = await request(

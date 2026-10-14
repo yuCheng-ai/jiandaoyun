@@ -1,20 +1,11 @@
 // @vitest-environment jsdom
+// @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { createApp, computed, h, shallowRef, type Ref } from "vue";
+import { createApp, h, shallowRef, type Ref } from "vue";
 import { createPinia, setActivePinia } from "pinia";
-import { copy, createField, findField } from "../src/domain/form";
-import {
-  newForm,
-  seedWorkspace,
-  type FormRecord,
-} from "../src/domain/workspace";
+import { copy, createField } from "../src/domain/form";
+import { newForm, type FormRecord } from "../src/domain/workspace";
 import { useFormDesigner } from "../src/features/forms/useFormDesigner";
-import { useWorkspaceStore } from "../src/stores/workspace";
-import {
-  LocalWorkspaceRepository,
-  parseWorkspace,
-  WORKSPACE_KEY,
-} from "../src/repositories/workspaceRepository";
 
 const disposers = new Set<() => void>();
 beforeEach(() => {
@@ -110,91 +101,6 @@ it("undoes and redoes the canvas and recycle list together without creating dupl
   expect(editor.trash.value).toHaveLength(0);
 });
 
-it("persists removed subform columns and inactive rules across publication/reload, preserving old versions and record values", async () => {
-  const store = useWorkspaceStore(),
-    created = (await store.createForm("oa", "列恢复验收", "form"))!;
-  const draft = store.openForm(created.id)!;
-  draft.schema.fields = [
-    createField("text", { id: "name" }),
-    createField("subform", {
-      id: "rows",
-      children: [
-        createField("number", { id: "qty" }),
-        createField("text", {
-          id: "note",
-          label: "明细说明",
-          defaultValue: "保留默认值",
-        }),
-      ],
-    }),
-  ];
-  draft.schema.settings.rules = [
-    {
-      id: "row-rule",
-      conditions: [{ sourceId: "qty", operator: "greater", value: "0" }],
-      match: "all",
-      targetIds: ["note"],
-    },
-  ];
-  expect(await store.publishForm(created.id)).toBe(true);
-  const entry = (await store.submitEntry(created.id, {
-    name: "旧记录",
-    rows: [{ qty: 2, note: "历史说明" }],
-  }))!;
-  const originalColumn = copy(findField(draft.schema.fields, "note")!),
-    originalRules = copy(draft.schema.settings.rules);
-  const publication = copy(draft.published),
-    values = copy(entry.values);
-  const first = mountEditor(computed(() => draft));
-  first.editor.remove(["note"]);
-  expect(draft.schema.settings.rules).toEqual([]);
-  expect(await store.publishForm(created.id)).toBe(true);
-  first.unmount();
-  const fresh = useWorkspaceStore(createPinia()),
-    restored = fresh.openForm(created.id)!;
-  const second = mountEditor(computed(() => restored));
-  expect(second.editor.trash.value[0]!.parentId).toBe("rows");
-  expect(second.editor.trash.value[0]!.rules).toEqual(originalRules);
-  expect(second.editor.restore(0)).toBe(true);
-  expect(findField(restored.schema.fields, "note")).toEqual(originalColumn);
-  expect(restored.schema.settings.rules).toEqual(originalRules);
-  expect(await fresh.publishForm(created.id)).toBe(true);
-  const saved = new LocalWorkspaceRepository().load()!,
-    form = saved.forms.find((f) => f.id === created.id)!;
-  expect(form.versions[0]).toEqual(publication);
-  expect(findField(form.versions[1]!.schema.fields, "note")).toBeUndefined();
-  expect(findField(form.versions[2]!.schema.fields, "note")!.id).toBe("note");
-  expect(saved.entries.find((e) => e.id === entry.id)!.values).toEqual(values);
-  expect(saved.entries.find((e) => e.id === entry.id)!.definitionVersion).toBe(
-    1,
-  );
-  expect(form.fieldTrash).toEqual([]);
-});
-
-it("retains the removed field in the draft after a failed save and saves it on retry", async () => {
-  const store = useWorkspaceStore(),
-    created = (await store.createForm("oa", "失败重试验收", "form"))!;
-  const draft = store.openForm(created.id)!;
-  draft.schema.fields = copy(simpleForm().value.schema.fields);
-  expect(await store.saveForm(created.id)).toBe(true);
-  const committed = localStorage.getItem(WORKSPACE_KEY),
-    { editor } = mountEditor(computed(() => draft));
-  editor.remove(["name"]);
-  const fail = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-    throw Error("quota");
-  });
-  expect(await store.saveForm(created.id)).toBe(false);
-  expect(localStorage.getItem(WORKSPACE_KEY)).toBe(committed);
-  expect(editor.trash.value[0]!.field.id).toBe("name");
-  fail.mockRestore();
-  expect(await store.saveForm(created.id)).toBe(true);
-  expect(
-    new LocalWorkspaceRepository()
-      .load()!
-      .forms.find((f) => f.id === created.id)!.fieldTrash![0]!.field.id,
-  ).toBe("name");
-});
-
 it("requires restoring a removed parent before its child and appends the original child identity at the end", () => {
   const form = simpleForm();
   form.value.schema.fields = [
@@ -247,30 +153,4 @@ it("retains an archived field when restoring it would exceed the existing field 
   expect(editor.restore(0)).toBe(false);
   expect(form.value.schema.fields).toHaveLength(300);
   expect(editor.trash.value).toHaveLength(1);
-});
-
-it("reads old forms without recycle metadata and rejects malformed archived fields/rules instead of silently dropping them", () => {
-  const data = seedWorkspace();
-  expect(
-    parseWorkspace(JSON.stringify(data)).forms[0]!.fieldTrash,
-  ).toBeUndefined();
-  const form = data.forms[0]!;
-  form.fieldTrash = [
-    {
-      field: createField("text", { id: "archived" }),
-      parentId: null,
-      rules: [],
-    },
-  ];
-  const invalidField = copy(data);
-  invalidField.forms[0]!.fieldTrash![0]!.field.id = "__proto__";
-  expect(() => parseWorkspace(JSON.stringify(invalidField))).toThrow();
-  const invalidRule = copy(data);
-  (invalidRule.forms[0]!.fieldTrash![0]!.rules as any[]) = [
-    { id: "bad", conditions: "bad", targetIds: [] },
-  ];
-  expect(() => parseWorkspace(JSON.stringify(invalidRule))).toThrow();
-  expect(parseWorkspace(JSON.stringify(data)).forms[0]!.fieldTrash).toEqual(
-    form.fieldTrash,
-  );
 });

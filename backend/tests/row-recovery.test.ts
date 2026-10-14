@@ -31,7 +31,19 @@ test("deleted rows are recoverable with their original identity and cannot accep
 test("member and page column restrictions hide deleted values and prevent restoring an inaccessible row", async () => {
   const list = await h.request(`/records/${record.record.id}/removed-rows`), detail = await h.request(`/records/${record.record.id}`);
   const user = (await h.request("/users")).find((item: any) => item.username === "editor");
-  await h.request(`/definitions/${definition.id}/grants`, "PUT", { userId: user.id, read: true, create: true, edit: true, scope: "all", fields: { name: "edit", lines: "edit", item: "edit", quantity: "edit", private_note: "hidden" } });
+  await h.permissionGroup(definition.id, {
+    id: "member_" + user.id,
+    subjects: [{ kind: "member", id: user.id }],
+    scope: "all",
+    fields: {
+      name: "edit",
+      lines: "edit",
+      item: "edit",
+      quantity: "edit",
+      private_note: "hidden",
+    },
+    actions: ["view", "create", "edit"],
+  });
   assert.deepEqual(await h.request(`/records/${record.record.id}/removed-rows`, "GET", undefined, "editor"), []);
   const command = { requestId: randomUUID(), rows: [{ action: "restore", subformId: "lines", rowId: list[0].rowId, eventId: list[0].eventId, expectedRevision: detail.record.rowRevisions.lines }] };
   await h.request(`/records/${record.record.id}`, "PATCH", command, "editor", 403);

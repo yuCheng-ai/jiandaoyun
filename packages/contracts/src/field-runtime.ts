@@ -29,6 +29,16 @@ export const isChoiceField = (type: string) => ["radio", "select", "checkbox", "
 export const isMultipleChoice = (type: string) => type === "checkbox" || type === "multiselect";
 export const maxFieldLabelLength = 1000;
 export const maxFieldPlaceholderLength = 100;
+export const richTextCharacterLimit = 30000;
+/** 富文本按完整 HTML 存储长度校验；已有超限内容允许缩减后保存。 */
+export function richTextValueIssue(value: unknown, previous?: unknown): string {
+  if (value == null || value === "") return "";
+  if (typeof value !== "string") return "请输入富文本内容";
+  const previousLength = typeof previous === "string" ? previous.length : 0;
+  return value.length > richTextCharacterLimit && value.length > previousLength
+    ? "内容过长，请减少文字或格式（上限 3 万字符）"
+    : "";
+}
 export const supportsFieldPlaceholder = (type: FieldType, inSubform = false) =>
   ["text", "textarea", "number", "datetime", "select", "multiselect"].includes(type) || (type === "phone" && !inSubform);
 /** Shared authoring rules. Omitted presentation properties belong to older definitions. */

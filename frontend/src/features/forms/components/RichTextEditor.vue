@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import Editor from "../../../components/rich-text/RichTextEditor.vue";
 import type { RichTextImageStorage } from "../../../components/rich-text/types";
 import { readFile, saveFiles } from "../../../repositories/fileRepository";
 import { richImageFiles } from "../../../domain/richText";
+import { useFileUploads } from "../../../composables/useFileUploads";
 
-// Keep form policy and local file persistence outside the reusable editor.
+// 表单上传策略留在此处，通用富文本编辑器不依赖业务存储。
 const props = withDefaults(
   defineProps<{
     modelValue: string;
@@ -16,14 +18,27 @@ const props = withDefaults(
   { label: "描述信息", variant: "description", images: true },
 );
 const emit = defineEmits<{ "update:modelValue": [value: string] }>();
+const pending = ref(false);
+const { trackFiles } = useFileUploads(pending);
 const storage: RichTextImageStorage = {
   async upload(files) {
-    if (props.variant === "field")
-      return (await saveFiles(files)).map((file) => ({
-        id: file.id,
-        alt: file.name,
-      }));
-    return richImageFiles(files);
+    if (props.readonly) throw Error("当前字段不可编辑");
+    if (pending.value) throw Error("图片正在上传，请稍后重试");
+    // 记录容器等待图片上传完成，再提交包含图片引用的正文。
+    pending.value = true;
+    try {
+      if (props.variant === "field") {
+        const uploaded = await saveFiles(files);
+        trackFiles(uploaded);
+        return uploaded.map((file) => ({
+          id: file.id,
+          alt: file.name,
+        }));
+      }
+      return await richImageFiles(files);
+    } finally {
+      pending.value = false;
+    }
   },
   resolve: (id) => readFile({ id, name: "富文本图片", size: 0, type: "" }),
 };

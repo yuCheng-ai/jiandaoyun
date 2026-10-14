@@ -3,6 +3,7 @@ import { defineStore } from "pinia";
 import type {
   PageDraft,
   PageEditorData,
+  PagePublicationResult,
   PublishedDataModel,
   PagePublishImpact,
 } from "@platform/contracts";
@@ -15,6 +16,7 @@ import {
   type PageEditingState,
 } from "../domain/pageDesigner";
 import { platformApi } from "../repositories/platformApi";
+import { useNotices } from "./notices";
 
 export const usePageDesignerStore = defineStore("server-page-designer", () => {
   const data = ref<PageEditorData>();
@@ -22,7 +24,7 @@ export const usePageDesignerStore = defineStore("server-page-designer", () => {
   const saved = ref("");
   const busy = ref(false);
   const error = ref("");
-  const feedback = ref("");
+  const { notify } = useNotices();
   const editorEpoch = ref(0);
   let requestId = 0;
 
@@ -52,7 +54,6 @@ export const usePageDesignerStore = defineStore("server-page-designer", () => {
     const currentRequest = ++requestId;
     busy.value = true;
     error.value = "";
-    feedback.value = "";
     data.value = undefined;
     try {
       const result = await platformApi<PageEditorData>(`/pages/${id}/editor`);
@@ -127,7 +128,6 @@ export const usePageDesignerStore = defineStore("server-page-designer", () => {
     const currentRequest = ++requestId;
     busy.value = true;
     error.value = "";
-    feedback.value = "";
     try {
       const result = await platformApi<PageEditorData>(
         `/pages/${page.draft.id}/discard-draft`,
@@ -136,7 +136,7 @@ export const usePageDesignerStore = defineStore("server-page-designer", () => {
       );
       if (currentRequest !== requestId) return false;
       accept(result);
-      feedback.value = `已恢复表单 V${result.draft.latestVersion}，已有记录保持原样。`;
+      notify(`已恢复表单 V${result.draft.latestVersion}`);
       editorEpoch.value++;
       return true;
     } catch (cause) {
@@ -162,16 +162,13 @@ export const usePageDesignerStore = defineStore("server-page-designer", () => {
     busy.value = true;
     error.value = "";
     try {
-      await platformApi(`/pages/${page.draft.id}/publish`, "POST", {
-        expectedRevision: impact.revision,
-        impactToken: impact.token,
-      });
-      if (currentRequest !== requestId) return false;
-      const result = await platformApi<PageEditorData>(
-        `/pages/${page.draft.id}/editor`,
+      const result = await platformApi<PagePublicationResult>(
+        `/pages/${page.draft.id}/publish`,
+        "POST",
+        { expectedRevision: impact.revision, impactToken: impact.token },
       );
       if (currentRequest !== requestId) return false;
-      accept(result);
+      accept(result.editor);
       return true;
     } catch (cause) {
       if (currentRequest === requestId) error.value = (cause as Error).message;
@@ -201,7 +198,6 @@ export const usePageDesignerStore = defineStore("server-page-designer", () => {
     state,
     busy,
     error,
-    feedback,
     dirty,
     editorEpoch,
     load,

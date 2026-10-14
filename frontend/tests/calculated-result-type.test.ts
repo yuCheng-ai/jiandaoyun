@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vitest";
 import { createApp, h, nextTick, reactive } from "vue";
 import { createPinia } from "pinia";
@@ -25,8 +26,7 @@ import { createLookupFields } from "../src/domain/lookup";
 import { defaultRecordView, filterAndSortRecords } from "../src/domain/records";
 import { fieldValueType } from "../src/domain/extensions";
 import { seedWorkspace, type FormEntry } from "../src/domain/workspace";
-import { LocalWorkspaceRepository } from "../src/repositories/workspaceRepository";
-import { useWorkspaceStore } from "../src/stores/workspace";
+
 import FieldControl from "../src/features/forms/components/FieldControl.vue";
 
 import FormulaEditor from "../src/features/forms/components/FormulaEditor.vue";
@@ -243,122 +243,6 @@ it("keeps text calculations textual in output bindings, display and record sorti
       view,
     }).map((r) => r.id),
   ).toEqual(expected.map((r) => r.id));
-});
-
-it("locks result types after successful save while keeping formulas editable and historical publications immutable", async () => {
-  const store = useWorkspaceStore(createPinia());
-  const created = (await store.createForm("oa", "计算类型验收", "form"))!;
-  const form = store.openForm(created.id)!;
-  form.schema.fields = [copy(source), copy(numeric)];
-  form.schema.fields[1]!.expression = "LEN({{name}})";
-  expect(await store.publishForm(form.id)).toBeTruthy();
-  const old = (await store.submitEntry(form.id, {
-    name: "旧记录",
-    length: 999,
-  }))!;
-  const publication = copy(
-    store.data.forms.find((f) => f.id === form.id)!.versions[0],
-  );
-  const draft = store.openForm(form.id)!;
-  draft.schema.fields.push(copy(text));
-  expect(await store.saveForm(form.id)).toBeTruthy();
-  draft.schema.fields.find((f) => f.id === text.id)!.format = "number";
-  expect(await store.saveForm(form.id)).toBe(false);
-  expect(
-    store.data.forms
-      .find((f) => f.id === form.id)!
-      .schema.fields.find((f) => f.id === text.id)!.format,
-  ).toBe("text");
-  expect(draft.schema.fields.find((f) => f.id === text.id)!.format).toBe(
-    "number",
-  );
-  draft.schema.fields.find((f) => f.id === text.id)!.format = "text";
-  draft.schema.fields.find((f) => f.id === text.id)!.expression =
-    'CONCATENATE("新：",{{name}})';
-  expect(await store.saveForm(form.id)).toBeTruthy();
-  expect(await store.publishForm(form.id)).toBeTruthy();
-  const saved = (await store.submitEntry(
-    form.id,
-    { name: "甲", label: "伪造", length: 999 },
-    "draft",
-  ))!;
-  const submitted = (await store.submitEntry(
-    form.id,
-    saved.values,
-    "submitted",
-    saved.id,
-  ))!;
-  expect(submitted.id).toBe(saved.id);
-  expect(submitted.values).toMatchObject({ label: "新：甲", length: 1 });
-  expect(
-    await store.updateEntry(submitted.id, {
-      name: "乙乙",
-      label: "伪造",
-      length: 999,
-    }),
-  ).toBe(true);
-  const reloaded = useWorkspaceStore(createPinia());
-  await reloaded.refreshForRead();
-  expect(
-    reloaded.data.forms.find((f) => f.id === form.id)!.versions[0],
-  ).toEqual(publication);
-  expect(reloaded.data.entries.find((e) => e.id === old.id)!.values).toEqual({
-    name: "旧记录",
-    length: 3,
-  });
-  expect(
-    reloaded.data.entries.find((e) => e.id === submitted.id)!.values,
-  ).toMatchObject({ name: "乙乙", label: "新：乙乙", length: 2 });
-  expect(
-    reloaded.data.entries.filter((e) => e.formId === form.id),
-  ).toHaveLength(2);
-});
-
-it("does not lock an unsaved calculation after a failed save", async () => {
-  const store = useWorkspaceStore(createPinia());
-  const created = (await store.createForm("oa", "保存失败", "form"))!;
-  const form = store.openForm(created.id)!;
-  form.schema.fields = [copy(text), copy(source)];
-  const write = vi
-    .spyOn(LocalWorkspaceRepository.prototype, "save")
-    .mockImplementationOnce(() => {
-      throw Error("保存失败");
-    });
-  expect(await store.saveForm(form.id)).toBe(false);
-  write.mockRestore();
-  form.schema.fields[0]!.format = "number";
-  form.schema.fields[0]!.expression = "2";
-  expect(await store.saveForm(form.id)).toBeTruthy();
-});
-
-it("keeps a restored saved field locked while a copied field may choose its result type before first save", async () => {
-  const store = useWorkspaceStore(createPinia());
-  const created = (await store.createForm("oa", "恢复与复制", "form"))!;
-  const form = store.openForm(created.id)!;
-  form.schema.fields = [copy(source), copy(text)];
-  expect(await store.saveForm(form.id)).toBeTruthy();
-  form.schema.fields = [copy(source)];
-  form.fieldTrash = [{ field: copy(text), parentId: null, rules: [] }];
-  expect(await store.saveForm(form.id)).toBeTruthy();
-  form.schema.fields.push({ ...copy(text), format: "number", expression: "2" });
-  form.fieldTrash = [];
-  expect(await store.saveForm(form.id)).toBe(false);
-  form.schema.fields[1] = copy(text);
-  const copied = duplicateField(text);
-  copied.format = "number";
-  copied.expression = "2";
-  form.schema.fields.push(copied);
-  expect(await store.saveForm(form.id)).toBeTruthy();
-  expect(
-    store.data.forms
-      .find((f) => f.id === form.id)!
-      .schema.fields.map((f) => [f.id, f.format]),
-  ).toContainEqual([text.id, "text"]);
-  expect(
-    store.data.forms
-      .find((f) => f.id === form.id)!
-      .schema.fields.map((f) => [f.id, f.format]),
-  ).toContainEqual([copied.id, "number"]);
 });
 
 it("preserves an open formula editor when its target result type changes", async () => {

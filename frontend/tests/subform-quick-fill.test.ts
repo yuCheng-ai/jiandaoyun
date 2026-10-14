@@ -6,7 +6,6 @@ import { createMemoryHistory, createRouter } from "vue-router";
 import {
   emptyDateRange,
   identifySubformRows,
-  type FrontendEvent,
   type FrontendFieldChange,
 } from "@platform/contracts";
 import {
@@ -25,7 +24,6 @@ import {
   subformFillText,
 } from "../src/domain/subformQuickFill";
 import FormFields from "../src/features/forms/components/FormFields.vue";
-import FormRuntime from "../src/features/forms/components/FormRuntime.vue";
 
 let pinia = createPinia();
 const cleanup: (() => void)[] = [];
@@ -75,7 +73,7 @@ function fixture() {
   );
   return { schema, field, values, data: seedWorkspace() };
 }
-async function mount(runtime = false, external = false, reject = false) {
+async function mount(reject = false) {
   const f = fixture(),
     writes = vi.fn(
       (
@@ -101,20 +99,12 @@ async function mount(runtime = false, external = false, reject = false) {
   await router.push("/");
   const app = createApp({
     render: () =>
-      runtime
-        ? h(FormRuntime, {
-            schema: f.schema,
-            formId: "quick-test",
-            initialValues: f.values,
-            onChange: (values: FormValues) => Object.assign(f.values, values),
-          })
-        : h(FormFields, {
-            fields: f.schema.fields,
-            schema: f.schema,
-            values: f.values,
-            external,
-            onChange: writes,
-          }),
+      h(FormFields, {
+        fields: f.schema.fields,
+        schema: f.schema,
+        values: f.values,
+        onChange: writes,
+      }),
   });
   app.use(pinia).use(router).mount(host);
   cleanup.push(() => app.unmount());
@@ -425,51 +415,9 @@ it("uses edit mode at 200 and never truncates historical rows", async () => {
   expect(values.lines as FormValues[]).toHaveLength(205);
   expect((values.lines as FormValues[])[204]!.item).toBe("旧204");
 });
-it("recomputes formula and frontend events for all changed rows through FormRuntime", async () => {
-  const { schema, field, values } = await mount(true);
-  field.children = [
-    createField("number", { id: "qty", label: "数量" }),
-    createField("number", { id: "price", label: "单价", defaultValue: 2 }),
-    createField("number", { id: "amount", label: "金额" }),
-    createField("number", {
-      id: "double",
-      label: "双倍",
-      defaultFormula: true,
-      expression: "{{qty}}*2",
-      editable: false,
-    }),
-  ];
-  schema.settings.frontendEvents = [
-    {
-      id: "multiply-rows",
-      name: "计算金额",
-      description: "",
-      enabled: true,
-      trigger: "field",
-      fieldIds: ["qty", "price"],
-      plugin: {
-        actionId: "multiply",
-        inputs: {
-          quantity: { source: "field", value: "qty" },
-          price: { source: "field", value: "price" },
-        },
-        outputs: [{ outputKey: "amount", fieldId: "amount" }],
-      },
-    } as FrontendEvent,
-  ];
-  await nextTick();
-  await button("快速填报");
-  await paste("第1行 数量", "3\t5\n4\t2");
-  await button("下一步");
-  await button("确定");
-  expect((values.lines as FormValues[]).slice(-2)).toEqual([
-    expect.objectContaining({ qty: 3, price: 5, amount: 15, double: 6 }),
-    expect.objectContaining({ qty: 4, price: 2, amount: 8, double: 8 }),
-  ]);
-});
 
 it("retains staged content and the original record when the parent rejects the final mutation", async () => {
-  const { values } = await mount(false, false, true);
+  const { values } = await mount(true);
   await button("快速填报");
   await paste("第1行 商品", "保留输入\t说明");
   await button("下一步");

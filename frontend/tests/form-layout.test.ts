@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createApp, h, nextTick, reactive } from "vue";
 import { createPinia, setActivePinia } from "pinia";
@@ -16,7 +17,7 @@ import {
   copy,
 } from "../src/domain/form";
 import { newForm } from "../src/domain/workspace";
-import { useWorkspaceStore } from "../src/stores/workspace";
+
 import FormFields from "../src/features/forms/components/FormFields.vue";
 import FormPreview from "../src/features/forms/components/FormPreview.vue";
 
@@ -341,24 +342,4 @@ it("switching actual preview devices retains entered values without remounting t
     document.querySelector<HTMLInputElement>('input[aria-label="申请人"]')!
       .value,
   ).toBe("王五");
-});
-it("publishing layout changes preserves field IDs, old record versions and immutable historical settings", async () => {
-  const store = useWorkspaceStore(),
-    created = (await store.createForm("oa", "布局版本", "form"))!,
-    form = store.openForm(created.id)!;
-  form.schema = fixture();
-  expect(await store.publishForm(form.id)).toBe(true);
-  const entry = (await store.submitEntry(form.id, { name: "李四" }))!;
-  const before = copy(form.versions[0]!);
-  form.schema.settings.layout = 2;
-  form.schema.settings.mobileLayout!.labelPosition = "left";
-  expect(await store.publishForm(form.id)).toBe(true);
-  expect(form.versions[0]).toEqual(before);
-  expect(form.versions[1]!.schema.settings.mobileLayout!.labelPosition).toBe(
-    "left",
-  );
-  expect(
-    store.data.entries.find((item) => item.id === entry.id)!.definitionVersion,
-  ).toBe(1);
-  expect(form.versions[1]!.schema.fields[0]!.id).toBe("name");
 });

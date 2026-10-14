@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { beforeEach, expect, it } from "vitest";
+// @vitest-environment jsdom
+import { expect, it } from "vitest";
 
-import { createPinia } from "pinia";
 import { composeFormSchema, separateFormSchema } from "@platform/contracts";
 import {
   copy,
@@ -12,14 +12,7 @@ import {
   validateValues,
   type FormField,
 } from "../src/domain/form";
-import { seedWorkspace } from "../src/domain/workspace";
-import { useWorkspaceStore } from "../src/stores/workspace";
-import { WORKSPACE_KEY } from "../src/repositories/workspaceRepository";
 
-beforeEach(() => {
-  localStorage.clear();
-  localStorage.setItem(WORKSPACE_KEY, JSON.stringify(seedWorkspace()));
-});
 function fixture() {
   const code = createField("text", {
     id: "code",
@@ -150,56 +143,4 @@ it("round-trips optional rules without changing old schemas and rejects malforme
   expect(() =>
     parseSchema({ ...schema, fields: [{ ...code, duplicateMessage: [] }] }),
   ).toThrow("重复校验提示配置无效");
-});
-
-it("pins drafts and record edits to their published rule while retry preserves one record identity", async () => {
-  const store = useWorkspaceStore(createPinia());
-  const form = (await store.createForm("oa", "合成独立重复校验", "form"))!;
-  store.openForm(form.id)!.schema = fixture().schema;
-  expect(await store.publishForm(form.id)).toBe(true);
-  const published = copy(
-    store.data.forms.find((item) => item.id === form.id)!.versions[0],
-  );
-  const first = (await store.submitEntry(form.id, { lines: [{ code: "A" }] }))!;
-  const draft = (await store.submitEntry(
-    form.id,
-    { lines: [{ code: "A" }, { code: "A" }] },
-    "draft",
-  ))!;
-  store.openForm(form.id)!.schema.fields[0]!.children[0]!.uniqueInRecord =
-    false;
-  expect(await store.publishForm(form.id)).toBe(true);
-  expect(
-    await store.submitEntry(
-      form.id,
-      { lines: [{ code: "A" }, { code: "A" }] },
-      "submitted",
-      draft.id,
-    ),
-  ).toBeUndefined();
-  expect(store.data.entries.find((item) => item.id === draft.id)?.status).toBe(
-    "draft",
-  );
-  const retry = (await store.submitEntry(
-    form.id,
-    { lines: [{ code: "A" }, { code: "B" }] },
-    "submitted",
-    draft.id,
-  ))!;
-  expect(retry).toMatchObject({
-    id: draft.id,
-    definitionVersion: 1,
-    status: "submitted",
-  });
-  expect(
-    await store.updateEntry(first.id, {
-      lines: [{ code: "A" }, { code: "A" }],
-    }),
-  ).toBe(false);
-  expect(
-    store.data.entries.filter((item) => item.formId === form.id),
-  ).toHaveLength(2);
-  expect(
-    store.data.forms.find((item) => item.id === form.id)!.versions[0],
-  ).toEqual(published);
 });

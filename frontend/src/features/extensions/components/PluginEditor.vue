@@ -6,39 +6,8 @@ import BindingEditor from "./BindingEditor.vue";
 import SampleEditor from "./SampleEditor.vue";
 import RunTrace from "./RunTrace.vue";
 import { useDraftDismiss } from "../../../composables/useDraftDismiss";
-import { checkedDraftValue } from "../../../domain/editorDrafts";
 import { copy, type FormSchema, type FormValues } from "../../../domain/form";
 
-function restorePluginDraft(value: unknown) {
-  const raw = checkedDraftValue(value);
-  if (!raw || typeof raw !== "object" || Array.isArray(raw))
-    throw Error("扩展配置暂存格式无效");
-  const obj = raw as Record<string, any>;
-  if (
-    typeof obj.actionId !== "string" ||
-    !obj.inputs ||
-    typeof obj.inputs !== "object" ||
-    Array.isArray(obj.inputs) ||
-    !Array.isArray(obj.outputs) ||
-    Object.values(obj.inputs).some(
-      (binding: any) =>
-        !binding ||
-        !["constant", "field", "template"].includes(binding.source) ||
-        typeof binding.value !== "string",
-    ) ||
-    obj.outputs.some(
-      (mapping: any) =>
-        !mapping ||
-        typeof mapping.outputKey !== "string" ||
-        typeof mapping.fieldId !== "string",
-    )
-  )
-    throw Error("插件参数或回填关系格式无效");
-  const parsed = parseInvocation(obj);
-  if (parsed.outputs.length !== obj.outputs.length)
-    throw Error("插件回填关系格式无效");
-  return parsed;
-}
 import {
   configurableFields,
   pluginRegistry,
@@ -53,7 +22,7 @@ import {
   type ExtensionRun,
   type ConfigIssue,
 } from "../../../domain/extensions";
-import { useWorkspaceStore } from "../../../stores/workspace";
+import { useRuntimeData } from "../../../composables/useRuntimeData";
 const props = defineProps<{
   open: boolean;
   modelValue?: PluginInvocation;
@@ -68,8 +37,8 @@ const emit = defineEmits<{ close: [] }>();
 const saving = ref(false),
   saveError = ref(""),
   pendingAction = ref("");
-const store = useWorkspaceStore(),
-  step = ref(0),
+const runtimeData = useRuntimeData();
+const step = ref(0),
   config = ref(newInvocation()),
   query = ref(""),
   errors = ref<ConfigIssue[]>([]),
@@ -163,20 +132,20 @@ function locate(issue: ConfigIssue) {
   errors.value = [issue];
   nextTick(() => document.getElementById(issue.target)?.focus());
 }
-async function trial() {
+// 试算只更新当前对话框，不写入业务记录或执行日志。
+function trial() {
   errors.value = [];
   const previous = result.value;
   result.value = runPlugin(
     config.value,
     props.schema,
     values.value,
-    store.data,
+    runtimeData.value,
     failure.value,
     props.nodeId,
   );
   if (previous?.status === "failed") result.value.retryOf = previous.id;
   testedFingerprint.value = fingerprint.value;
-  await store.recordExtensionRun(result.value, props.formId);
 }
 async function save() {
   if (saving.value) return;
@@ -191,9 +160,7 @@ async function save() {
     if (await props.saveConfig(copy(config.value))) {
       markSaved();
       emit("close");
-    } else
-      saveError.value =
-        store.storageError || "保存未完成，配置已保留，请重试。";
+    } else saveError.value = "保存未完成，配置已保留，请重试。";
   } catch {
     saveError.value = "保存失败，配置已保留，请重试。";
   } finally {
@@ -206,39 +173,16 @@ function map(outputKey: string, fieldId: string) {
   );
   if (fieldId) config.value.outputs.push({ outputKey, fieldId });
 }
-const { confirmDiscard, requestClose, discard, markSaved, draftKey } =
+const { confirmDiscard, requestClose, discard, markSaved } =
   useDraftDismiss(
     () => props.open,
     () => config.value,
     () => emit("close"),
-    {
-      key: () => `plugin:${props.formId}:${props.nodeId || "new"}`,
-      title: () => `插件动作 · ${definition.value?.name || "未选择动作"}`,
-      context: () => ({
-        schema: props.schema,
-        original: props.modelValue || null,
-        legacy: props.legacy || "",
-        member: store.data.organization.currentUserId,
-      }),
-      restore: (value) => {
-        config.value = restorePluginDraft(value);
-        step.value = config.value.actionId ? 1 : 0;
-        values.value = sampleValues(props.schema);
-        result.value = undefined;
-        testedFingerprint.value = "";
-        errors.value = [];
-        saveError.value = "";
-        pendingAction.value = "";
-        failure.value = false;
-        confirmDiscard.value = false;
-      },
-    },
   );
 </script>
 <template>
   <BaseDialog
     :open="open"
-    :draft-key="draftKey"
     :busy="saving"
     title="配置插件动作"
     width="1080px"

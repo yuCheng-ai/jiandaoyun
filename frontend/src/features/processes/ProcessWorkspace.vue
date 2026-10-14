@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import BaseDialog from "../../components/BaseDialog.vue";
 import type {
   DefinitionSummary,
   PageSummary,
   ProcessTemplateDraft,
+  ProcessSummary,
 } from "@platform/contracts";
 import { usePlatformSession } from "../../stores/platformSession";
 import { platformApi } from "../../repositories/platformApi";
@@ -20,15 +21,12 @@ const props = defineProps<{
 }>();
 const session = usePlatformSession(),
   templates = ref<ProcessTemplateDraft[]>([]),
-  processes = ref<
-    { id: string; title: string; status: string; templateVersion?: number }[]
-  >([]);
+  processes = ref<ProcessSummary[]>([]);
 const busy = ref(false),
   error = ref(""),
   editing = ref(false),
   selectedPage = ref(""),
-  starting = ref<ProcessTemplateDraft>(),
-  processId = ref("");
+  starting = ref<ProcessTemplateDraft>();
 const heading = computed(() =>
   props.scope
     ? {
@@ -41,6 +39,28 @@ const heading = computed(() =>
     : "流程",
 );
 const router = useRouter();
+const route = useRoute();
+const processId = computed(() =>
+  typeof route.query.process === "string" ? route.query.process : "",
+);
+function openProcess(id: string) {
+  void router.push({
+    path: route.path,
+    query: { ...route.query, process: id },
+  });
+}
+function closeProcess() {
+  const { process, ...query } = route.query;
+  const destination = { path: route.path, query };
+  // 从列表打开后关闭回到原列表；直接访问申请链接时也能留在工作台。
+  if (
+    router.options.history.state.back === router.resolve(destination).fullPath
+  ) {
+    router.back();
+  } else {
+    void router.replace(destination);
+  }
+}
 const availablePages = computed(() =>
   (props.pages || []).filter((page) => page.latestVersion && !page.archivedAt),
 );
@@ -64,6 +84,12 @@ function start(template: ProcessTemplateDraft) {
     return;
   }
   starting.value = template;
+}
+function templateStatus(template: ProcessTemplateDraft) {
+  if (!template.activeVersion) return "草稿";
+  const state = template.enabled ? "启用中" : "已停用";
+  const changes = template.hasDraftChanges ? " · 有未发布修改" : "";
+  return `${state} V${template.activeVersion}${changes}`;
 }
 async function load() {
   if (busy.value) return;
@@ -98,7 +124,7 @@ onMounted(load);
           {{
             scope === "delegation"
               ? "打开待办，选择有权限的同事接手；已委托的任务可继续查看进度。"
-              : "打开流程查看进度，按权限办理或查看抄送。"
+              : "打开申请，查看内容与处理进度。"
           }}
         </p>
       </div>
@@ -137,18 +163,14 @@ onMounted(load);
                 {{ template.spec.tasks.length }} 个
               </td>
               <td>
-                {{
-                  template.latestVersion
-                    ? `已发布 V${template.latestVersion}${template.hasDraftChanges ? " · 有未发布修改" : ""}`
-                    : "草稿"
-                }}
+                {{ templateStatus(template) }}
               </td>
               <td>
                 <div class="process-actions">
                   <button class="text-button" @click="configure(template)">
                     配置流程</button
                   ><button
-                    v-if="template.latestVersion && template.enabled"
+                    v-if="template.activeVersion && template.enabled"
                     class="text-button"
                     @click="start(template)"
                   >
@@ -172,6 +194,9 @@ onMounted(load);
         <thead>
           <tr>
             <th>流程名称</th>
+            <th>发起人</th>
+            <th>发起时间</th>
+            <th>当前办理人</th>
             <th>状态</th>
             <th>操作</th>
           </tr>
@@ -179,11 +204,19 @@ onMounted(load);
         <tbody>
           <tr v-for="process in processes" :key="process.id">
             <td>
-              {{ process.title
-              }}<small v-if="process.templateVersion" class="process-subtitle"
-                >V{{ process.templateVersion }}</small
-              >
+              <button class="text-button" @click="openProcess(process.id)">
+                {{ process.title }}
+              </button>
             </td>
+            <td>{{ process.createdByName || "—" }}</td>
+            <td>
+              {{
+                new Date(process.createdAt).toLocaleString("zh-CN", {
+                  hour12: false,
+                })
+              }}
+            </td>
+            <td>{{ process.currentAssigneeNames.join("、") || "—" }}</td>
             <td>
               <span
                 :class="[
@@ -196,8 +229,8 @@ onMounted(load);
               >
             </td>
             <td>
-              <button class="text-button" @click="processId = process.id">
-                查看任务
+              <button class="text-button" @click="openProcess(process.id)">
+                {{ scope === "todo" ? "办理" : "查看详情" }}
               </button>
             </td>
           </tr>
@@ -235,13 +268,12 @@ onMounted(load);
   <ProcessStartDialog
     v-if="starting"
     :template-id="starting.id"
-    :version="starting.latestVersion"
+    :version="starting.activeVersion"
     @close="starting = undefined"
     @started="
       (id) => {
         starting = undefined;
-        processId = id;
-        load();
+        openProcess(id);
       }
     "
   />
@@ -249,7 +281,7 @@ onMounted(load);
     v-if="processId"
     :key="processId"
     :process-id="processId"
-    @close="processId = ''"
+    @close="closeProcess"
     @updated="load"
   />
 </template>

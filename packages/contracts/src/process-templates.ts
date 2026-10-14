@@ -89,8 +89,16 @@ export interface ProcessTemplateDraft {
   enabled: boolean;
   revision: number;
   latestVersion: number;
+  activeVersion: number;
   spec: ProcessTemplateSpec;
   hasDraftChanges: boolean;
+}
+export interface ProcessTemplateVersionSummary {
+  version: number;
+  createdAt: string;
+  active: boolean;
+  processCount: number;
+  canDelete: boolean;
 }
 export interface PublishedProcessTemplate {
   id: string;

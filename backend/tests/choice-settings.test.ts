@@ -94,7 +94,13 @@ test("switching choice presentation keeps data identities, grants and pinned rec
   const model = (await h.request(`/data-objects/${def.id}/draft`)).model;
   const page = (await h.request(`/pages?definitionId=${def.id}`))[0];
   const editor = (await h.request("/users")).find((user: any) => user.username === "editor");
-  await h.request(`/definitions/${def.id}/grants`, "PUT", { userId: editor.id, read: true, create: true, edit: true, scope: "all", fields: { single: "edit", lines: "edit", multi: "read" } });
+  await h.permissionGroup(def.id, {
+    id: "member_" + editor.id,
+    subjects: [{ kind: "member", id: editor.id }],
+    scope: "all",
+    fields: { single: "edit", lines: "edit", multi: "read" },
+    actions: ["view", "create", "edit"],
+  });
   const record = await h.request(`/pages/${page.id}/records`, "POST", { pageVersion: 1, requestId: randomUUID(), values: { single: "a", lines: [{}] } }, "editor", 201);
   const before = (await h.request(`/pages/${page.id}/records/${record.record.id}`, "GET", undefined, "editor")).record;
   let draft = await h.request(`/pages/${page.id}/draft`);
@@ -213,37 +219,38 @@ test("page submissions enforce main and row counts atomically; partial drafts ke
     ["a"],
   );
   const editor = (await h.request("/users")).find((user: any) => user.username === "editor");
-  await h.request(`/definitions/${def.id}/grants`, "PUT", { userId: editor.id, read: true, create: true, edit: true, scope: "all", fields: { checks: "hidden", lines: "edit", rowchecks: "edit" } });
+  await h.permissionGroup(def.id, {
+    id: "member_" + editor.id,
+    subjects: [{ kind: "member", id: editor.id }],
+    scope: "all",
+    fields: { checks: "hidden", lines: "edit", rowchecks: "edit" },
+    actions: ["view", "create", "edit"],
+  });
   const masked = await h.request(path, "POST", { pageVersion: 1, requestId: randomUUID(), values: { lines: [{ rowchecks: ["a"] }] } }, "editor", 201);
   assert.equal(masked.record.state, "active"); assert.equal(Object.hasOwn(masked.record.values, "checks"), false);
 
 });
 
 test("malformed colors and count bounds are rejected; incomplete count drafts are repairable but cannot publish", async () => {
-  const total = (await h.request("/definitions")).length;
+  const def = await h.definition("可修正配置", schema(choice("checks")));
+  const page = (await h.request(`/pages?definitionId=${def.id}`))[0];
+  let draft = await h.request(`/pages/${page.id}/draft`);
   for (const extra of [
     { coloredOptions: "true" },
     { optionColors: { a: "url(javascript:bad)" } },
     { selectionLimit: { enabled: true, min: -1 } },
     { selectionLimit: { enabled: true, max: 1.5 } },
-    { selectionLimit: { enabled: true, min: 2, max: 1 } },
-    { selectionLimit: { enabled: true } },
     { choiceLayout: "grid" },
-  ])
-    await h.request(
-      "/definitions",
-      "POST",
-      {
-        title: "无效配置",
-        schema: schema(choice("checks", "checkbox", extra)),
-      },
-      "admin",
-      400,
-    );
-  assert.equal((await h.request("/definitions")).length, total);
-  const def = await h.definition("可修正配置", schema(choice("checks")));
-  const page = (await h.request(`/pages?definitionId=${def.id}`))[0];
-  let draft = await h.request(`/pages/${page.id}/draft`);
+  ]) {
+    const invalid = structuredClone(draft.schema);
+    Object.assign(invalid.controls[0].properties, extra);
+    await h.request(`/pages/${page.id}`, "PUT", {
+      ...draft,
+      schema: invalid,
+      expectedRevision: draft.revision,
+    }, "admin", 400);
+  }
+  assert.deepEqual(await h.request(`/pages/${page.id}/draft`), draft);
   draft.schema.controls[0].properties.selectionLimit = {
     enabled: true,
     min: 2,

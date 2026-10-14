@@ -1,3 +1,4 @@
+import { separateFormSchema, type FormSchema } from "@platform/contracts";
 import { before, after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -125,12 +126,32 @@ test('creation clamps parent and child fields within each group before an allowe
 test('a stored record filter cannot block only-add modeling, but must be valid again before view is restored', async () => {
   const g = group('register', { scope: 'custom', filters: [{ id: 'f', sourceFieldId: 'name', operator: 'equals', source: 'constant', value: '待处理' }] });
   const f = await setup(() => [g]);
+  // 先发布移除控件的页面，再验证历史权限筛选本身是否阻止模型变更。
+  const page = f.page;
+  const currentPage = await h.request(`/pages/${page.id}/draft`);
+  const nextPage = await h.request(`/pages/${page.id}`, "PUT", {
+    ...currentPage,
+    expectedRevision: currentPage.revision,
+    schema: {
+      ...currentPage.schema,
+      controls: currentPage.schema.controls.filter(
+        (control: any) => control.binding?.fieldId !== "name",
+      ),
+    },
+  });
+  await h.request(
+    `/pages/${page.id}/publish`,
+    "POST",
+    { expectedRevision: nextPage.revision },
+    "admin",
+    201,
+  );
   const current = await h.request(`/definitions/${f.definition.id}`);
   const next = { ...current.definition.schema, fields: current.definition.schema.fields.filter((field: any) => field.id !== 'name') };
-  const draft = await h.request(`/definitions/${f.definition.id}`, 'PUT', { expectedRevision: f.definition.revision, title: '仅登记业务', schema: next });
-  const preview = await h.request(`/definitions/${f.definition.id}/publish-preview`, 'POST', { expectedRevision: draft.revision }, 'admin', 201);
+  const draft = await h.request(`/data-objects/${f.definition.id}`, 'PUT', { expectedRevision: f.definition.revision, title: '仅登记业务', model: separateFormSchema(next as unknown as FormSchema).model });
+  const preview = await h.request(`/data-objects/${f.definition.id}/publish-preview`, 'POST', { expectedRevision: draft.revision }, 'admin', 201);
   assert.deepEqual(preview.blockers, []);
-  await h.request(`/definitions/${f.definition.id}/publish`, 'POST', { expectedRevision: draft.revision, impactToken: preview.token }, 'admin', 201);
+  await h.request(`/data-objects/${f.definition.id}/publish`, 'POST', { expectedRevision: draft.revision, impactToken: preview.token }, 'admin', 201);
   const cfg = await h.request(`/definitions/${f.definition.id}/permission-groups`, 'PUT', { expectedRevision: f.config.revision, mode: 'groups', allowMerged: false, groups: [g] });
   assert.equal(cfg.groups[0].filters[0].sourceFieldId, 'name');
   await h.request(`/definitions/${f.definition.id}/permission-groups`, 'PUT', { expectedRevision: cfg.revision, mode: 'groups', allowMerged: false, groups: [{ ...g, actions: ['create', 'view'] }] }, 'admin', 400);

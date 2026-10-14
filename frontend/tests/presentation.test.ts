@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createPinia, setActivePinia } from "pinia";
-import { createField, copy, emptySchema } from "../src/domain/form";
+import { describe, expect, it } from "vitest";
+
+import { createField, emptySchema } from "../src/domain/form";
 import {
   buildRecordBlocks,
   defaultDetailSettings,
@@ -8,29 +8,11 @@ import {
   parseDetailSettings,
   parsePrintTemplates,
   presentationFields,
-  presentationIssues,
   printTemplateIssues,
   printTemplateReferences,
 } from "../src/domain/presentation";
-import {
-  parseExtensions,
-  fieldExtensionImpacts,
-} from "../src/domain/extensions";
+import { parseExtensions } from "../src/domain/extensions";
 import { seedWorkspace, newForm } from "../src/domain/workspace";
-import {
-  parseWorkspace,
-  LocalWorkspaceRepository,
-} from "../src/repositories/workspaceRepository";
-import { useWorkspaceStore } from "../src/stores/workspace";
-
-beforeEach(() => {
-  const memory = new Map<string, string>();
-  vi.stubGlobal("localStorage", {
-    getItem: vi.fn((k) => memory.get(k) || null),
-    setItem: vi.fn((k, v) => memory.set(k, v)),
-  });
-  setActivePinia(createPinia());
-});
 function sample() {
   const schema = emptySchema();
   const tabs = createField("tabs", {
@@ -255,75 +237,6 @@ describe("record presentation and print templates", () => {
     ]);
     expect(blocks[0]!.rowFiles![1]![1]).toBeUndefined();
   });
-  it("persists layouts and template versions independently, preserving old record definitions", async () => {
-    const store = useWorkspaceStore(),
-      form = store.openForm("employee")!;
-    const template = newPrintTemplate(form.schema, form.title);
-    const detail = { ...defaultDetailSettings(), columns: 1 as const };
-    expect(await store.savePrintTemplate(form.id, template)).toBe(true);
-    expect(await store.saveDetailSettings(form.id, detail)).toBe(true);
-    expect(await store.publishForm(form.id)).toBe(true);
-    const first = copy(form.published!);
-    template.title = "新版抬头";
-    template.archived = true;
-    await store.savePrintTemplate(form.id, template);
-    await store.saveDetailSettings(form.id, { ...detail, columns: 2 });
-    await store.publishForm(form.id);
-    expect(form.versions[0]).toEqual(first);
-    expect(form.published!.extensions!.printTemplates![0]!.archived).toBe(true);
-    const restored = new LocalWorkspaceRepository()
-      .load()!
-      .forms.find((f) => f.id === form.id)!;
-    expect(restored.versions[0]!.extensions!.detail!.columns).toBe(1);
-    expect(restored.published!.extensions!.detail!.columns).toBe(2);
-    const duplicate = (await store.duplicateForm(form.id))!;
-    expect(duplicate.extensions!.printTemplates![0]!.id).not.toBe(template.id);
-    expect(duplicate.extensions!.printTemplates![0]!.fieldIds).toEqual(
-      template.fieldIds,
-    );
-  });
-  it("reports deleted field impacts and blocks publishing broken active templates", async () => {
-    const store = useWorkspaceStore(),
-      form = store.openForm("employee")!;
-    const template = newPrintTemplate(form.schema, form.title),
-      fieldId = form.schema.fields[0]!.id;
-    await store.savePrintTemplate(form.id, template);
-    await store.saveDetailSettings(form.id, {
-      ...defaultDetailSettings(),
-      fieldMode: "custom",
-      fieldIds: [fieldId],
-    });
-    expect(fieldExtensionImpacts(form, [fieldId])).toEqual(
-      expect.arrayContaining([
-        `打印模板「${template.name}」的展示字段`,
-        "数据详情的展示字段",
-      ]),
-    );
-    form.schema.fields.shift();
-    expect(await store.publishForm(form.id)).toBe(false);
-    expect(
-      presentationIssues(
-        { ...defaultDetailSettings(), fieldMode: "custom", fieldIds: [] },
-        form.schema,
-      ),
-    ).toHaveLength(1);
-  });
-  it("rolls back failed saves without mutating persisted forms or existing layouts", async () => {
-    const store = useWorkspaceStore(),
-      form = store.openForm("employee")!;
-    const template = newPrintTemplate(form.schema, form.title);
-    const before = copy(store.data.forms),
-      previous = copy(form.extensions);
-    vi.mocked(localStorage.setItem).mockImplementation(() => {
-      throw Error("quota");
-    });
-    expect(await store.savePrintTemplate(form.id, template)).toBe(false);
-    expect(
-      await store.saveDetailSettings(form.id, defaultDetailSettings()),
-    ).toBe(false);
-    expect(store.data.forms).toEqual(before);
-    expect(form.extensions).toEqual(previous);
-  });
   it("round-trips configured presentation without adding it to unconfigured old forms", () => {
     const data = seedWorkspace(),
       form = data.forms[0]!;
@@ -332,9 +245,10 @@ describe("record presentation and print templates", () => {
       printTemplates: [newPrintTemplate(form.schema, form.title)],
       detail: defaultDetailSettings(),
     };
-    const restored = parseWorkspace(JSON.stringify(data));
-    expect(restored.forms[0]!.extensions).toEqual(form.extensions);
-    expect(restored.forms[1]!.extensions).toEqual({ webhooks: [] });
+    expect(parseExtensions(form.extensions)).toEqual(form.extensions);
+    expect(parseExtensions(data.forms[1]!.extensions)).toEqual({
+      webhooks: [],
+    });
   });
   it("validates custom file names without counting stable ID lengths as customer text, or discarding inactive naming drafts", () => {
     const { schema } = sample();
@@ -366,44 +280,6 @@ describe("record presentation and print templates", () => {
     expect(printTemplateIssues(template, schema)).toEqual([]);
     expect(parsePrintTemplates([template])[0]!.fileName).toEqual(
       template.fileName,
-    );
-  });
-  it("saves and publishes file name bindings atomically while preserving old templates and detecting deleted name-only fields", async () => {
-    const store = useWorkspaceStore(),
-      form = store.openForm("employee")!;
-    const template = newPrintTemplate(form.schema, form.title);
-    delete template.fileName; // Previously published templates retain the old download convention.
-    expect(await store.savePrintTemplate(form.id, template)).toBe(true);
-    expect(await store.publishForm(form.id)).toBe(true);
-    const old = copy(form.published!);
-    const nameField = form.schema.fields.find(
-      (field) => field.type === "text",
-    )!;
-    template.fieldMode = "all";
-    template.fileName = { mode: "custom", value: `单据-{{${nameField.id}}}` };
-    expect(await store.savePrintTemplate(form.id, template)).toBe(true);
-    expect(await store.publishForm(form.id)).toBe(true);
-    expect(form.versions[0]).toEqual(old);
-    expect(old.extensions!.printTemplates![0]!.fileName).toBeUndefined();
-    const restored = new LocalWorkspaceRepository()
-      .load()!
-      .forms.find((f) => f.id === form.id)!;
-    expect(
-      restored.published!.extensions!.printTemplates![0]!.fileName,
-    ).toEqual(template.fileName);
-    const duplicate = (await store.duplicateForm(form.id))!;
-    expect(duplicate.extensions!.printTemplates![0]!.fileName).toEqual(
-      template.fileName,
-    );
-    expect(fieldExtensionImpacts(form, [nameField.id])).toContain(
-      `打印模板「${template.name}」的展示字段或文件名称`,
-    );
-    form.schema.fields = form.schema.fields.filter(
-      (field) => field.id !== nameField.id,
-    );
-    expect(await store.publishForm(form.id)).toBe(false);
-    expect(printTemplateIssues(template, form.schema).join("；")).toContain(
-      "文件名称引用的字段已失效",
     );
   });
 });

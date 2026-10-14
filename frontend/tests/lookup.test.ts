@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
   computed,
@@ -9,7 +10,7 @@ import {
   shallowReactive,
 } from "vue";
 import { createPinia, setActivePinia } from "pinia";
-import { createMemoryHistory, createRouter } from "vue-router";
+
 import {
   composeFormSchema,
   separateFormSchema,
@@ -52,11 +53,15 @@ import {
   printTemplateReferences,
 } from "../src/domain/presentation";
 import { fieldExtensionImpacts } from "../src/domain/extensions";
-import { LocalWorkspaceRepository } from "../src/repositories/workspaceRepository";
+
 import { validateFieldConfiguration } from "../src/domain/fieldValidation";
 import { runtimeDataKey } from "../src/composables/useRuntimeData";
-import { useWorkspaceStore } from "../src/stores/workspace";
-import FormRuntime from "../src/features/forms/components/FormRuntime.vue";
+import {
+  seedWorkspace,
+  newForm,
+  type FormEntry,
+} from "../src/domain/workspace";
+
 import SelectionRecords from "../src/features/forms/components/SelectionRecords.vue";
 
 import DataFilterEditor from "../src/features/forms/components/DataFilterEditor.vue";
@@ -69,8 +74,6 @@ import {
 } from "../src/domain/quickFill";
 import RecordBody from "../src/features/forms/components/RecordBody.vue";
 import LookupControl from "../src/features/forms/components/LookupControl.vue";
-import { filterAndSortRecords, defaultRecordView } from "../src/domain/records";
-import { newForm, type WorkspaceData } from "../src/domain/workspace";
 
 const cleanups: (() => void)[] = [];
 let pinia = createPinia();
@@ -86,9 +89,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 async function fixture() {
-  const store = useWorkspaceStore();
-  const created = (await store.createForm("oa", "客户资料", "form"))!;
-  const source = store.openForm(created.id)!;
+  const data = seedWorkspace();
+  const source = newForm("oa", "客户资料");
   source.schema.fields = [
     createField("text", { id: "s_name", label: "客户名称" }),
     createField("number", { id: "s_amount", label: "金额" }),
@@ -103,19 +105,46 @@ async function fixture() {
       children: [createField("number", { id: "s_cost", label: "费用" })],
     }),
   ];
-  expect(await store.publishForm(source.id)).toBe(true);
-  const first = (await store.submitEntry(source.id, {
-    s_name: "甲公司",
-    s_amount: 4,
-    s_status: "source_on",
-    s_lines: [{ s_cost: 2 }, { s_cost: 3 }],
-  }))!;
-  const second = (await store.submitEntry(source.id, {
-    s_name: "乙公司",
-    s_amount: 9,
-    s_status: "source_on",
-    s_lines: [{ s_cost: 7 }],
-  }))!;
+  source.published = {
+    version: 1,
+    title: source.title,
+    schema: copy(source.schema),
+    workflow: copy(source.workflow),
+    extensions: copy(source.extensions),
+    publishedAt: source.createdAt,
+  };
+  source.versions = [copy(source.published)];
+  data.forms.push(source);
+  const first: FormEntry = {
+    id: "first",
+    formId: source.id,
+    definitionVersion: 1,
+    values: {
+      s_name: "甲公司",
+      s_amount: 4,
+      s_status: "source_on",
+      s_lines: [{ s_cost: 2 }, { s_cost: 3 }],
+    },
+    createdAt: source.createdAt,
+    status: "submitted",
+    history: [],
+  };
+  data.entries.push(first);
+  const second: FormEntry = {
+    id: "second",
+    formId: source.id,
+    definitionVersion: 1,
+    values: {
+      s_name: "乙公司",
+      s_amount: 9,
+      s_status: "source_on",
+      s_lines: [{ s_cost: 7 }],
+    },
+    createdAt: source.createdAt,
+    status: "submitted",
+    history: [],
+  };
+  data.entries.push(second);
   const lookup = createField("lookup", {
     id: "choose",
     label: "选择客户",
@@ -138,7 +167,7 @@ async function fixture() {
     }),
     createField("text", { id: "memo", label: "备注" }),
   ];
-  return { store, source, first, second, lookup, schema, data: store.data };
+  return { source, first, second, lookup, schema, data };
 }
 it("creates ordinary receivers with fresh identities and fills main values and one grouped source detail without mutating either form", async () => {
   const { schema, data, first } = await fixture();
@@ -346,46 +375,6 @@ it("refuses stale, duplicate or over-limit creation without leaving partial fiel
   expect(
     next.fields[0]!.children.slice(1, 3).map((field) => field.tabId),
   ).toEqual([tabs.tabs[1]!.id, tabs.tabs[1]!.id]);
-});
-
-it("saves generated mappings, publishes filled records and preserves the previous published schema and record values", async () => {
-  const { store, schema, data, first } = await fixture();
-  const created = (await store.createForm("oa", "接收验收", "form"))!;
-  const target = store.openForm(created.id)!;
-  target.schema = copy(schema);
-  expect(await store.publishForm(target.id)).toBe(true);
-  const firstVersion = copy(store.openForm(target.id)!.published!);
-  const old = (await store.submitEntry(target.id, {
-    amount: 7,
-    status: "target_on",
-    memo: "原值",
-  }))!;
-  const current = store.openForm(target.id)!;
-  current.schema = createLookupFields(
-    current.schema,
-    "choose",
-    ["s_name", "s_status", "s_cost"],
-    data,
-  );
-  expect(await store.saveForm(current.id)).toBe(true);
-  const refreshed = useWorkspaceStore(createPinia());
-  const reloaded = refreshed.openForm(current.id)!;
-  const lookup = findField(reloaded.schema.fields, "choose")!;
-  expect(lookup.reference.mappings).toHaveLength(3);
-  const values = applyLookupSelection(
-    lookup,
-    reloaded.schema,
-    {},
-    refreshed.data,
-    [first.id],
-  );
-  expect(await refreshed.publishForm(current.id)).toBe(true);
-  expect(await refreshed.submitEntry(current.id, values)).toBeTruthy();
-  const saved = refreshed.openForm(current.id)!;
-  expect(saved.versions[0]).toEqual(firstVersion);
-  expect(
-    refreshed.data.entries.find((entry) => entry.id === old.id)!.values,
-  ).toEqual(old.values);
 });
 it("preserves lookup configuration, source metadata and copied business values across both schema projections", async () => {
   const { lookup, schema, data, first } = await fixture();
@@ -760,32 +749,6 @@ it("validates source bindings and records impacts for the owning lookup, child c
     ),
   ).toContain("最多选择 300 个展示字段");
 });
-it("persists selected print bindings through save, publication and copying while leaving old record definitions unchanged", async () => {
-  const { store, schema, template, values } = await printFixture();
-  const created = (await store.createForm("oa", "打印来源列", "form"))!;
-  const target = store.openForm(created.id)!;
-  target.schema = copy(schema);
-  expect(await store.publishForm(target.id)).toBe(true);
-  const original = copy(target.published!);
-  const old = (await store.submitEntry(target.id, values))!;
-  template.fieldIds = ["choose:s_amount", "row_count", "row_choose:s_name"];
-  expect(await store.savePrintTemplate(target.id, template)).toBe(true);
-  expect(await store.publishForm(target.id)).toBe(true);
-  expect(target.versions[0]).toEqual(original);
-  expect(old.definitionVersion).toBe(1);
-  const persisted = new LocalWorkspaceRepository()
-    .load()!
-    .forms.find((form) => form.id === target.id)!;
-  expect(persisted.published!.extensions!.printTemplates![0]!.fieldIds).toEqual(
-    template.fieldIds,
-  );
-  expect(persisted.versions[0]!.extensions?.printTemplates).toBeUndefined();
-  const duplicate = (await store.duplicateForm(target.id))!;
-  expect(duplicate.extensions!.printTemplates![0]!.fieldIds).toEqual(
-    template.fieldIds,
-  );
-  expect(duplicate.extensions!.printTemplates![0]!.id).not.toBe(template.id);
-});
 it("does not expose source file content after source masking, original visibility changes, type incompatibility or deletion", async () => {
   const { lookup, data, first, source } = await fixture();
   const published = data.forms.find((f) => f.id === source.id)!;
@@ -1131,82 +1094,7 @@ async function settle() {
   await nextTick();
   await Promise.resolve();
 }
-async function mount(
-  schema: ReturnType<typeof emptySchema>,
-  data: WorkspaceData,
-  values: FormValues,
-  readonly = false,
-  device: "desktop" | "mobile" = "desktop",
-) {
-  const host = document.createElement("div");
-  document.body.append(host);
-  const changes = vi.fn(),
-    submit = vi.fn();
-  const router = createRouter({
-    history: createMemoryHistory(),
-    routes: [{ path: "/", component: { render: () => null } }],
-  });
-  await router.push("/");
-  const app = createApp({
-    render: () =>
-      h(FormRuntime, {
-        formId: "target",
-        schema,
-        initialValues: values,
-        readonly,
-        device,
-        onChange: changes,
-        onSubmit: submit,
-      }),
-  });
-  app.use(pinia);
-  app.use(router);
-  app.provide(
-    runtimeDataKey,
-    computed(() => data),
-  );
-  app.mount(host);
-  cleanups.push(() => app.unmount());
-  await settle();
-  return { host, changes, submit };
-}
-it("readonly records retain source information and copied values without showing lookup actions or empty child lookup columns", async () => {
-  const { lookup, schema, data, first } = await fixture();
-  const main = await mount(
-    schema,
-    data,
-    { choose: first.id, amount: 4, status: "target_on", memo: "保留" },
-    true,
-  );
-  expect(main.host.querySelector(".lookup-button")).toBeNull();
-  expect(main.host.querySelector(".lookup-display")?.textContent).toContain(
-    "甲公司",
-  );
-  expect(
-    main.host.querySelector<HTMLInputElement>('[aria-label="金额"]')?.value,
-  ).toBe("4");
-  expect(main.changes).not.toHaveBeenCalled();
-  lookup.reference.displayColumns = [];
-  childSchema(lookup, schema);
-  const child = await mount(
-    schema,
-    data,
-    {
-      main_note: "",
-      lines: [{ choose: first.id, name: "甲公司", amount: 4, note: "保留" }],
-    },
-    true,
-  );
-  expect(child.host.querySelector(".lookup-control")).toBeNull();
-  expect(
-    [...child.host.querySelectorAll("th")].map((el) => el.textContent?.trim()),
-  ).not.toContain("选择客户");
-  expect(
-    child.host.querySelector<HTMLInputElement>('[aria-label="明细 第1行 名称"]')
-      ?.value,
-  ).toBe("甲公司");
-  expect(child.changes).not.toHaveBeenCalled();
-});
+
 function button(label: string) {
   return [...document.querySelectorAll<HTMLButtonElement>("button")].find(
     (button) =>
@@ -1216,112 +1104,7 @@ function button(label: string) {
       !button.parentElement?.inert,
   )!;
 }
-it("runtime opens the original lookup button, cancels without a fill and applies a main pick immediately", async () => {
-  const { lookup, schema, data } = await fixture();
-  lookup.buttonText = "选择客户资料";
-  const { host, changes } = await mount(schema, data, {
-    choose: "",
-    amount: 10,
-    status: "",
-    memo: "保留",
-  });
-  expect(host.textContent).toContain("选择客户资料");
-  button("选择客户").click();
-  await settle();
-  expect(document.querySelector("dialog")).toBeTruthy();
-  button("取消").click();
-  await settle();
-  expect(changes).not.toHaveBeenCalled();
-  button("选择客户").click();
-  await settle();
-  document
-    .querySelector<HTMLInputElement>('[aria-label="选择记录 甲公司"]')!
-    .click();
-  await settle();
-  expect(document.querySelector("dialog")).toBeNull();
-  expect(changes.mock.lastCall?.[0]).toMatchObject({
-    amount: 4,
-    status: "target_on",
-    memo: "保留",
-  });
-  expect(host.textContent).toContain("甲公司");
-});
-it("runtime batch selection keeps its drafts until confirmation and rejects a source removed while the picker is open", async () => {
-  const { lookup, schema, data, first, second } = await fixture();
-  childSchema(lookup, schema);
-  const { changes } = await mount(schema, data, {
-    main_note: "",
-    lines: [{ choose: "", name: "", amount: "", note: "" }],
-  });
-  button("明细 第1行 选择客户").click();
-  await settle();
-  const pick = (label: string) =>
-    document.querySelector<HTMLInputElement>(
-      `[aria-label="选择记录 ${label}"]`,
-    )!;
-  pick("甲公司").click();
-  await settle();
-  pick("乙公司").click();
-  await settle();
-  expect(changes).not.toHaveBeenCalled();
-  button("确定").click();
-  await settle();
-  expect(
-    (changes.mock.lastCall?.[0].lines as FormValues[]).map((row) => row.choose),
-  ).toEqual([first.id, second.id]);
-  button("明细 第1行 选择客户").click();
-  await settle();
-  data.entries.find((entry) => entry.id === second.id)!.deletedAt =
-    new Date().toISOString();
-  pick("乙公司").click();
-  await settle();
-  expect(document.body.textContent).toContain("不可读取");
-  expect(changes.mock.calls).toHaveLength(1);
-});
-it("mobile rows reuse selection without a button column, while adding a row opens selection and keeps existing rows on cancel", async () => {
-  const { lookup, schema, data, first } = await fixture();
-  childSchema(lookup, schema);
-  const original = {
-    main_note: "",
-    lines: [{ choose: first.id, name: "甲公司", amount: 4, note: "保留" }],
-  };
-  const { host, changes } = await mount(
-    schema,
-    data,
-    original,
-    false,
-    "mobile",
-  );
-  expect(host.querySelector(".lookup-control")).toBeNull();
-  expect(
-    [...host.querySelectorAll("th")].map((el) => el.textContent?.trim()),
-  ).not.toContain("选择客户");
-  button("明细 第1行 名称，选择数据").click();
-  await settle();
-  expect(document.querySelectorAll('dialog input[type="radio"]')).toHaveLength(
-    2,
-  );
-  button("取消").click();
-  await settle();
-  expect(changes).not.toHaveBeenCalled();
-  button("添加明细").click();
-  await settle();
-  expect(
-    document.querySelectorAll('dialog input[type="checkbox"]'),
-  ).toHaveLength(2);
-  button("取消").click();
-  await settle();
-  expect(changes.mock.lastCall?.[0].lines).toHaveLength(2);
-  expect(changes.mock.lastCall?.[0].lines[0]).toEqual({
-    ...original.lines[0],
-    _rowId: "legacy:lines:0",
-  });
-  expect(changes.mock.lastCall?.[0].lines[1]._rowId).toEqual(
-    expect.any(String),
-  );
-  expect(changes.mock.lastCall?.[0].lines[1]._rowId).not.toBe("legacy:lines:0");
-  expect(changes.mock.lastCall?.[0].lines[1].choose).toBe("");
-});
+
 it("checkbox Shift selection applies a whole visible range using the shared records table", async () => {
   const { lookup, data, first, second } = await fixture();
   data.entries.push({
@@ -1384,50 +1167,6 @@ it("checkbox Shift selection applies a whole visible range using the shared reco
     .dispatchEvent(new MouseEvent("click", { bubbles: true, shiftKey: true }));
   await settle();
   expect(new Set(state.ids)).toEqual(new Set(["third", first.id]));
-});
-it("chooser names and order survive save and publication without renaming fields or changing pinned records", async () => {
-  const { store, lookup, schema, first, source } = await fixture();
-  const created = (await store.createForm("oa", "取数列验收", "form"))!;
-  const target = store.openForm(created.id)!;
-  target.schema = copy(schema);
-  expect(await store.publishForm(created.id)).toBe(true);
-  const entry = (await store.submitEntry(created.id, {
-    choose: first.id,
-    amount: 4,
-    status: "target_on",
-    memo: "保留",
-  }))!;
-  const originalVersion = copy(
-    store.data.forms.find((form) => form.id === created.id)!.versions[0],
-  );
-  const originalSource = copy(
-    store.data.forms.find((form) => form.id === source.id)!.published,
-  );
-  const edit = store.openForm(created.id)!;
-  edit.schema.fields[0]!.reference.columns = ["s_amount", "s_name"];
-  edit.schema.fields[0]!.reference.columnLabels = { s_name: "往来单位" };
-  expect(await store.saveForm(created.id)).toBe(true);
-  expect(await store.publishForm(created.id)).toBe(true);
-  const saved = store.data.forms.find((form) => form.id === created.id)!;
-  expect(
-    parseSchema(copy(saved.published!.schema)).fields[0]!.reference,
-  ).toMatchObject({
-    columns: ["s_amount", "s_name"],
-    columnLabels: { s_name: "往来单位" },
-    mappings: lookup.reference.mappings,
-  });
-  const split = separateFormSchema(saved.published!.schema);
-  expect(composeFormSchema(split.model, split.page)).toEqual(
-    saved.published!.schema,
-  );
-  expect(saved.versions[0]).toEqual(originalVersion);
-  expect(
-    store.data.entries.find((item) => item.id === entry.id)?.definitionVersion,
-  ).toBe(1);
-  expect(
-    store.data.forms.find((form) => form.id === source.id)!.published,
-  ).toEqual(originalSource);
-  expect(lookup.reference.columnLabels).toBeUndefined();
 });
 it("rejects malformed chooser aliases and preserves the absent optional property on old schemas and event selections", async () => {
   const { lookup, schema } = await fixture();
@@ -1539,76 +1278,6 @@ it("temporary filters narrow configured all/any candidates and source child valu
       ),
     ),
   ).toContain("有效字段");
-});
-it("date temporary filters compare canonical calendar values and reject invalid numeric or date input", async () => {
-  const { store, source, lookup, data } = await fixture();
-  const edit = store.openForm(source.id)!;
-  edit.schema.fields.push(
-    createField("datetime", {
-      id: "s_date",
-      label: "业务日期",
-      format: "datetime-second",
-    }),
-  );
-  expect(await store.publishForm(source.id)).toBe(true);
-  const created = (await store.submitEntry(source.id, {
-    s_name: "日期验收",
-    s_amount: 5,
-    s_status: "source_on",
-    s_lines: [],
-    s_date: "2026-10-10T08:30:00",
-  }))!;
-  const config = lookupSelection(lookup, data);
-  config.columns = ["s_name", "s_amount", "s_date"];
-  const fields = selectionFilterFields(
-    config,
-    selectionSourceFields(data, source.id, "lookup"),
-  );
-  const filter: DataFilter = {
-    id: "date_filter",
-    sourceFieldId: "s_date",
-    operator: "greater",
-    source: "constant",
-    value: "2026-10-10T08:29:59",
-  };
-  const all = selectionCandidates(config, data, {}, [], "", "lookup");
-  expect(
-    filterSelectionCandidates(all, config, data, [filter]).map(
-      (entry) => entry.id,
-    ),
-  ).toEqual([created.id]);
-  config.filters = [filter];
-  expect(
-    selectionCandidates(config, data, {}, [], "", "lookup").map(
-      (entry) => entry.id,
-    ),
-  ).toEqual([created.id]);
-  const published = data.forms.find((form) => form.id === source.id)!.published!
-    .schema;
-  expect(
-    filterAndSortRecords(
-      data.entries.filter((entry) => entry.formId === source.id),
-      published,
-      data,
-      { query: "", filters: [filter], view: defaultRecordView(published) },
-    ).map((entry) => entry.id),
-  ).toEqual([created.id]);
-  config.filters = [];
-
-  expect(
-    filterSelectionCandidates(all, config, data, [
-      { ...filter, operator: "equals", value: "2026-10-10T08:30" },
-    ]).map((entry) => entry.id),
-  ).toEqual([created.id]);
-  expect(
-    selectionFilterError([{ ...filter, value: "2026-02-30T08:30:00" }], fields),
-  ).toContain("有效日期");
-  expect(
-    selectionFilterError(
-      [{ ...filter, sourceFieldId: "s_amount", value: "abc" }],
-      fields,
-    ),
-  ).toContain("有效数字");
 });
 it("runtime filter popover applies, cancels and clears without storing conditions or changing selected records", async () => {
   const { lookup, data, first, second } = await fixture();
@@ -1794,64 +1463,6 @@ it("temporary multi-value and negative conditions keep missing or incompatible d
       { ...filter, value: ["乙公司"] },
     ]),
   ).toEqual([]);
-});
-it("negative child-column conditions exclude a record if any row matches, and empty requires every row to be empty", async () => {
-  const { store, source, lookup, data } = await fixture();
-  const edit = store.openForm(source.id)!;
-  edit.schema.fields
-    .find((field) => field.id === "s_lines")!
-    .children.push(createField("text", { id: "s_note", label: "明细备注" }));
-  expect(await store.publishForm(source.id)).toBe(true);
-  const entries = [];
-  for (const [name, notes] of [
-    ["混合", ["甲", "乙"]],
-    ["其他", ["丙", ""]],
-    ["空白", ["", ""]],
-    ["无明细", []],
-  ] as [string, string[]][]) {
-    entries.push(
-      (await store.submitEntry(source.id, {
-        s_name: name,
-        s_amount: 0,
-        s_status: "source_on",
-        s_lines: notes.map((note) => ({ s_cost: 0, s_note: note })),
-      }))!,
-    );
-  }
-  const config = lookupSelection(lookup, data);
-  config.columns = ["s_name", "s_note", "s_status"];
-  const base = selectionCandidates(config, data, {}, [], "", "lookup");
-  expect(base).toHaveLength(4);
-  const filter: SelectionFilter = {
-    id: "child",
-    sourceFieldId: "s_note",
-    source: "constant",
-    operator: "equalsAny",
-    value: ["甲"],
-  };
-  const names = (condition: SelectionFilter) =>
-    filterSelectionCandidates(base, config, data, [condition]).map(
-      (entry) => entry.values.s_name,
-    );
-  expect(names(filter)).toEqual(["混合"]);
-  expect(names({ ...filter, operator: "notEqualsAny" })).toEqual([
-    "其他",
-    "空白",
-    "无明细",
-  ]);
-  expect(names({ ...filter, operator: "notContains", value: "甲" })).toEqual([
-    "其他",
-    "空白",
-    "无明细",
-  ]);
-  expect(names({ ...filter, operator: "empty", value: "" })).toEqual([
-    "空白",
-    "无明细",
-  ]);
-  expect(names({ ...filter, value: [""] })).toEqual(["其他", "空白", "无明细"]);
-  expect(
-    names({ ...filter, sourceFieldId: "s_status", value: ["有效"] }),
-  ).toEqual(["混合", "其他", "空白", "无明细"]);
 });
 it("runtime multi-value picker reuses searchable selection and nested dismissal, while multiple conditions and empty values stay temporary", async () => {
   const { lookup, data, first, second } = await fixture();

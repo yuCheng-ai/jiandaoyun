@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
+// @vitest-environment jsdom
 import { afterEach, expect, it } from "vitest";
 import { createApp, h, nextTick, reactive } from "vue";
 import { createPinia } from "pinia";
-import { useWorkspaceStore } from "../src/stores/workspace";
-import { LocalWorkspaceRepository } from "../src/repositories/workspaceRepository";
+
 import {
   formatNumberValue,
   parseNumberInput,
@@ -216,50 +216,6 @@ it("updates a focused numeric control when a parent rule replaces its value with
   await settle();
   expect(f.input.value).toBe("7.89");
   expect(f.state.value).toBe(7.89123);
-});
-
-it("saves unfinished bounds without dropping input, blocks publication, and preserves published definitions until correction", async () => {
-  const pinia = createPinia(),
-    store = useWorkspaceStore(pinia);
-  const form = (await store.createForm("oa", "数字设置", "form"))!;
-  const draft = store.openForm(form.id)!;
-  draft.schema.fields = [
-    createField("number", {
-      id: "amount",
-      label: "金额",
-      limitRange: true,
-      min: 0,
-      max: 100,
-    }),
-  ];
-  expect(await store.publishForm(form.id)).toBe(true);
-  const committed = copy(
-    new LocalWorkspaceRepository().load()!.forms.find((f) => f.id === form.id)!,
-  );
-  const field = draft.schema.fields[0]!;
-  field.max = "9007199254740992";
-  expect(validateFieldConfiguration(draft.schema, store.data)).toContain(
-    "「金额」请填写有效的最大值",
-  );
-  expect(await store.saveForm(form.id)).toBe(true);
-  expect(await store.publishForm(form.id)).toBe(false);
-  const unfinished = new LocalWorkspaceRepository()
-    .load()!
-    .forms.find((f) => f.id === form.id)!;
-  expect(unfinished.schema.fields[0]!.max).toBe("9007199254740992");
-  expect(unfinished.published).toEqual(committed.published);
-  expect(unfinished.versions).toEqual(committed.versions);
-  expect(
-    parseSchema(JSON.parse(JSON.stringify(draft.schema))).fields[0]!.max,
-  ).toBe("9007199254740992");
-  field.max = 123.4567;
-  expect(await store.saveForm(form.id)).toBe(true);
-  const saved = new LocalWorkspaceRepository()
-    .load()!
-    .forms.find((f) => f.id === form.id)!;
-  expect(saved.schema.fields[0]!.max).toBe(123.4567);
-  expect(saved.published).toEqual(committed.published);
-  expect(saved.versions).toEqual(committed.versions);
 });
 
 it("validates custom numeric defaults against the effective range and old precision without constraining dormant formula values", () => {

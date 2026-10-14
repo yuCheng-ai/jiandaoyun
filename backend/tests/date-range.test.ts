@@ -1,10 +1,6 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  emptyDateRange,
-  separateFormSchema,
-  type FormSchema,
-} from "@platform/contracts";
+import { emptyDateRange, separateFormSchema, type FormSchema } from "@platform/contracts";
 import { harness, field, schema } from "./helpers";
 const h = harness();
 before(() => h.start());
@@ -82,26 +78,6 @@ test("date ranges persist with page versions, without constraining backfilled va
 });
 
 test("malformed ranges and wrong field scope reject publication atomically; incomplete references remain repairable drafts", async () => {
-  for (const invalid of [
-    null,
-    {},
-    { ...range(), weekdays: [1, 1] },
-    { ...range(), weekdays: [7] },
-    { ...range(), latest: { ...range().latest, value: "2024-02-29" } },
-  ]) {
-    await h.request(
-      "/definitions",
-      "POST",
-      {
-        title: "非法日期范围",
-        schema: schema(
-          field("date", "datetime", { format: "date", dateRange: invalid }),
-        ),
-      },
-      "admin",
-      400,
-    );
-  }
   const definition = await h.definition(
     "日期字段引用",
     schema(

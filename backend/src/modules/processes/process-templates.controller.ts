@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, Query, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UseGuards } from "@nestjs/common";
 import { AuthGuard, AuthenticatedRequest } from "../../core/auth/auth.service";
 import { ProcessTemplateService } from "./process-templates.service";
 
@@ -37,6 +37,21 @@ export class ProcessTemplateController {
     return this.templates.setEnabled(r.actor, id, b);
   }
 
+  @Get(":id/versions")
+  versions(@Req() r: AuthenticatedRequest, @Param("id") id: string) {
+    return this.templates.versions(r.actor, id);
+  }
+
+  @Delete(":id/versions/:version")
+  removeVersion(
+    @Req() r: AuthenticatedRequest,
+    @Param("id") id: string,
+    @Param("version") version: string,
+    @Body() b: unknown,
+  ) {
+    return this.templates.removeVersion(r.actor, id, Number(version), b);
+  }
+
   /** 获取已发布的任务模板指定版本详情 */
   @Get(":id/versions/:version")
   published(
@@ -44,7 +59,7 @@ export class ProcessTemplateController {
     @Param("id") id: string,
     @Param("version") version: string,
   ) {
-    return this.templates.published(r.actor, id, Number(version));
+    return this.templates.readVersion(r.actor, id, Number(version));
   }
 
   /** 查询与模板业务数据绑定兼容的可选业务记录列表 */

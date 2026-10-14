@@ -1,8 +1,7 @@
-import type { WebhookCredential } from "./webhookSecurity";
 import type { RecordViewSettings } from "./records";
 import { defaultMobileLayout } from "@platform/contracts";
 import { seedOrganization, type Organization } from "./organization";
-import type { FormExtensions, ExtensionRun } from "./extensions";
+import type { FormExtensions, ExtensionRun, WebhookCredential } from "./extensions";
 import {
   createField,
   countCalculatedFields,

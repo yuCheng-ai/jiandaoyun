@@ -1,3 +1,4 @@
+import { separateFormSchema, type FormSchema } from "@platform/contracts";
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -8,8 +9,27 @@ const sourceSchema = schema(field("name"), field("region"), field("quoted", "num
 const targetSchema = schema(field("name"), field("region"), field("price", "number"), field("secret"));
 const sourceFields = { name: "edit", region: "edit", quoted: "edit", lines: "edit", item: "edit", quantity: "edit", cost: "edit" };
 const targetFields = { name: "read", region: "read", price: "read", secret: "hidden" };
-const sourceGrant = (extra: any = {}) => ({ userId: users.find(u => u.username === "editor").id, read: true, create: true, edit: true, remove: true, scope: "all", fields: sourceFields, relations: { [relation.id]: "edit" }, ...extra });
-const targetGrant = (extra: any = {}) => ({ userId: users.find(u => u.username === "editor").id, read: true, create: false, edit: false, scope: "all", fields: targetFields, ...extra });
+const sourceGrant = (extra: any = {}) => ({
+  id: "member_" + users.find((u) => u.username === "editor").id,
+  subjects: [
+    { kind: "member", id: users.find((u) => u.username === "editor").id },
+  ],
+  scope: "all",
+  fields: sourceFields,
+  relations: { [relation.id]: "edit" },
+  actions: ["view", "create", "edit", "delete"],
+  ...extra,
+});
+const targetGrant = (extra: any = {}) => ({
+  id: "member_" + users.find((u) => u.username === "editor").id,
+  subjects: [
+    { kind: "member", id: users.find((u) => u.username === "editor").id },
+  ],
+  scope: "all",
+  fields: targetFields,
+  actions: ["view"],
+  ...extra,
+});
 const relationSpec = (extra: any = {}) => ({ title: "业务资料", sourceDefinitionId: source.id, targetDefinitionId: target.id, cardinality: "one", inverseCardinality: "many", labelFieldId: "name", columns: ["price", "secret"], filters: [{ id: "regionFilter", sourceFieldId: "region", operator: "equals", source: "field", value: "region" }], mappings: [{ fromTargetFieldId: "price", toSourceFieldId: "quoted" }], valueMode: "snapshot", ...extra });
 const linkBody = (record = sourceRecord, selected = targetRecord, extra: any = {}) => ({ requestId: randomUUID(), targetRecordId: selected.record.id, expectedCells: record.record.cellRevisions, ...extra });
 const linkPath = (record = sourceRecord, rel = relation) => `/records/${record.record.id}/relations/${rel.id}/links`;
@@ -28,25 +48,31 @@ test("relation configuration validates types, identities, mappings and publicati
   relation = await h.relation(relationSpec());
   await api(`/relations/${relation.id}/publish`, "POST", { expectedRevision: 1 }, "admin", 409);
   await assert.rejects(h.db.query("UPDATE relation_versions SET spec='{}' WHERE relation_id=$1", [relation.id]), /immutable/);
-  await h.grant(source.id, sourceGrant());
-  await h.grant(target.id, targetGrant());
+  await h.permissionGroup(source.id, sourceGrant());
+  await h.permissionGroup(target.id, targetGrant());
 });
 test("candidate filtering runs on persisted values and masks inaccessible columns", async () => {
   const page = await api(`/records/${sourceRecord.record.id}/relations/${relation.id}/candidates`, "GET", undefined, "editor");
   assert.equal(page.items.length, 1); assert.equal(page.items[0].recordId, targetRecord.record.id); assert.equal(page.items[0].values.secret, undefined);
   assert.ok(!JSON.stringify(page).includes("秘密"));
-  await h.grant(source.id, sourceGrant({ relations: {} }));
+  await h.permissionGroup(source.id, sourceGrant({ relations: {} }));
   await api(`/records/${sourceRecord.record.id}/relations/${relation.id}/candidates`, "GET", undefined, "editor", 403);
-  await h.grant(source.id, sourceGrant());
-  await h.grant(target.id, targetGrant({ fields: { ...targetFields, region: "hidden" } }));
+  await h.permissionGroup(source.id, sourceGrant());
+  await h.permissionGroup(
+    target.id,
+    targetGrant({ fields: { ...targetFields, region: "hidden" } }),
+  );
   await api(`/records/${sourceRecord.record.id}/relations/${relation.id}/candidates`, "GET", undefined, "editor", 403);
-  await h.grant(target.id, targetGrant());
+  await h.permissionGroup(target.id, targetGrant());
 });
 test("readonly or stale mapped fields roll back link creation and all data changes", async () => {
-  await h.grant(source.id, sourceGrant({ fields: { ...sourceFields, quoted: "read" } }));
+  await h.permissionGroup(
+    source.id,
+    sourceGrant({ fields: { ...sourceFields, quoted: "read" } }),
+  );
   await api(linkPath(), "POST", linkBody(), "editor", 403);
   assert.equal((await h.db.query("SELECT count(*)::integer AS count FROM record_links")).rows[0].count, 0);
-  await h.grant(source.id, sourceGrant());
+  await h.permissionGroup(source.id, sourceGrant());
   await api(linkPath(), "POST", linkBody(sourceRecord, targetRecord, { expectedCells: { quoted: 99 } }), "editor", 409);
   assert.equal((await api(`/records/${sourceRecord.record.id}`)).record.values.quoted, 0);
 });
@@ -65,13 +91,16 @@ test("snapshot reads keep captured values but apply current target permissions",
   let groups = await api(`/records/${sourceRecord.record.id}/relations`, "GET", undefined, "editor");
   assert.equal(groups[0].links[0].values.price, 120); assert.equal(groups[0].links[0].label, "资料 A");
   assert.equal(groups[0].relation.spec.filters.length, 0); assert.equal(groups[0].links[0].values.secret, undefined);
-  await h.grant(target.id, targetGrant({ fields: { ...targetFields, price: "hidden" } }));
+  await h.permissionGroup(
+    target.id,
+    targetGrant({ fields: { ...targetFields, price: "hidden" } }),
+  );
   groups = await api(`/records/${sourceRecord.record.id}/relations`, "GET", undefined, "editor");
   assert.equal(groups[0].links[0].values.price, undefined); assert.equal(groups[0].columnLabels.price, undefined);
-  await h.grant(target.id, targetGrant({ read: false }));
+  await h.permissionGroup(target.id, targetGrant({ enabled: false }));
   groups = await api(`/records/${sourceRecord.record.id}/relations`, "GET", undefined, "editor");
   assert.deepEqual(groups[0].links[0].values, {}); assert.equal(groups[0].links[0].restricted, true);
-  await h.grant(target.id, targetGrant());
+  await h.permissionGroup(target.id, targetGrant());
 });
 test("a republished live rule affects new links without rewriting historical snapshot links", async () => {
   const saved = await api(`/relations/${relation.id}`, "PUT", { expectedRevision: relation.revision, spec: relationSpec({ valueMode: "live" }) });
@@ -86,7 +115,11 @@ test("a republished live rule affects new links without rewriting historical sna
   assert.equal(live[0].links[0].valueMode, "live"); assert.equal(old[0].links[0].valueMode, "snapshot");
 });
 test("referenced field removal and record archival are prevented before integrity is lost", async () => {
-  await api(`/definitions/${target.id}`, "PUT", { title: "不可删字段", expectedRevision: 2, schema: schema(field("name"), field("region")) }, "admin", 409);
+  const draft = await api(`/data-objects/${target.id}`, "PUT", { title: "不可删字段", expectedRevision: 2, model: separateFormSchema(schema(field("name"), field("region")) as unknown as FormSchema).model });
+  const impact = await api(`/data-objects/${target.id}/publish-preview`, "POST", { expectedRevision: draft.revision }, "admin", 201);
+  assert.ok(impact.blockers.length > 0);
+  await api(`/data-objects/${target.id}/publish`, "POST", { expectedRevision: draft.revision, impactToken: impact.token }, "admin", 409);
+  await api(`/data-objects/${target.id}/discard-draft`, "POST", { expectedRevision: draft.revision }, "admin", 201);
   const current = await api(`/records/${targetRecord.record.id}`);
   await api(`/records/${targetRecord.record.id}/archive`, "POST", { requestId: randomUUID(), expectedRevision: current.record.revision }, "admin", 409);
 });

@@ -27,16 +27,21 @@ interface StoredFile {
   uploaded_by: string;
 }
 
-/** 仅收集真实的附件字段，不能通过其他字段中伪造同名 ID 获得下载权限。 */
+type RecordFileEntry = { key: string } & (
+  | { kind: "attachment"; file: FileValue }
+  | { kind: "richtext"; file: Pick<FileValue, "id"> }
+);
+
+/** 仅收集附件字段和富文本图片，普通字段中伪造的同名 ID 不授予下载权限。 */
 export function recordFileValues(
   schema: FormSchema,
   values: FormValues,
-): FileValue[] {
+): Pick<FileValue, "id">[] {
   return recordFileEntries(schema, values).map((entry) => entry.file);
 }
 
 function recordFileEntries(schema: FormSchema, values: FormValues) {
-  const files: { key: string; file: FileValue }[] = [];
+  const files: RecordFileEntry[] = [];
   function collect(field: FormField, input: FormValues, prefix = "") {
     if (field.type === "subform") {
       const rows = input[field.id];
@@ -48,11 +53,31 @@ function recordFileEntries(schema: FormSchema, values: FormValues) {
       }
       return;
     }
-    if (field.type !== "file" && field.type !== "image") return;
     const value = input[field.id];
+    if (field.type === "richtext" && typeof value === "string") {
+      // 编辑器只持久化 img 的 data-file-id；逐项读取属性，避免把 alt 中的文字误当引用。
+      const tags = value.matchAll(/<img\b(?:"[^"]*"|'[^']*'|[^'">])*>/gi);
+      for (const [tag] of tags) {
+        const attributes = tag.matchAll(
+          /([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g,
+        );
+        for (const attribute of attributes) {
+          if (attribute[1].toLowerCase() !== "data-file-id") continue;
+          const id = attribute[2] ?? attribute[3] ?? attribute[4] ?? "";
+          files.push({
+            key: `${prefix}${field.id}`,
+            kind: "richtext",
+            file: { id },
+          });
+          break;
+        }
+      }
+      return;
+    }
+    if (field.type !== "file" && field.type !== "image") return;
     if (Array.isArray(value)) {
       for (const file of value as FileValue[]) {
-        files.push({ key: `${prefix}${field.id}`, file });
+        files.push({ key: `${prefix}${field.id}`, kind: "attachment", file });
       }
     }
   }
@@ -133,32 +158,49 @@ export class FileService {
     if (ids.some((id) => !id || !/^file_[a-f0-9-]{36}$/.test(id))) {
       throw new BadRequestException("附件尚未上传，请重新选择文件");
     }
-    const { rows } = await tx.query<
-      StoredFile & { linked: boolean; bound: boolean }
-    >(
-      `SELECT f.id, f.name, f.size, f.media_type, f.uploaded_by,
-         EXISTS (SELECT 1 FROM record_files r WHERE r.file_id = f.id AND r.record_id = $3) AS linked,
-         EXISTS (SELECT 1 FROM record_files r WHERE r.file_id = f.id) AS bound
+    // 统一按文件 ID 加排他锁，避免不同记录同时首次绑定或多文件反序加锁。
+    const { rows } = await tx.query<StoredFile>(
+      `SELECT f.id, f.name, f.size, f.media_type, f.uploaded_by
        FROM uploaded_files f
        WHERE f.workspace_id = $1 AND f.id = ANY($2::text[])
-       ORDER BY f.id FOR SHARE OF f`,
-      [actor.workspaceId, ids, recordId],
+       ORDER BY f.id FOR UPDATE OF f`,
+      [actor.workspaceId, ids],
+    );
+    // 必须锁后另起查询；等待其他事务时，同一条语句的绑定快照不会自动更新。
+    const { rows: bindings } = await tx.query<{
+      file_id: string;
+      record_id: string;
+    }>(
+      "SELECT file_id, record_id FROM record_files WHERE file_id = ANY($1::text[])",
+      [ids],
     );
     const stored = new Map(rows.map((file) => [file.id, file]));
-    for (const { key, file } of entries) {
+    const bound = new Set<string>();
+    const linked = new Set<string>();
+    for (const binding of bindings) {
+      bound.add(binding.file_id);
+      if (binding.record_id === recordId) linked.add(binding.file_id);
+    }
+    for (const entry of entries) {
+      const { key, file } = entry;
       const source = stored.get(file.id!);
+      const linkedHere = linked.has(file.id!);
       // 已绑定的文件只能留在原单元格，不能挪到可见字段来绕过隐藏权限。
       if (
         !source ||
-        (source.linked && !previous.has(`${key}:${file.id}`)) ||
-        (!source.linked && (source.bound || source.uploaded_by !== actor.id))
+        (linkedHere && !previous.has(`${key}:${file.id}`)) ||
+        (!linkedHere && (bound.has(file.id!) || source.uploaded_by !== actor.id))
       ) {
         throw new BadRequestException("附件不存在或不可使用，请重新上传");
       }
-      if (
-        source.name !== file.name ||
-        source.size !== file.size ||
-        source.media_type !== file.type
+      if (entry.kind === "richtext") {
+        if (!/^image\/(png|jpeg|gif|webp)$/.test(source.media_type)) {
+          throw new BadRequestException("富文本图片格式无效，请重新上传");
+        }
+      } else if (
+        source.name !== entry.file.name ||
+        source.size !== entry.file.size ||
+        source.media_type !== entry.file.type
       ) {
         throw new BadRequestException(
           "附件信息与上传内容不一致，请重新选择文件",

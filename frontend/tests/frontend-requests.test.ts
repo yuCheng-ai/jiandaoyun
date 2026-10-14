@@ -9,7 +9,6 @@ import {
   frontendEventSettingsErrors,
   type FrontendEvent,
   type FrontendRequest,
-  type FormValues,
 } from "@platform/contracts";
 import {
   copy,
@@ -27,9 +26,9 @@ import {
   frontendEventReferences,
   runFrontendEvent,
 } from "../src/domain/frontendEvents";
-import { useWorkspaceStore } from "../src/stores/workspace";
+import { seedWorkspace } from "../src/domain/workspace";
 import RequestValueInput from "../src/features/forms/components/RequestValueInput.vue";
-import FormRuntime from "../src/features/forms/components/FormRuntime.vue";
+
 let pinia = createPinia();
 const cleanup: (() => void)[] = [];
 beforeEach(() => {
@@ -72,7 +71,7 @@ function fixture(overrides: Partial<FrontendRequest> = {}) {
     request,
   };
   schema.settings.frontendEvents = [event];
-  return { schema, event, request, data: useWorkspaceStore().data };
+  return { schema, event, request, data: seedWorkspace() };
 }
 it("request configuration round-trips through schema and page projection without changing legacy plugin events; malformed unions and limits reject", () => {
   const { schema, event, request } = fixture();
@@ -520,69 +519,6 @@ it("field insertion shows business labels while preserving stable references and
     "https://example.com?q={{code}}&other={{other}}",
   );
   expect(input(host, "URL").value).not.toContain("{{code}}");
-});
-it("real runtime uses configured simulated data, drafts do not execute submit events and failures retain inputs and prevent persistence", async () => {
-  const { schema, event, request } = fixture();
-  event.trigger = "submit";
-  event.fieldIds = [];
-  schema.fields[1]!.required = true;
-  const persist = vi.fn((_values: FormValues, _draft: boolean) => true);
-  const host = await mount(FormRuntime, {
-    schema,
-    formId: "qa",
-    preview: false,
-    initialValues: { code: "x", amount: "" },
-    persistValues: persist,
-  });
-  await click("保存草稿");
-  expect(persist.mock.calls[0]?.[0].amount).toBe("");
-  await click("提交");
-  expect(persist.mock.calls[1]?.[0].amount).toBe(12);
-  expect(host.textContent).toContain("提交成功");
-  cleanup.splice(0).forEach((fn) => fn());
-  document.body.innerHTML = "";
-  request.simulation.status = 500;
-  persist.mockClear();
-  const failed = await mount(FormRuntime, {
-    schema,
-    formId: "qa",
-    preview: false,
-    initialValues: { code: "留存", amount: 9 },
-    persistValues: persist,
-  });
-  await click("提交");
-  expect(persist).not.toHaveBeenCalled();
-  expect(input(failed, "查询编号").value).toBe("留存");
-  expect(failed.textContent).toContain("模拟请求失败");
-});
-it("saved requests and simulated records pin published versions across reloads; broken request references block a new publication", async () => {
-  const store = useWorkspaceStore(),
-    created = (await store.createForm("oa", "请求版本验收", "form"))!,
-    form = store.openForm(created.id)!;
-  form.schema = fixture().schema;
-  expect(await store.publishForm(form.id)).toBe(true);
-  const before = copy(form.versions[0]),
-    record = copy(
-      (await store.submitEntry(form.id, { code: "x", amount: 12 }))!,
-    );
-  form.schema.settings.frontendEvents![0]!.request!.simulation.response =
-    '{"amount":20}';
-  expect(await store.publishForm(form.id)).toBe(true);
-  setActivePinia(createPinia());
-  const fresh = useWorkspaceStore(),
-    saved = fresh.openForm(form.id)!;
-  expect(saved.versions[0]).toEqual(before);
-  expect(fresh.data.entries.find((entry) => entry.id === record.id)).toEqual(
-    record,
-  );
-  expect(
-    saved.schema.settings.frontendEvents![0]!.request?.simulation.response,
-  ).toBe('{"amount":20}');
-  saved.schema.fields = saved.schema.fields.filter(
-    (field) => field.id !== "amount",
-  );
-  expect(await fresh.publishForm(form.id)).toBe(false);
-  expect(saved.versions).toHaveLength(2);
 });
 async function settle() {
   await nextTick();

@@ -5,11 +5,12 @@ withDefaults(
     message: string;
     canContinue: boolean;
     mode: "inline" | "page";
+    processId?: string;
     preview?: boolean;
   }>(),
   { preview: false },
 );
-const emit = defineEmits<{ continue: [] }>();
+const emit = defineEmits<{ continue: []; viewProcess: [id: string] }>();
 </script>
 <template>
   <section
@@ -21,12 +22,22 @@ const emit = defineEmits<{ continue: [] }>();
     <AppIcon name="success" :size="mode === 'page' ? 48 : 20" />
     <div>
       <h2>{{ message.trim() || "提交成功" }}</h2>
-      <p v-if="mode === 'page'">你的填写内容已保存。</p>
+      <p v-if="processId">流程已发起。</p>
+      <p v-else-if="mode === 'page'">你的填写内容已保存。</p>
     </div>
+    <button
+      v-if="processId"
+      class="button primary"
+      type="button"
+      :disabled="preview"
+      @click="emit('viewProcess', processId)"
+    >
+      查看申请
+    </button>
     <button
       v-if="canContinue"
       class="button"
-      :class="{ primary: mode === 'page' }"
+      :class="{ primary: mode === 'page' && !processId }"
       type="button"
       :disabled="preview"
       @click="emit('continue')"
@@ -75,6 +86,9 @@ const emit = defineEmits<{ continue: [] }>();
 }
 .submission-receipt.inline h2 {
   font-size: 13px;
+}
+.submission-receipt.inline p {
+  margin: 4px 0 0;
 }
 .submission-receipt > .button:disabled {
   opacity: 0.7;

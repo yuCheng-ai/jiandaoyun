@@ -15,12 +15,53 @@ test("model review inventories field constraints, draft and published dependenci
   const record = await h.record(def.id, { name: "机密正文不返回", qty: 9, lines: [{ note: "明细正文", count: 4 }] });
   const page = (await h.request(`/pages?definitionId=${def.id}`))[0];
   const users = await h.request("/users"), editor = users.find((u: any) => u.username === "editor");
-  await h.request(`/definitions/${def.id}/grants`, "PUT", { userId: editor.id, read: true, create: false, edit: false, scope: "all", fields: { name: "read", lines: "read", note: "read", count: "read" } });
+  await h.permissionGroup(def.id, {
+    id: "member_" + editor.id,
+    name: editor.name,
+    subjects: [{ kind: "member", id: editor.id }],
+    scope: "all",
+    fields: { name: "read", lines: "read", note: "read", count: "read" },
+    actions: ["view"],
+  });
   const target = await h.definition("引用端", schema(field("title")));
   const relation = await h.relation({ title: "关联资料", sourceDefinitionId: def.id, targetDefinitionId: target.id, cardinality: "many", inverseCardinality: "many", labelFieldId: "title", columns: [], filters: [{ id: "f", sourceFieldId: "title", source: "field", value: "name", operator: "equals" }], mappings: [], valueMode: "live" });
   await h.request(`/relations/${relation.id}`, "PUT", { expectedRevision: relation.revision, spec: { ...relation.spec, title: "未发布关系修改" } });
   const object = await draft(def.id);
-  const template = await h.request("/process-templates", "POST", { applicationId: object.applicationId, requestId: randomUUID(), spec: { title: "字段处理流程", bindings: [{ id: "record", title: "主记录", definitionId: def.id, definitionVersion: 1 }], tasks: [{ id: "check", title: "确认", assigneeId: editor.id, recordBinding: "record", pageId: page.id, pageVersion: 1, requiredFields: ["name"], dependsOn: [] }] } }, "admin", 201);
+  const template = await h.request(
+    "/process-templates",
+    "POST",
+    {
+      applicationId: object.applicationId,
+      requestId: randomUUID(),
+      spec: {
+        title: "字段处理流程",
+        startTaskIds: ["check"],
+        endTaskIds: ["check"],
+        bindings: [
+          {
+            id: "record",
+            title: "主记录",
+            definitionId: def.id,
+            definitionVersion: 1,
+          },
+        ],
+        tasks: [
+          {
+            id: "check",
+            title: "确认",
+            assigneeId: editor.id,
+            recordBinding: "record",
+            pageId: page.id,
+            pageVersion: 1,
+            requiredFields: ["name"],
+            dependsOn: [],
+          },
+        ],
+      },
+    },
+    "admin",
+    201,
+  );
   await h.request(`/process-templates/${template.id}/publish`, "POST", { expectedRevision: template.revision }, "admin", 201);
   const start = await h.request(`/process-templates/${template.id}/versions/1/preview`, "POST", { bindings: { record: record.record.id } }, "admin", 201);
   await h.request(`/process-templates/${template.id}/versions/1/start`, "POST", { requestId: randomUUID(), bindings: start.bindings, recordRevisions: start.recordRevisions }, "admin", 201);
@@ -71,7 +112,18 @@ test("grant and page changes invalidate reviewed publication, preserving the sav
   const def = await h.definition("陈旧检查", schema(field("name")));
   let object = await draft(def.id); object.model.fields[0].required = true; object = await save(object);
   const first = await preview(object), users = await h.request("/users");
-  await h.request(`/definitions/${def.id}/grants`, "PUT", { userId: users.find((u: any) => u.username === "editor").id, read: true, create: false, edit: false, scope: "all", fields: { name: "read" } });
+  await h.permissionGroup(def.id, {
+    id: "member_" + users.find((u: any) => u.username === "editor").id,
+    subjects: [
+      {
+        kind: "member",
+        id: users.find((u: any) => u.username === "editor").id,
+      },
+    ],
+    scope: "all",
+    fields: { name: "read" },
+    actions: ["view"],
+  });
   await publish(object, first, 409);
   const second = await preview(object); assert.notEqual(second.token, first.token);
   await h.request("/pages", "POST", { title: "新草稿", definitionId: def.id, definitionVersion: 1, schema: pageForModel((await h.request(`/data-objects/${def.id}/versions/1`))) }, "admin", 201);

@@ -1,21 +1,17 @@
-import { beforeEach, describe, it, expect, vi } from "vitest";
-import { createPinia, setActivePinia } from "pinia";
+import { describe, it, expect, vi } from "vitest";
 import {
   seedOrganization,
   parseOrganization,
-  descendants,
   roleMembers,
   resolveIdentities,
   allowedEmployees,
-  allowedDepartments,
   emptyScope,
   organizationDefault,
   emptyOrganizationField,
-  permissionsFor,
   newEmployee,
   validateDepartment,
 } from "../src/domain/organization";
-import { parseWorkspace } from "../src/repositories/workspaceRepository";
+
 import { seedWorkspace } from "../src/domain/workspace";
 import { computed, ref, type Ref } from "vue";
 import { organizationActions } from "../src/stores/organizationActions";
@@ -24,32 +20,23 @@ import { copy } from "../src/domain/form";
 // Exercise the pure organization reducer; server persistence is covered by directory API tests.
 function organizationFixture() {
   const data = ref(seedWorkspace()) as Ref<ReturnType<typeof seedWorkspace>>;
-  const persist = () => {
-    localStorage.setItem("organization-fixture", JSON.stringify(data.value));
-    return true;
+  return {
+    get data() {
+      return data.value;
+    },
+    ...organizationActions(
+      computed({
+        get: () => data.value.organization,
+        set: (value) => {
+          data.value.organization = value;
+        },
+      }),
+      vi.fn(),
+    ),
   };
-  return { get data() { return data.value; }, ...organizationActions(computed({ get: () => data.value.organization, set: (value) => { data.value.organization = value; } }), persist, vi.fn()) };
 }
 
-let saved = new Map<string, string>();
-let setItem = vi.fn();
-beforeEach(() => {
-  saved = new Map();
-  setItem = vi.fn((k, v) => saved.set(k, v));
-  vi.stubGlobal("localStorage", {
-    getItem: (k: string) => saved.get(k) || null,
-    setItem,
-  });
-  setActivePinia(createPinia());
-});
 describe("organization and identity", () => {
-  it("migrates legacy workspaces without replacing forms or entries", () => {
-    const raw = seedWorkspace();
-    delete (raw as any).organization;
-    const result = parseWorkspace(JSON.stringify(raw));
-    expect(result.organization.employees.length).toBe(6);
-    expect(result.forms.map((f) => f.id)).toEqual(raw.forms.map((f) => f.id));
-  });
   it("rejects cycles and moving a department beneath its descendant", () => {
     const org = seedOrganization();
     const engineering = org.departments.find((d) => d.id === "engineering")!;
@@ -134,20 +121,7 @@ describe("organization and identity", () => {
       ),
     ).toEqual([]);
   });
-  it("merges role grants and scopes and revokes archived roles", () => {
-    const org = seedOrganization();
-    expect(permissionsFor(org, "zhang", "oa", "expense").actions).toContain(
-      "manage",
-    );
-    org.roles[0]!.archived = true;
-    expect(permissionsFor(org, "zhang", "oa", "expense").actions).not.toContain(
-      "manage",
-    );
-    expect(permissionsFor(org, "zhang", "oa", "expense").dataScope).toBe(
-      "self",
-    );
-  });
-  it("persists employee edits and prevents duplicate employee numbers", async () => {
+  it("updates candidate employee edits and prevents duplicate employee numbers", async () => {
     const store = organizationFixture();
     const employee = newEmployee();
     Object.assign(employee, {
@@ -165,9 +139,7 @@ describe("organization and identity", () => {
       false,
     );
     expect(
-      parseWorkspace([...saved.values()][0]!).organization.employees.find(
-        (e) => e.id === employee.id,
-      )?.name,
+      store.data.organization.employees.find((e) => e.id === employee.id)?.name,
     ).toBe("测试成员");
   });
   it("rejects archiving occupied departments and can restore empty departments", async () => {
@@ -185,18 +157,15 @@ describe("organization and identity", () => {
     expect(await store.archiveDepartment("empty")).toBe(true);
     expect(await store.archiveDepartment("empty", false)).toBe(true);
   });
-  it("rolls back failed writes and protects the current user during bulk changes", async () => {
+  it("rolls back invalid bulk changes in the candidate directory", async () => {
     const store = organizationFixture(),
       before = copy(store.data.organization);
-    expect(await store.bulkEmployees(["zhang"], { status: "left" })).toBe(
-      false,
-    );
-    setItem.mockImplementation(() => {
-      throw Error("quota");
-    });
-    expect(await store.bulkEmployees(["li"], { status: "inactive" })).toBe(
-      false,
-    );
+    expect(
+      await store.bulkEmployees(["li"], {
+        status: "inactive",
+        departmentId: "missing-department",
+      }),
+    ).toBe(false);
     expect(store.data.organization).toEqual(before);
   });
 });

@@ -17,12 +17,14 @@ const props = withDefaults(
     scope?: SelectionScope;
     values?: FormValues;
     allowRoles?: boolean;
+    includeInactive?: boolean;
   }>(),
   {
     kind: "member",
     multiple: false,
     disabled: false,
     allowRoles: true,
+    includeInactive: false,
     label: "选择成员",
   },
 );
@@ -77,6 +79,7 @@ function update(selected: string[]) {
     :scope="scope"
     :values="values"
     :allow-roles="allowRoles"
+    :include-inactive="includeInactive"
     :title="label"
     @update:model-value="update"
     @close="open = false"

@@ -56,10 +56,6 @@ export interface AccessGrant extends AccessPolicy {
     selection: string;
   };
 }
-/** Saved direct authorization configuration; runtime access is still computed per request. */
-export interface MemberGrant extends AccessGrant {
-  revision: number;
-}
 export interface ServerDefinition {
   id: string;
   title: string;
@@ -203,6 +199,15 @@ export interface RecordUpgradePlan {
     defaultDisplay?: string;
     defaultValue: unknown;
   }[];
+}
+export interface ProcessSummary {
+  id: string;
+  title: string;
+  status: "running" | "completed";
+  templateVersion: number | null;
+  createdAt: string;
+  createdByName: string | null;
+  currentAssigneeNames: string[];
 }
 export interface ProcessView {
   id: string;

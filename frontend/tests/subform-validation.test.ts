@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { createPinia } from "pinia";
+// @vitest-environment jsdom
+import { expect, it } from "vitest";
+
 import {
   copy,
   createField,
@@ -9,9 +10,6 @@ import {
   validateValues,
   type FormValues,
 } from "../src/domain/form";
-import { seedWorkspace } from "../src/domain/workspace";
-import { useWorkspaceStore } from "../src/stores/workspace";
-import { WORKSPACE_KEY } from "../src/repositories/workspaceRepository";
 
 function fixture() {
   const schema = emptySchema();
@@ -30,16 +28,6 @@ function fixture() {
   schema.fields = [rows];
   return { schema, code, quantity, rows };
 }
-
-let memory: Map<string, string>;
-beforeEach(() => {
-  memory = new Map([[WORKSPACE_KEY, JSON.stringify(seedWorkspace())]]);
-  vi.stubGlobal("localStorage", {
-    getItem: (key: string) => memory.get(key) ?? null,
-    setItem: (key: string, value: string) => memory.set(key, value),
-  });
-});
-afterEach(() => vi.unstubAllGlobals());
 
 it("skips required child checks for wholly blank optional rows, ignoring metadata and decorations", () => {
   const { schema, rows } = fixture();
@@ -170,91 +158,4 @@ it("malformed subforms and non-object rows fail validation instead of throwing o
       (error) => error.path,
     ),
   ).toEqual(["lines.0", "lines.1", "lines.2"]);
-});
-
-it("published record create and edit enforce child uniqueness, exclude self and keep failed writes and old versions intact", async () => {
-  const store = useWorkspaceStore(createPinia());
-  const form = (await store.createForm("oa", "合成子表校验", "form"))!;
-  const draft = store.openForm(form.id)!;
-  draft.schema = fixture().schema;
-  expect(await store.publishForm(form.id)).toBe(true);
-  const first = await store.submitEntry(form.id, { lines: [{ code: "A" }] });
-  expect(first).toBeTruthy();
-  const saved = memory.get(WORKSPACE_KEY);
-  expect(
-    await store.submitEntry(form.id, { lines: [{ code: "A" }] }),
-  ).toBeUndefined();
-  expect(memory.get(WORKSPACE_KEY)).toBe(saved);
-  const second = await store.submitEntry(form.id, { lines: [{ code: "B" }] });
-  expect(second).toBeTruthy();
-  expect(
-    await store.updateEntry(first!.id, { lines: [{ code: "A", quantity: 0 }] }),
-  ).toBe(true);
-  const before = copy(store.data.entries);
-  expect(await store.updateEntry(second!.id, { lines: [{ code: "A" }] })).toBe(
-    false,
-  );
-  expect(store.data.entries).toEqual(before);
-  store.openForm(form.id)!.schema.fields[0]!.children[0]!.unique = false;
-  expect(await store.publishForm(form.id)).toBe(true);
-  expect(await store.updateEntry(second!.id, { lines: [{ code: "A" }] })).toBe(
-    false,
-  );
-  expect(
-    store.data.entries.filter((entry) => entry.formId === form.id),
-  ).toHaveLength(2);
-  expect(
-    store.data.entries
-      .filter((entry) => entry.formId === form.id)
-      .map((entry) => entry.definitionVersion),
-  ).toEqual([1, 1]);
-});
-
-it("incomplete drafts stay editable and pinned to their original child rules; rejected submission keeps identity and retry creates no extra record", async () => {
-  const store = useWorkspaceStore(createPinia());
-  const form = (await store.createForm("oa", "合成子表草稿", "form"))!;
-  store.openForm(form.id)!.schema = fixture().schema;
-  expect(await store.publishForm(form.id)).toBe(true);
-  const savedDraft = (await store.submitEntry(
-    form.id,
-    { lines: [{}] },
-    "draft",
-  ))!;
-  expect(savedDraft.status).toBe("draft");
-  const existing = (await store.submitEntry(form.id, {
-    lines: [{ code: "A" }],
-  }))!;
-  expect(existing).toBeTruthy();
-  const otherVersion = store.openForm(form.id)!;
-  otherVersion.schema.fields[0]!.children[0]!.unique = false;
-  expect(await store.publishForm(form.id)).toBe(true);
-  expect(
-    await store.submitEntry(
-      form.id,
-      { lines: [{ code: "A" }] },
-      "submitted",
-      savedDraft.id,
-    ),
-  ).toBeUndefined();
-  expect(
-    store.data.entries.find((entry) => entry.id === savedDraft.id),
-  ).toMatchObject({
-    status: "draft",
-    definitionVersion: 1,
-    values: { lines: [{}] },
-  });
-  const submitted = (await store.submitEntry(
-    form.id,
-    { lines: [{ code: "B" }, {}] },
-    "submitted",
-    savedDraft.id,
-  ))!;
-  expect(submitted).toMatchObject({
-    id: savedDraft.id,
-    status: "submitted",
-    definitionVersion: 1,
-  });
-  expect(
-    store.data.entries.filter((entry) => entry.formId === form.id),
-  ).toHaveLength(2);
 });

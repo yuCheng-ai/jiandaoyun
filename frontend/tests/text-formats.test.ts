@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { createApp, h, nextTick, reactive } from "vue";
 import { createPinia, setActivePinia } from "pinia";
@@ -19,9 +20,6 @@ import {
 } from "../src/domain/form";
 import { validateFieldConfiguration } from "../src/domain/fieldValidation";
 import { seedWorkspace } from "../src/domain/workspace";
-import { LocalWorkspaceRepository } from "../src/repositories/workspaceRepository";
-import { useWorkspaceStore } from "../src/stores/workspace";
-import type { RecordImportRequest } from "../src/domain/recordImport";
 
 import FieldControl from "../src/features/forms/components/FieldControl.vue";
 import FieldValueRules from "../src/features/data/FieldValueRules.vue";
@@ -279,120 +277,4 @@ it("the shared input keeps leading zeroes and invalid text available for correct
   await nextTick();
   expect(state.value).toBe("00001bad");
   expect(input.value).toBe("00001bad");
-});
-async function setup() {
-  const store = useWorkspaceStore(),
-    form = (await store.createForm("oa", "文本格式回归", "form"))!,
-    draft = store.openForm(form.id)!;
-  draft.schema.fields = [
-    text("zip", { required: true }),
-    text("mobile"),
-    text("tel"),
-    text("id"),
-  ];
-  expect(await store.saveForm(form.id)).toBe(true);
-  expect(await store.publishForm(form.id)).toBe(true);
-  return { store, form, draft };
-}
-it("retains an invalid draft, blocks its final submission, then submits and updates the same record with atomic failures", async () => {
-  const { store, form } = await setup();
-  const draft = (await store.submitEntry(form.id, { zip: "bad" }, "draft"))!;
-  expect(draft.status).toBe("draft");
-  expect(
-    await store.submitEntry(form.id, draft.values, "submitted", draft.id),
-  ).toBeUndefined();
-  expect(draft.status).toBe("draft");
-  expect(draft.values.zip).toBe("bad");
-  const saved = (await store.submitEntry(
-    form.id,
-    examples,
-    "submitted",
-    draft.id,
-  ))!;
-  expect(saved.id).toBe(draft.id);
-  expect(store.data.entries).toHaveLength(1);
-  const before = copy(saved);
-  expect(
-    await store.updateEntry(saved.id, {
-      ...saved.values,
-      zip: "bad",
-      tel: "2345678",
-    }),
-  ).toBe(false);
-  expect(saved).toEqual(before);
-  expect(
-    await store.updateEntry(saved.id, {
-      ...saved.values,
-      zip: "000002",
-      tel: "2345678",
-    }),
-  ).toBe(true);
-  const cold = new LocalWorkspaceRepository().load()!;
-  expect(cold.entries).toHaveLength(1);
-  expect(cold.entries[0]).toMatchObject({
-    id: draft.id,
-    definitionVersion: 1,
-    values: { zip: "000002", tel: "2345678" },
-  });
-});
-it("applies import-format checks only when existing validation is enabled and retains failed rows for correction", async () => {
-  const { store, form } = await setup();
-  const request: RecordImportRequest = {
-    mode: "create",
-    definitionVersion: 1,
-    rows: [["bad"], ["000003"]],
-    firstRow: 2,
-    mapping: [{ column: 0, fieldId: "zip", type: "text" }],
-    validate: true,
-    triggerWorkflow: false,
-    targets: [],
-  };
-  const result = await store.importEntries(form.id, request);
-  expect(result).toMatchObject({ created: 1, updated: 0 });
-  if (!result) throw Error("import failed");
-  expect(result.rows[0]).toMatchObject({
-    kind: "error",
-    row: 2,
-    values: { zip: "bad" },
-  });
-  expect(result.rows[0]?.issues).toContainEqual({
-    fieldId: "zip",
-    row: 2,
-    message: "请输入有效的邮政编码",
-  });
-  expect(
-    await store.importEntries(form.id, {
-      ...request,
-      rows: [["unchecked"]],
-      validate: false,
-    }),
-  ).toMatchObject({ created: 1 });
-  expect(store.data.entries.map((e) => e.values.zip)).toEqual([
-    "unchecked",
-    "000003",
-  ]);
-});
-it("old published records and drafts retain their original format after a new version changes it", async () => {
-  const { store, form, draft } = await setup();
-  const old = (await store.submitEntry(form.id, { zip: "000004" }, "draft"))!;
-  const published = copy(
-    store.data.forms.find((f) => f.id === form.id)!.published!,
-  );
-  draft.schema.fields[0]!.format = "mobile";
-  expect(await store.publishForm(form.id)).toBe(true);
-  expect(store.data.forms.find((f) => f.id === form.id)!.versions[0]).toEqual(
-    published,
-  );
-  expect(
-    (await store.submitEntry(form.id, old.values, "submitted", old.id))
-      ?.definitionVersion,
-  ).toBe(1);
-  expect(await store.submitEntry(form.id, { zip: "000004" })).toBeUndefined();
-  const current = (await store.submitEntry(form.id, { zip: "12000000001" }))!;
-  expect(current.definitionVersion).toBe(2);
-  expect(store.data.entries).toHaveLength(2);
-  expect(await store.updateEntry(old.id, { zip: "000005" })).toBe(true);
-  expect(store.data.forms.find((f) => f.id === form.id)!.versions[0]).toEqual(
-    published,
-  );
 });

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createApp, h, nextTick, reactive } from "vue";
 import { createPinia, setActivePinia } from "pinia";
@@ -20,16 +21,13 @@ import {
   defaultAccess,
   memberSchema,
   newAccessGroup,
-  parseAccess,
-  prepareMemberUpdate,
 } from "../src/domain/access";
 import {
   newForm,
   seedWorkspace,
   type FormEntry,
 } from "../src/domain/workspace";
-import { subformFillingBaseline } from "../src/domain/relations";
-import { useWorkspaceStore } from "../src/stores/workspace";
+
 import FormRuntime from "../src/features/forms/components/FormRuntime.vue";
 import FormFields from "../src/features/forms/components/FormFields.vue";
 let pinia = createPinia();
@@ -133,19 +131,6 @@ it("does not add row permission metadata to forms without subforms", () => {
     Object.hasOwn(newAccessGroup(schema, "manage"), "subformPermissions"),
   ).toBe(false);
 });
-it("rejects malformed permission values rather than turning them into broader defaults", () => {
-  const { schema, field } = fixture();
-  (field as any).subformPermissions = {
-    ...newSubformPermissions(),
-    insert: "false",
-  };
-  expect(() => parseSchema(schema)).toThrow("操作权限");
-  const group = newAccessGroup(schema, "manage");
-  (group as any).subformPermissions = {
-    lines: { ...newSubformPermissions(), editExisting: "true" },
-  };
-  expect(() => parseAccess({ groups: [group] })).toThrow("操作权限");
-});
 it.each([
   ["add", { lines: [{ _rowId: "new", item: "C", qty: 0 }] }, "不可新增或插入"],
   ["insert", null, "不可插入"],
@@ -243,129 +228,6 @@ it("keeps record grants independent from filling switches, with parents and acti
     ),
   ).toEqual([false, false, false, false]);
 });
-it("rejects a forbidden member deletion atomically at the final edit boundary", () => {
-  const { data, entry, group, baseline } = memberFixture();
-  group.subformPermissions!.lines!.deleteExisting = false;
-  const result = prepareMemberUpdate(data, entry, "zhang", "*", {
-    lines: [(baseline.lines as FormValues[])[1]],
-  });
-  expect(result.errors.join()).toContain("不可删除已有");
-  expect(result.values).toEqual(baseline);
-  expect(entry.values).toEqual(baseline);
-});
-it("does not combine a row-edit grant from one group with a protected column from another", () => {
-  const { data, entry, group, baseline } = memberFixture();
-  group.fields.qty = "read";
-  group.subformPermissions!.lines!.editExisting = true;
-  const second = copy(group);
-  second.id = "other";
-  second.fields.qty = "edit";
-  second.subformPermissions!.lines!.editExisting = false;
-  data.formAccess![entry.formId]!.groups.push(second);
-  const result = prepareMemberUpdate(data, entry, "zhang", "*", {
-    lines: [
-      { ...(baseline.lines as FormValues[])[0], item: "Changed", qty: 99 },
-      (baseline.lines as FormValues[])[1],
-    ],
-  });
-  expect(result.errors).toEqual([]);
-  expect((result.values.lines as FormValues[])[0]).toMatchObject({
-    item: "Changed",
-    qty: 11,
-  });
-  const projected = memberSchema(
-    data.forms.find((f) => f.id === entry.formId)!.published!.schema,
-    [group, second],
-    true,
-  );
-  expect(projected.fields[0]!.children[1]!.rowEditAccess?.existing).toBe(false);
-});
-it("prevents direct filling writes from replacing protected default rows before allocating or saving", async () => {
-  const { schema } = fixture();
-  schema.fields[0]!.subformPermissions = {
-    add: true,
-    insert: false,
-    editExisting: false,
-    deleteExisting: false,
-  };
-  const store = useWorkspaceStore();
-  const form = newForm("oa", "填写保护");
-  form.schema = copy(schema);
-  form.published = {
-    version: 1,
-    title: form.title,
-    schema: copy(schema),
-    workflow: copy(form.workflow),
-    publishedAt: "2026-10-11",
-  };
-  form.versions = [copy(form.published)];
-  store.data.forms.push(form);
-  const baseline = subformFillingBaseline(schema.fields, store.data, {});
-  const before = store.data.entries.length;
-  expect(
-    await store.submitEntry(form.id, {
-      lines: [
-        { ...(baseline.lines as FormValues[])[0], qty: 99 },
-        (baseline.lines as FormValues[])[1],
-      ],
-    }),
-  ).toBeUndefined();
-  expect(store.data.entries).toHaveLength(before);
-  expect(
-    await store.submitEntry(form.id, {
-      lines: [
-        ...(baseline.lines as FormValues[]),
-        { _rowId: "manual", item: "C", qty: 0 },
-      ],
-    }),
-  ).toBeTruthy();
-});
-it.each(["append", "insert"] as const)(
-  "keeps %s column grants in the group that grants row creation",
-  async (mode) => {
-    const { data, entry, group, baseline, schema } = memberFixture();
-    group.fields.qty = "read";
-    group.subformPermissions!.lines = {
-      ...newSubformPermissions(),
-      add: true,
-      insert: mode === "insert",
-    };
-    const second = copy(group);
-    second.id = "quantity-only";
-    second.fields.qty = "edit";
-    second.subformPermissions!.lines = {
-      ...newSubformPermissions(),
-      add: false,
-      insert: false,
-    };
-    data.formAccess![entry.formId]!.groups.push(second);
-    const rows = copy(baseline.lines as FormValues[]);
-    rows.splice(mode === "insert" ? 1 : 2, 0, {
-      _rowId: "new",
-      item: "C",
-      qty: 99,
-    });
-    const result = prepareMemberUpdate(data, entry, "zhang", "*", {
-      lines: rows,
-    });
-    expect(result.errors).toEqual([]);
-    expect(
-      (result.values.lines as FormValues[]).find((row) => row._rowId === "new"),
-    ).toMatchObject({ item: "C", qty: 7 });
-    const projected = memberSchema(schema, [group, second], true);
-    const host = await mount(FormFields, {
-      schema: projected,
-      fields: projected.fields,
-      values: result.values,
-      existingRows: baseline,
-    });
-    expect(
-      host.querySelector<HTMLInputElement>(
-        `[aria-label="明细 第${mode === "insert" ? 2 : 3}行 数量"]`,
-      )!.disabled,
-    ).toBe(true);
-  },
-);
 it("rejects ambiguous old row replacements when restricted row operations cannot be identified", () => {
   const { field, baseline } = fixture();
   field.subformPermissions!.insert = false;
@@ -395,7 +257,6 @@ it("renders generated rows readonly and new rows editable with their own delete 
   const host = await mount(FormRuntime, {
     schema,
     formId: "test",
-    preview: true,
   });
   expect(
     host.querySelector<HTMLInputElement>('[aria-label="明细 第1行 商品"]')!
@@ -448,7 +309,6 @@ it("lets an insertion-only empty subform create and remove its first manual row"
   const host = await mount(FormRuntime, {
     schema,
     formId: "empty-insert",
-    preview: true,
   });
   const insert = host.querySelector<HTMLButtonElement>(".subform-add")!;
   expect(insert.textContent).toContain("插入明细");

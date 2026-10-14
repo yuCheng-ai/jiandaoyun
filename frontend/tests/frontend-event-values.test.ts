@@ -6,8 +6,7 @@ import {
   emptySchema,
   type FormValues,
 } from "../src/domain/form";
-import { seedWorkspace } from "../src/domain/workspace";
-import { createRelationDemo } from "../src/domain/relationDemo";
+import { seedWorkspace, newForm } from "../src/domain/workspace";
 import { newFrontendRequest } from "../src/domain/frontendRequests";
 import { newFrontendSelection } from "../src/domain/frontendSelections";
 import {
@@ -80,16 +79,69 @@ it("fills members with their department in root or detail scope without requirin
 });
 
 function fixture(detail = false, rootFilter = false) {
-  const data = seedWorkspace(),
-    demo = createRelationDemo("oa");
-  data.forms.push(...demo.forms);
-  data.entries.push(...demo.entries);
-  const source = demo.forms[0]!,
-    order = demo.forms[1]!;
-  const region = copy(order.schema.fields.find((f) => f.label === "业务区域")!);
-  const customer = copy(
-    order.schema.fields.find((f) => f.label === "客户简称（动态选项）")!,
+  const data = seedWorkspace();
+  const source = newForm("oa", "客户");
+  source.schema.fields = [
+    createField("text", { id: "name", label: "客户名称" }),
+    createField("select", {
+      id: "region",
+      label: "所在区域",
+      options: [
+        { id: "east", label: "华东" },
+        { id: "south", label: "华南" },
+      ],
+    }),
+  ];
+  source.schema.fields.push(
+    createField("text", { id: "contact", label: "联系人" }),
   );
+  source.published = {
+    version: 1,
+    title: source.title,
+    schema: copy(source.schema),
+    workflow: copy(source.workflow),
+    publishedAt: source.createdAt,
+  };
+  source.versions = [copy(source.published)];
+  data.forms.push(source);
+  data.entries = [
+    ["青禾设计", "east", "林小禾"],
+    ["南屿科技", "south", "陈知南"],
+    ["星河制造", "east", "周星远"],
+  ].map(([name, region, contact], index) => ({
+    id: `customer-${index}`,
+    formId: source.id,
+    definitionVersion: 1,
+    values: { name, region, contact },
+    createdAt: source.createdAt,
+    status: "submitted",
+    history: [],
+  }));
+  const region = createField("select", {
+    id: "businessRegion",
+    label: "业务区域",
+    options: copy(source.schema.fields[1]!.options),
+  });
+  const customer = createField("select", {
+    id: "customer",
+    label: "客户简称（动态选项）",
+  });
+  Object.assign(customer.choiceSource, {
+    mode: "form",
+    formId: source.id,
+    labelFieldId: "name",
+    valueFieldId: "name",
+    sort: "asc",
+    filters: [
+      {
+        id: "region",
+        sourceFieldId: "region",
+        operator: "equals",
+        source: "field",
+        value: region.id,
+      },
+    ],
+  });
   const button = createField("button", { id: "choose", label: "选择客户" });
   const memo = createField("text", { id: "memo", label: "备注" });
   const schema = emptySchema();
@@ -165,7 +217,7 @@ function fixture(detail = false, rootFilter = false) {
     selection,
     request,
     values,
-    selected: demo.entries[1]!,
+    selected: data.entries[1]!,
   };
 }
 

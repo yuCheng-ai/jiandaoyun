@@ -40,6 +40,12 @@ export class ProcessesController {
     return this.processes.get(r.actor, id);
   }
 
+  /** 按当前身份打开流程正文，前端不从任务列表猜测申请单。 */
+  @Get("processes/:id/record")
+  processRecord(@Req() r: AuthenticatedRequest, @Param("id") id: string) {
+    return this.processes.record(r.actor, id);
+  }
+
   /** 完成指定任务节点并推进后续依赖任务 */
   @Post("processes/:id/tasks/:taskId/complete")
   complete(

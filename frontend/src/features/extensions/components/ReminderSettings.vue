@@ -9,16 +9,12 @@ import {
   reminderTemplateLabel,
   type ReminderConfig,
 } from "../../../domain/reminders";
-import { useWorkspaceStore } from "../../../stores/workspace";
 import AppIcon from "../../../components/AppIcon.vue";
 import ReminderEditor from "./ReminderEditor.vue";
 const props = defineProps<{ form: FormRecord; query: string }>();
-const emit = defineEmits<{ logs: [] }>();
-const store = useWorkspaceStore(),
-  archived = ref(false),
+const archived = ref(false),
   open = ref(false),
-  editing = ref<ReminderConfig>(),
-  summary = ref("");
+  editing = ref<ReminderConfig>();
 const configs = computed(() =>
   (props.form.extensions?.reminders || []).filter(
     (c) => c.archived === archived.value && c.name.includes(props.query),
@@ -41,47 +37,17 @@ function duplicate(c: ReminderConfig) {
     enabled: false,
   });
 }
-async function toggle(c: ReminderConfig) {
-  const next = { ...copy(c), enabled: !c.enabled };
-  if (next.enabled && reminderIssues(next, props.form.schema).length) {
-    edit(next);
-    store.notify("请先修复配置，再启用提醒", "warning");
-    return;
-  }
-  if (await store.saveReminder(props.form.id, next))
-    store.notify("提醒状态已保存，发布后生效");
-}
-async function archive(c: ReminderConfig) {
-  if (
-    await store.saveReminder(props.form.id, {
-      ...copy(c),
-      archived: !c.archived,
-      enabled: false,
-    })
-  )
-    store.notify("归档状态已保存，发布后用于新记录；历史记录保留原版本规则");
-}
-async function check() {
-  const result = await store.checkDueReminders(props.form.id);
-  if (result)
-    summary.value = `检查完成：模拟成功 ${result.success} 条，失败 ${result.failed} 条，条件不符 ${result.skipped} 条，已提醒 ${result.already} 条，未到期 ${result.future} 条，日期缺失或无效 ${result.invalidDate} 条。`;
-  else summary.value = "本次检查未保存，请处理提示后重试。";
-}
 </script>
 <template>
   <div>
     <div class="extension-list-tools">
       <span>{{ configs.length }} 条提醒</span
       ><label><input v-model="archived" type="checkbox" />查看已归档提醒</label
-      ><button class="button" @click="check">
+      ><button class="button" disabled>
         <AppIcon name="time" />检查到期提醒</button
       ><button class="button primary" @click="edit()">
         <AppIcon name="add" />新建推送提醒
       </button>
-    </div>
-    <div v-if="summary" class="reminder-check-summary" role="status">
-      <span>{{ summary }}</span
-      ><button class="text-button" @click="emit('logs')">查看执行记录</button>
     </div>
     <p class="field-hint">
       日期提醒需手动检查，覆盖已提交且未回收的记录，按各自发布版本执行；同一日期已成功提醒的记录不会重复。所有消息通道均为本地模拟。
@@ -130,17 +96,18 @@ async function check() {
               : "指定成员、部门或角色"
           }}</span
           ><button class="text-button" @click="edit(c)">编辑与试运行</button
-          ><button v-if="!c.archived" class="text-button" @click="toggle(c)">
+          ><button v-if="!c.archived" class="text-button" disabled>
             {{ c.enabled ? "停用" : "启用" }}</button
           ><button v-if="!c.archived" class="text-button" @click="duplicate(c)">
             复制提醒</button
-          ><button class="text-button" @click="archive(c)">
+          ><button class="text-button" disabled>
             {{ c.archived ? "恢复提醒" : "归档提醒" }}
           </button>
         </div>
       </article>
     </div>
     <ReminderEditor
+      v-if="open"
       :open="open"
       :model-value="editing"
       :schema="form.schema"

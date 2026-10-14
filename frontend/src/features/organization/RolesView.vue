@@ -1,8 +1,15 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useRouter } from "vue-router";
+import {
+  groupActionNames,
+  groupScopeNames,
+  type GroupAction,
+  type OrganizationFormPermission,
+  type OrganizationPermissionSummary,
+} from "@platform/contracts";
+import { platformApi } from "../../repositories/platformApi";
 import AdminLayout from "./AdminLayout.vue";
-import RoleGrantEditor from "./RoleGrantEditor.vue";
 import AppIcon from "../../components/AppIcon.vue";
 import BaseDialog from "../../components/BaseDialog.vue";
 import IdentityInput from "../../components/organization/IdentityInput.vue";
@@ -50,6 +57,7 @@ const {
   discard,
   continueEditing,
   draftKey,
+  dirty,
   busy,
   error,
   save: saveEdit,
@@ -90,6 +98,55 @@ const {
       );
   },
 });
+const permissions = ref<OrganizationPermissionSummary>();
+const permissionsLoading = ref(false),
+  permissionsError = ref("");
+let permissionsRequest = 0;
+async function loadPermissions() {
+  const requested = ++permissionsRequest;
+  permissions.value = undefined;
+  permissionsError.value = "";
+  permissionsLoading.value = false;
+  if (
+    modal.value !== "role" ||
+    editTab.value !== "permissions" ||
+    !editingId.value ||
+    !store.ready
+  )
+    return;
+  permissionsLoading.value = true;
+  try {
+    const result = await platformApi<OrganizationPermissionSummary>(
+      `/organization/permissions?roleId=${encodeURIComponent(editingId.value)}`,
+    );
+    if (requested === permissionsRequest) permissions.value = result;
+  } catch (cause) {
+    if (requested === permissionsRequest) {
+      permissionsError.value = (cause as Error).message;
+    }
+  } finally {
+    if (requested === permissionsRequest) permissionsLoading.value = false;
+  }
+}
+watch(
+  [modal, editTab, editingId, () => store.ready, () => store.namespace],
+  loadPermissions,
+  { flush: "sync" },
+);
+onBeforeUnmount(() => {
+  permissionsRequest++;
+});
+function configurePermissions(form: OrganizationFormPermission) {
+  // 复用表单发布页的权限组设置；原角色编辑的离开保护仍由路由守卫处理。
+  void router.push({
+    name: "page-publish",
+    params: { applicationId: form.applicationId, pageId: form.pageId },
+    query: { section: "access" },
+  });
+}
+function actionNames(actions: GroupAction[]) {
+  return actions.map((action) => groupActionNames[action]).join("、");
+}
 const members = computed(() =>
   role.value
     ? roleMembers(org.value, role.value).filter((e) =>
@@ -256,8 +313,7 @@ async function removeGroup() {
           <p>{{ role.description || "暂无角色说明" }}</p>
           <span
             >直接分配 {{ role.memberIds.length }} 人 · 关联
-            {{ role.departmentIds.length }} 个部门 ·
-            {{ role.grants.length }} 条授权</span
+            {{ role.departmentIds.length }} 个部门</span
           >
         </div>
         <div class="organization-table-scroll">
@@ -422,11 +478,80 @@ async function removeGroup() {
             部门新增、调动、停用和离职会自动更新角色中的在职成员。
           </p>
         </div>
-        <RoleGrantEditor v-else v-model="roleDraft.grants" /></template
+        <div v-else>
+          <p v-if="!editingId" class="field-hint">
+            请先保存角色，再设置表单权限。
+          </p>
+          <template v-else>
+            <p v-if="permissionsLoading" class="field-hint" role="status">
+              正在读取权限…
+            </p>
+            <p v-if="permissionsError" class="field-error" role="alert">
+              {{ permissionsError }}
+              <button class="text-button" @click="loadPermissions">
+                重新读取
+              </button>
+            </p>
+            <template v-if="permissions">
+              <p class="field-hint">
+                {{
+                  permissions.role?.archived
+                    ? "此角色已归档，以下权限组暂不生效。"
+                    : "通过表单权限组授予此角色权限。"
+                }}
+              </p>
+              <div
+                v-if="permissions.forms.length"
+                class="organization-table-scroll"
+              >
+                <table class="organization-table">
+                  <thead>
+                    <tr>
+                      <th>应用 / 表单</th>
+                      <th>权限组与范围</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="form in permissions.forms" :key="form.pageId">
+                      <td>{{ form.applicationTitle }} / {{ form.title }}</td>
+                      <td>
+                        <p v-for="item in form.groups" :key="item.id">
+                          {{ item.name }} ·
+                          {{ actionNames(item.actions) }}
+                          <span v-if="item.actions.includes('view')">
+                            · {{ groupScopeNames[item.scope] }}
+                          </span>
+                        </p>
+                        <span v-if="!form.groups.length" class="muted">
+                          未授予此角色
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          class="text-button"
+                          @click="configurePermissions(form)"
+                        >
+                          设置权限
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p v-else class="field-hint">暂无可配置权限的表单。</p>
+            </template>
+          </template>
+        </div></template
       ><template #footer
         ><button class="button" :disabled="busy" @click="requestClose">
-          取消</button
+          {{
+            modal === "role" && editTab === "permissions" && !dirty
+              ? "关闭"
+              : "取消"
+          }}</button
         ><button
+          v-if="modal === 'group' || editTab !== 'permissions' || dirty"
           class="button primary"
           :disabled="busy"
           @click="modal === 'group' ? saveGroup() : saveRole()"

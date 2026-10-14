@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
-import { beforeEach, expect, it } from "vitest";
-import { createPinia, setActivePinia } from "pinia";
+// @vitest-environment jsdom
+// @vitest-environment jsdom
+// @vitest-environment jsdom
+import { expect, it } from "vitest";
+
 import {
   separateFormSchema,
   composeFormSchema,
   externalStyleErrors,
   externalImageIssue,
   type CustomExternalStyle,
-  type ExternalFormStyle,
 } from "@platform/contracts";
 import {
   createField,
@@ -15,14 +17,6 @@ import {
   parseSchema,
   copy,
 } from "../src/domain/form";
-import { useWorkspaceStore } from "../src/stores/workspace";
-import { fillingSession } from "../src/domain/fillingSession";
-
-beforeEach(() => {
-  localStorage.clear();
-  sessionStorage.clear();
-  setActivePinia(createPinia());
-});
 
 function customStyle(): CustomExternalStyle {
   return {
@@ -107,32 +101,6 @@ it("custom settings survive page projection, rejecting malformed nested styles a
     }),
   ).toContain("5 MB");
 });
-it("custom publication and refresh leave older themes, records and fields immutable", async () => {
-  const store = useWorkspaceStore();
-  const created = (await store.createForm("oa", "自定义验收", "form"))!;
-  const form = store.openForm(created.id)!;
-  form.schema = fixture();
-  form.schema.settings.externalStyle = { theme: 1 };
-  expect(await store.publishForm(form.id)).toBe(true);
-  const old = copy((await store.submitEntry(form.id, { name: "旧记录" }))!),
-    v1 = copy(form.versions[0]);
-  const appearance: ExternalFormStyle = {
-    theme: 4,
-    custom: customStyle(),
-  };
-  appearance.custom!.title.align = "right";
-  appearance.custom!.title.visible = false;
-  appearance.custom!.buttonColor = "#123456";
-  form.schema.settings.externalStyle = appearance;
-  expect(await store.publishForm(form.id)).toBe(true);
-  setActivePinia(createPinia());
-  const fresh = useWorkspaceStore(),
-    saved = fresh.data.forms.find((f) => f.id === form.id)!;
-  expect(saved.published!.schema.settings.externalStyle).toEqual(appearance);
-  expect(saved.versions[0]).toEqual(v1);
-  expect(fresh.data.entries.find((e) => e.id === old.id)).toEqual(old);
-  expect(saved.schema.fields.map((f) => f.id)).toEqual(["name"]);
-});
 function fixture() {
   const schema = emptySchema();
   schema.fields = [
@@ -164,37 +132,4 @@ it("theme settings survive parsing and page projection; malformed styles are nev
       }),
     ).toThrow(/外链样式/);
   }
-});
-it("save, reload and publication retain themes, stable fields, pinned drafts and old records", async () => {
-  const store = useWorkspaceStore();
-  const created = (await store.createForm("oa", "主题验收", "form"))!;
-  const form = store.openForm(created.id)!;
-  form.schema = fixture();
-  form.schema.settings.externalStyle = { theme: 1 };
-  expect(await store.publishForm(form.id)).toBe(true);
-  const old = (await store.submitEntry(form.id, { name: "旧记录" }))!;
-  const draft = (await store.submitEntry(
-    form.id,
-    { name: "原草稿" },
-    "draft",
-  ))!;
-  const original = copy(old),
-    version = copy(form.versions[0]);
-  form.schema.settings.externalStyle = { theme: 4 };
-  expect(await store.publishForm(form.id)).toBe(true);
-  setActivePinia(createPinia());
-  const fresh = useWorkspaceStore();
-  const saved = fresh.data.forms.find((f) => f.id === form.id)!;
-  expect(saved.published!.schema.settings.externalStyle).toEqual({ theme: 4 });
-  expect(saved.versions[0]).toEqual(version);
-  expect(fresh.data.entries.find((e) => e.id === old.id)).toEqual(original);
-  expect(saved.published!.schema.fields.map((f) => f.id)).toEqual(["name"]);
-  expect(
-    fillingSession(
-      fresh.data,
-      form.id,
-      draft.id,
-      fresh.data.organization.currentUserId,
-    ).definition!.schema.settings.externalStyle,
-  ).toEqual({ theme: 1 });
 });

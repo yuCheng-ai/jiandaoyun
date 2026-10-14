@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Put, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Put, Query, Req, UseGuards } from "@nestjs/common";
 import { AuthGuard, AuthenticatedRequest } from "../../core/auth/auth.service";
 import { GroupConfigurationService } from "./group-config.service";
 
@@ -24,5 +24,21 @@ export class GroupConfigurationController {
   @Get(":id/permission-groups/options")
   options(@Req() req: AuthenticatedRequest, @Param("id") id: string) {
     return this.groups.options(req.actor, id);
+  }
+}
+
+/** 从同一套表单权限组查询组织成员与角色的授权，不维护第二套角色授权。 */
+@Controller("api/organization/permissions")
+@UseGuards(AuthGuard)
+export class OrganizationPermissionsController {
+  constructor(private readonly groups: GroupConfigurationService) {}
+
+  @Get()
+  get(
+    @Req() req: AuthenticatedRequest,
+    @Query("memberId") memberId?: string,
+    @Query("roleId") roleId?: string,
+  ) {
+    return this.groups.organizationPermissions(req.actor, memberId, roleId);
   }
 }

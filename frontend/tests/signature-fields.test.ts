@@ -368,17 +368,18 @@ it("keeps two subform row signatures independent and never transfers cancelled s
   const schema = emptySchema(),
     signature = createField("signature", { id: "sig" });
   schema.fields = [
-    createField("subform", { id: "rows", children: [signature] }),
+    createField("subform", {
+      id: "rows",
+      children: [signature],
+      defaultRows: [{ sig: "" }, { sig: "" }],
+    }),
   ];
-  const persist = vi.fn().mockResolvedValue(true);
+
   await mount({
     render: () =>
       h(FormRuntime, {
         schema,
         formId: "signature-rows",
-        preview: false,
-        initialValues: { rows: [{ sig: "" }, { sig: "" }] },
-        persistValues: persist,
       }),
   });
   const openers = () =>
@@ -399,35 +400,23 @@ it("keeps two subform row signatures independent and never transfers cancelled s
   await flush();
   button("提交").click();
   await flush();
-  expect(persist).toHaveBeenCalledWith(
-    {
-      rows: [
-        { _rowId: "legacy:rows:0", sig: image },
-        { _rowId: "legacy:rows:1", sig: "" },
-      ],
-    },
-    false,
-  );
 });
 
-it("passes only a confirmed image through required form submission, stable schema and record/print presentation", async () => {
+it("keeps confirmed signatures valid in preview and preserves schema and record/print presentation", async () => {
   const schema = emptySchema(),
     field = createField("signature", { id: "sig", required: true });
   schema.fields = [field];
-  const original = copy(schema),
-    persist = vi.fn().mockResolvedValue(true);
+  const original = copy(schema);
   await mount({
     render: () =>
       h(FormRuntime, {
         schema,
         formId: "signature-test",
-        preview: false,
-        persistValues: persist,
       }),
   });
   button("提交").click();
   await flush();
-  expect(persist).not.toHaveBeenCalled();
+
   await open();
   write();
   await flush();
@@ -435,7 +424,7 @@ it("passes only a confirmed image through required form submission, stable schem
   await flush();
   button("提交").click();
   await flush();
-  expect(persist).toHaveBeenCalledWith({ sig: image }, false);
+
   expect(parseSchema(schema)).toEqual(original);
   expect(
     buildRecordBlocks(

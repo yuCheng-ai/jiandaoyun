@@ -128,6 +128,12 @@ export interface PageSummary {
   folder?: string;
   versions?: number[];
 }
+export interface PageVersionSummary {
+  version: number;
+  title: string;
+  controlCount: number;
+  createdAt: string;
+}
 export interface DataFieldAddition {
   parentId?: string;
   field: DataField;
@@ -166,6 +172,10 @@ export interface PageEditorData {
   model: DataModel;
   object: DataObjectDraft;
   canEditFields?: boolean;
+}
+/** 发布事务同时返回最新编辑上下文，前端无需再请求一次草稿。 */
+export interface PagePublicationResult extends PublishedPage {
+  editor: PageEditorData;
 }
 export interface PublishedDataModel {
   object: DataObjectDraft;
@@ -232,7 +242,6 @@ export interface DataModelImpact {
   fromVersion: number;
   toVersion: number;
   titleChanged: boolean;
-  defaultPageWillPublish?: boolean;
   changes: {
     added: ModelFieldChange[];
     removed: ModelFieldChange[];

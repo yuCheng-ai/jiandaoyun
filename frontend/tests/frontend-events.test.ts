@@ -8,7 +8,6 @@ import {
   separateFormSchema,
   frontendEventSettingsErrors,
   type FrontendEvent,
-  type FormValues,
 } from "@platform/contracts";
 import {
   copy,
@@ -27,7 +26,7 @@ import {
   runFrontendEvent,
 } from "../src/domain/frontendEvents";
 import { newFrontendRequest } from "../src/domain/frontendRequests";
-import { useWorkspaceStore } from "../src/stores/workspace";
+import { seedWorkspace } from "../src/domain/workspace";
 import FormRuntime from "../src/features/forms/components/FormRuntime.vue";
 
 let pinia = createPinia();
@@ -138,7 +137,7 @@ it("events survive schema/page projection, rejecting malformed or excessive conf
 });
 it("only a manual trigger executes enabled events; inputs use the edited snapshot and output does not start a chain", () => {
   const schema = fixture(),
-    data = useWorkspaceStore().data;
+    data = seedWorkspace();
   const values = { qty: 3, price: 5, amount: 1, note: "保留" };
   schema.settings.frontendEvents!.push(
     event({
@@ -184,13 +183,13 @@ it("ordered events resolve overlapping outputs without changing the inputs seen 
     }),
   );
   expect(
-    applyFrontendEvents(schema, values, useWorkspaceStore().data, "field", {
+    applyFrontendEvents(schema, values, seedWorkspace(), "field", {
       fieldId: "qty",
     }).values.amount,
   ).toBe(2);
   schema.settings.frontendEvents!.reverse();
   expect(
-    applyFrontendEvents(schema, values, useWorkspaceStore().data, "field", {
+    applyFrontendEvents(schema, values, seedWorkspace(), "field", {
       fieldId: "qty",
     }).values.amount,
   ).toBe(15);
@@ -215,27 +214,24 @@ it("subform edits fill only the triggering row and retain other columns and row 
       { _rowId: "row_b", qty: 3, price: 5, amount: 2, note: "乙" },
     ],
   };
-  const result = applyFrontendEvents(
-    schema,
-    values,
-    useWorkspaceStore().data,
-    "field",
-    { fieldId: "qty", row: { subformId: "lines", index: 1 } },
-  );
+  const result = applyFrontendEvents(schema, values, seedWorkspace(), "field", {
+    fieldId: "qty",
+    row: { subformId: "lines", index: 1 },
+  });
   expect(result.failures).toEqual([]);
   expect(result.values.lines).toEqual([
     values.lines[0],
     { ...values.lines[1], amount: 15 },
   ]);
   expect(
-    applyFrontendEvents(schema, values, useWorkspaceStore().data, "field", {
+    applyFrontendEvents(schema, values, seedWorkspace(), "field", {
       fieldId: "qty",
       row: { subformId: "lines", index: 3 },
     }).failures.join(),
   ).toMatch(/行已不存在/);
 });
 it("effective readonly/hidden field and container permissions prevent writes and hidden reads leave no input trace", () => {
-  const data = useWorkspaceStore().data,
+  const data = seedWorkspace(),
     values = { qty: 2, price: 99, amount: 7 };
   for (const restriction of ["readonly", "hidden"]) {
     const schema = fixture();
@@ -272,7 +268,7 @@ it("effective readonly/hidden field and container permissions prevent writes and
 });
 it("local execution failure preserves all output fields; external plugin trial remains explicitly simulated", () => {
   const schema = fixture(),
-    data = useWorkspaceStore().data;
+    data = seedWorkspace();
   const result = applyFrontendEvents(
     schema,
     { qty: "错误", price: 5, amount: 8 },
@@ -308,14 +304,15 @@ it("local execution failure preserves all output fields; external plugin trial r
   expect(failure.status).toBe("failed");
   expect(failure.mappedValues).toEqual({});
 });
-it("actual filling reacts to manual main and child controls but initialization and draft saving do not execute submit events", async () => {
-  const schema = fixture(),
-    props = reactive({
-      schema,
-      formId: "qa",
-      initialValues: { qty: 1, price: 5, amount: 7 },
-      preview: true,
-    });
+it("preview reacts to manual controls without executing events during initialization", async () => {
+  const schema = fixture();
+  schema.fields[0]!.defaultValue = 1;
+  schema.fields[1]!.defaultValue = 5;
+  schema.fields[2]!.defaultValue = 7;
+  const props = reactive({
+    schema,
+    formId: "qa",
+  });
   const host = await mount(FormRuntime, props);
   expect(input(host, "金额").value).toBe("7");
   await set(input(host, "数量"), "3", "input");
@@ -332,43 +329,21 @@ it("actual subform control forwards the edited child and row rather than trigger
       id: "lines",
       label: "明细",
       children: schema.fields,
+      defaultRows: [
+        { qty: 1, price: 5, amount: 7 },
+        { qty: 2, price: 3, amount: 8 },
+      ],
     }),
   ];
   const host = await mount(FormRuntime, {
     schema,
     formId: "qa",
-    initialValues: {
-      lines: [
-        { qty: 1, price: 5, amount: 7 },
-        { qty: 2, price: 3, amount: 8 },
-      ],
-    },
   });
   await set(input(host, "明细 第2行 数量"), "4", "input");
   expect(input(host, "明细 第1行 金额").value).toBe("7");
   expect(input(host, "明细 第2行 金额").value).toBe("12");
 });
-it("submit-trigger output is validated and persisted; readonly mode and drafts do not run it", async () => {
-  const schema = fixture();
-  schema.settings.frontendEvents = [event({ trigger: "submit", fieldIds: [] })];
-  schema.fields[2]!.required = true;
-  const persist = vi.fn((_values: FormValues, _draft: boolean) => true);
-  const host = await mount(FormRuntime, {
-    schema,
-    formId: "qa",
-    preview: false,
-    initialValues: { qty: 3, price: 5, amount: "" },
-    persistValues: persist,
-  });
-  await click("保存草稿");
-  expect(persist.mock.calls[0]).toEqual([
-    { qty: 3, price: 5, amount: "" },
-    true,
-  ]);
-  await click("提交");
-  expect(persist.mock.calls[1]?.[0]).toMatchObject({ amount: 15 });
-  expect(host.textContent).toContain("提交成功");
-});
+
 function buttonFixture() {
   const schema = fixture();
   schema.fields.push(
@@ -394,13 +369,9 @@ it("button activation reuses field events without adding a data value or exposin
     frontendEventOutputFields(schema, configured).map((field) => field.id),
   ).not.toContain("calculate");
   const values = { qty: 2, price: 5, amount: 99 };
-  const result = applyFrontendEvents(
-    schema,
-    values,
-    useWorkspaceStore().data,
-    "field",
-    { fieldId: "calculate" },
-  );
+  const result = applyFrontendEvents(schema, values, seedWorkspace(), "field", {
+    fieldId: "calculate",
+  });
   expect(result.values).toEqual({ ...values, amount: 10 });
   expect(result.failures).toEqual([]);
   expect(result.runs).toHaveLength(1);
@@ -421,15 +392,15 @@ it("button activation reuses field events without adding a data value or exposin
     /触发字段/,
   );
 });
-it("real button controls wait for a configured enabled event, run on click only, and leave submitting to the existing form path", async () => {
-  const schema = buttonFixture(),
-    props = reactive({
-      schema,
-      formId: "qa",
-      preview: false,
-      initialValues: { qty: 3, price: 5, amount: 7 },
-      persistValues: vi.fn(() => true),
-    });
+it("preview buttons require a configured enabled event and execute only on click", async () => {
+  const schema = buttonFixture();
+  schema.fields[0]!.defaultValue = 3;
+  schema.fields[1]!.defaultValue = 5;
+  schema.fields[2]!.defaultValue = 7;
+  const props = reactive({
+    schema,
+    formId: "qa",
+  });
   const host = await mount(FormRuntime, props);
   const button = () =>
     host.querySelector<HTMLButtonElement>('[aria-label="计算金额"]')!;
@@ -446,18 +417,6 @@ it("real button controls wait for a configured enabled event, run on click only,
   await settle();
   await click("计算金额");
   expect(input(host, "金额").value).toBe("20");
-  expect(props.persistValues).not.toHaveBeenCalled();
-  await click("保存草稿");
-  expect(props.persistValues.mock.calls[0]).toEqual([
-    { qty: 4, price: 5, amount: 20 },
-    true,
-  ]);
-  await click("提交");
-  expect(props.persistValues.mock.calls[1]).toEqual([
-    { qty: 4, price: 5, amount: 20 },
-    false,
-  ]);
-  expect(button().disabled).toBe(true);
 });
 it("button controls nested in tabs and detail rows forward current-row context, retaining other rows and rejecting cross-scope output", async () => {
   const schema = buttonFixture(),
@@ -477,27 +436,24 @@ it("button controls nested in tabs and detail rows forward current-row context, 
       { _rowId: "b", qty: 3, price: 4, amount: 88 },
     ],
   };
+  tab.children[0]!.defaultRows = values.lines;
   const host = await mount(FormRuntime, {
     schema,
     formId: "qa",
-    initialValues: values,
   });
   await click("明细 第2行 计算金额");
   expect(input(host, "明细 第1行 金额").value).toBe("99");
   expect(input(host, "明细 第2行 金额").value).toBe("12");
-  const result = applyFrontendEvents(
-    schema,
-    values,
-    useWorkspaceStore().data,
-    "field",
-    { fieldId: "calculate", row: { subformId: "lines", index: 1 } },
-  );
+  const result = applyFrontendEvents(schema, values, seedWorkspace(), "field", {
+    fieldId: "calculate",
+    row: { subformId: "lines", index: 1 },
+  });
   expect(result.values.lines).toEqual([
     values.lines[0],
     { ...values.lines[1], amount: 12 },
   ]);
   expect(
-    applyFrontendEvents(schema, values, useWorkspaceStore().data, "field", {
+    applyFrontendEvents(schema, values, seedWorkspace(), "field", {
       fieldId: "calculate",
     }).runs,
   ).toHaveLength(0);
@@ -514,7 +470,7 @@ it("button controls nested in tabs and detail rows forward current-row context, 
 });
 it("hidden and readonly buttons or containers cannot execute; restricted output columns fail atomically", async () => {
   const values = { qty: 3, price: 4, amount: 88 },
-    data = useWorkspaceStore().data;
+    data = seedWorkspace();
   for (const restriction of [
     "hidden",
     "readonly",
@@ -543,24 +499,16 @@ it("hidden and readonly buttons or containers cannot execute; restricted output 
   }
   const schema = buttonFixture();
   schema.fields[2]!.editable = false;
+  schema.fields[0]!.defaultValue = values.qty;
+  schema.fields[1]!.defaultValue = values.price;
+  schema.fields[2]!.defaultValue = values.amount;
   const host = await mount(FormRuntime, {
     schema,
     formId: "qa",
-    initialValues: values,
   });
   await click("计算金额");
   expect(input(host, "金额").value).toBe("88");
   expect(host.textContent).toContain("不可编辑");
-  const readOnlyHost = await mount(FormRuntime, {
-    schema: buttonFixture(),
-    formId: "readonly",
-    readonly: true,
-    initialValues: values,
-  });
-  expect(
-    readOnlyHost.querySelector<HTMLButtonElement>('[aria-label="计算金额"]')!
-      .disabled,
-  ).toBe(true);
 });
 it("button-triggered requests use the same simulated adapter, retaining current-row values and preserving all values on failure", async () => {
   const schema = buttonFixture(),
@@ -581,10 +529,12 @@ it("button-triggered requests use the same simulated adapter, retaining current-
   } = schema.settings.frontendEvents![0]!;
   schema.settings.frontendEvents = [{ ...base, request }];
   const fetch = vi.spyOn(globalThis, "fetch");
+  schema.fields[0]!.defaultValue = 3;
+  schema.fields[1]!.defaultValue = 4;
+  schema.fields[2]!.defaultValue = 88;
   const host = await mount(FormRuntime, {
     schema,
     formId: "qa",
-    initialValues: { qty: 3, price: 4, amount: 88 },
   });
   await click("计算金额");
   expect(input(host, "金额").value).toBe("42");
@@ -594,54 +544,21 @@ it("button-triggered requests use the same simulated adapter, retaining current-
     createField("subform", { id: "lines", children: schema.fields }),
   ];
   const values = { lines: [{ _rowId: "a", qty: 2, price: 4, amount: 88 }] };
-  const result = applyFrontendEvents(
-    schema,
-    values,
-    useWorkspaceStore().data,
-    "field",
-    { fieldId: "calculate", row: { subformId: "lines", index: 0 } },
-  );
+  const result = applyFrontendEvents(schema, values, seedWorkspace(), "field", {
+    fieldId: "calculate",
+    row: { subformId: "lines", index: 0 },
+  });
   expect(result.values).toEqual(values);
   expect(result.failures.join()).toMatch(/有效数字/);
   request.simulation.response = '{"amount":21}';
-  const valid = applyFrontendEvents(
-    schema,
-    values,
-    useWorkspaceStore().data,
-    "field",
-    { fieldId: "calculate", row: { subformId: "lines", index: 0 } },
-  );
+  const valid = applyFrontendEvents(schema, values, seedWorkspace(), "field", {
+    fieldId: "calculate",
+    row: { subformId: "lines", index: 0 },
+  });
   expect(valid.failures).toEqual([]);
   expect(valid.values.lines).toEqual([{ ...values.lines[0], amount: 21 }]);
   expect(valid.runs[0]!.input.url).toContain("qty=2");
   expect(fetch).not.toHaveBeenCalled();
-});
-it("save/reload/publication keeps event versions and existing records immutable and rejects broken active references", async () => {
-  const store = useWorkspaceStore(),
-    created = (await store.createForm("oa", "事件验收", "form"))!,
-    form = store.openForm(created.id)!;
-  form.schema = fixture();
-  expect(await store.publishForm(form.id)).toBe(true);
-  const record = copy(
-      (await store.submitEntry(form.id, { qty: 1, price: 2, amount: 2 }))!,
-    ),
-    v1 = copy(form.versions[0]);
-  form.schema.settings.frontendEvents![0]!.enabled = false;
-  expect(await store.publishForm(form.id)).toBe(true);
-  setActivePinia(createPinia());
-  const fresh = useWorkspaceStore(),
-    saved = fresh.openForm(form.id)!;
-  expect(saved.versions[0]).toEqual(v1);
-  expect(saved.schema.settings.frontendEvents![0]!.enabled).toBe(false);
-  expect(fresh.data.entries.find((entry) => entry.id === record.id)).toEqual(
-    record,
-  );
-  saved.schema.settings.frontendEvents![0]!.enabled = true;
-  saved.schema.fields = saved.schema.fields.filter(
-    (field) => field.id !== "price",
-  );
-  expect(await fresh.publishForm(form.id)).toBe(false);
-  expect(saved.versions).toHaveLength(2);
 });
 async function settle() {
   await nextTick();

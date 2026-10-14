@@ -686,47 +686,6 @@
   font-size: 13px;
   flex: 1;
 }
-.toast-stack {
-  position: fixed;
-  left: 50%;
-  top: 65px;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  z-index: 1000;
-  pointer-events: none;
-  max-width: calc(100vw - 24px);
-}
-.toast {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 11px 18px;
-  border-radius: 6px;
-  background: white;
-  box-shadow: 0 4px 22px #22365222;
-  border: 1px solid #e4edea;
-  font-size: 13px;
-  animation: toast-in 0.2s ease;
-  white-space: nowrap;
-}
-.toast.success > .app-icon {
-  color: #29b280;
-}
-.toast.warning > .app-icon {
-  color: #e6a039;
-}
-@keyframes toast-in {
-  from {
-    opacity: 0;
-    transform: translateY(-7px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 .dialog-layer {
   position: fixed;
   inset: 0;
@@ -1287,10 +1246,6 @@
   }
   .property-tabs {
     height: 45px;
-  }
-  .toast {
-    white-space: normal;
-    line-height: 1.6;
   }
 }
 @media (max-width: 650px) {

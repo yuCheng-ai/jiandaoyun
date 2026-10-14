@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createPinia, setActivePinia } from "pinia";
+import { describe, expect, it, vi } from "vitest";
+
 import {
   copy,
   createField,
@@ -7,13 +7,9 @@ import {
   type FormField,
 } from "../src/domain/form";
 import { newForm, seedWorkspace } from "../src/domain/workspace";
-import {
-  fieldExtensionImpacts,
-  parseExtensions,
-} from "../src/domain/extensions";
+import { parseExtensions } from "../src/domain/extensions";
 import { memberContext } from "../src/domain/access";
-import { parseWorkspace } from "../src/repositories/workspaceRepository";
-import { useWorkspaceStore } from "../src/stores/workspace";
+
 import { localQuickFillExtractor } from "../src/services/quickFillExtractor";
 import {
   newQuickFill,
@@ -26,15 +22,6 @@ import {
   quickFillValue,
   type QuickFillConfig,
 } from "../src/domain/quickFill";
-beforeEach(() => {
-  vi.restoreAllMocks();
-  const memory = new Map<string, string>();
-  vi.stubGlobal("localStorage", {
-    getItem: vi.fn((k) => memory.get(k) || null),
-    setItem: vi.fn((k, v) => memory.set(k, v)),
-  });
-  setActivePinia(createPinia());
-});
 function fixture(extra: FormField[] = []) {
   const data = seedWorkspace(),
     schema = emptySchema();
@@ -449,48 +436,5 @@ describe("quick-fill configuration persistence", () => {
     expect(
       quickFillFields(quickFillDesignSchema(form)).map((f) => f.id),
     ).toEqual(["name"]);
-  });
-  it("saves, isolates published versions, disables copies and rolls back failed persistence", async () => {
-    const { schema, config } = fixture(),
-      store = useWorkspaceStore();
-    const form = store.openForm(
-      (await store.createForm("oa", "快捷填报", "form"))!.id,
-    )!;
-    form.schema = schema;
-    expect(await store.saveQuickFill(form.id, config)).toBe(true);
-    expect(await store.publishForm(form.id)).toBe(true);
-    config.example = "新版示例";
-    await store.saveQuickFill(form.id, config);
-    expect(form.published!.extensions!.quickFill!.example).toBe("");
-    const duplicate = (await store.duplicateForm(form.id))!;
-    expect(duplicate.extensions!.quickFill!.enabled).toBe(false);
-    const reloaded = parseWorkspace(JSON.stringify(store.data));
-    expect(
-      reloaded.forms.find((f) => f.id === form.id)!.extensions!.quickFill!
-        .example,
-    ).toBe("新版示例");
-    vi.mocked(localStorage.setItem).mockImplementation(() => {
-      throw Error("quota");
-    });
-    config.example = "不能保存";
-    expect(await store.saveQuickFill(form.id, config)).toBe(false);
-    expect(form.extensions!.quickFill!.example).toBe("新版示例");
-    expect(fieldExtensionImpacts(form, ["name"])).toContain(
-      "AI 快捷填报的目标字段",
-    );
-  });
-  it("prevents publishing stale enabled fields, while disabling preserves settings", async () => {
-    const { schema, config } = fixture(),
-      store = useWorkspaceStore(),
-      form = store.openForm(
-        (await store.createForm("oa", "字段变更", "form"))!.id,
-      )!;
-    form.schema = schema;
-    await store.saveQuickFill(form.id, config);
-    form.schema.fields = [];
-    expect(await store.publishForm(form.id)).toBe(false);
-    config.enabled = false;
-    expect(await store.saveQuickFill(form.id, config)).toBe(true);
-    expect(form.extensions!.quickFill!.fields).toHaveLength(2);
   });
 });

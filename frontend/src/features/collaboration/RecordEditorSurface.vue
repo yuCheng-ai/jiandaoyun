@@ -5,7 +5,7 @@ defineEmits<{ close: [] }>();
 </script>
 <template>
   <section v-if="embedded" class="record-editor-inline" :aria-busy="busy">
-    <p v-if="busy" class="dialog-pending" role="status">正在保存，请稍候…</p>
+    <p v-if="busy" class="dialog-pending" role="status">正在处理，请稍候…</p>
     <div class="record-editor-content" :inert="busy || undefined"><slot /></div>
     <footer class="runtime-footer" :inert="busy || undefined">
       <slot name="footer" />
@@ -17,6 +17,7 @@ defineEmits<{ close: [] }>();
     :title="title"
     width="820px"
     :busy="busy"
+    pending-text="正在处理，请稍候…"
     @close="$emit('close')"
     ><slot /><template #footer><slot name="footer" /></template
   ></BaseDialog>

@@ -1,5 +1,5 @@
 import { ref, watch } from "vue";
-import { onBeforeRouteLeave, useRouter } from "vue-router";
+import { onBeforeRouteLeave, onBeforeRouteUpdate } from "vue-router";
 import { useOrganizationStore } from "../stores/organization";
 import {
   directoryEditContext,
@@ -17,8 +17,7 @@ export function useOrganizationDraft(options: {
   restore: (value: unknown) => void;
   close: () => void;
 }) {
-  const store = useOrganizationStore(),
-    router = useRouter();
+  const store = useOrganizationStore();
   const session = usePlatformSession();
   const owner = () => `${session.user?.id || ""}:${store.namespace || "new"}`;
   // The first save assigns a server namespace; keep its recovery copy attached
@@ -27,10 +26,8 @@ export function useOrganizationDraft(options: {
   const key = () => `${draftOwner.value}:${options.key()}`;
   let baselineOwner = "";
   const busy = ref(false),
-    error = ref(""),
-    destination = ref("");
-  let baseline = "",
-    initial = "";
+    error = ref("");
+  let baseline = "";
   const context = () => {
     const [, kind, id] = options.key().split(":");
     return directoryEditContext(store.organization, {
@@ -47,20 +44,12 @@ export function useOrganizationDraft(options: {
         baseline = context();
         baselineOwner = owner();
         draftOwner.value = baselineOwner;
-        initial = JSON.stringify(options.value());
         error.value = "";
-        destination.value = "";
       }
     },
     { flush: "sync" },
   );
-  function close() {
-    options.close();
-    const target = destination.value;
-    destination.value = "";
-    if (target) void router.push(target);
-  }
-  const recovery = useDraftDismiss(options.active, options.value, close, {
+  const recovery = useDraftDismiss(options.active, options.value, options.close, {
     key,
     title: options.title,
     context: () => ({ owner: owner(), directory: context() }),
@@ -85,18 +74,10 @@ export function useOrganizationDraft(options: {
       return false;
     }
     busy.value = true;
-    const previousNotices = new Set(
-      (store.notices || []).map((notice) => notice.id),
-    );
     try {
       if ((await action(baseline)) !== true) {
-        const issue = (store.notices || []).find(
-          (notice) =>
-            !previousNotices.has(notice.id) && notice.type !== "success",
-        );
-        error.value = issue
-          ? issue.message
-          : "保存未完成，请稍后重试；当前修改已保留。";
+        error.value =
+          store.actionError || "保存未完成，请稍后重试；当前修改已保留。";
         return false;
       }
       recovery.markSaved();
@@ -110,17 +91,10 @@ export function useOrganizationDraft(options: {
       busy.value = false;
     }
   }
-  onBeforeRouteLeave((to) => {
-    if (busy.value) return false;
-    if (options.active() && JSON.stringify(options.value()) !== initial) {
-      destination.value = to.fullPath;
-      recovery.requestClose();
-      return false;
-    }
-    return true;
-  });
+  const confirmLeave = () => !busy.value && recovery.confirmLeave();
+  onBeforeRouteLeave(confirmLeave);
+  onBeforeRouteUpdate(confirmLeave);
   function continueEditing() {
-    destination.value = "";
     recovery.confirmDiscard.value = false;
   }
   return { ...recovery, busy, error, requestClose, save, continueEditing };

@@ -145,7 +145,7 @@ onBeforeRouteLeave(() => {
       {{ member.name }}<span>{{ member.number }}</span>
     </p>
     <p class="field-hint">
-      关联后使用此成员的部门和角色。原表单的应用授权仍待接入，账号的已有授权保留。
+      关联后，账号使用此成员的部门和角色。表单权限在权限组中设置。
     </p>
     <p v-if="error" class="field-error" role="alert">
       {{ error }}

@@ -1,7 +1,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { pageForModel } from "@platform/contracts";
+import { separateFormSchema, pageForModel, type FormSchema } from "@platform/contracts";
 import { harness, field, schema } from "./helpers";
 
 const h = harness(), main = randomUUID(), child = randomUUID(), other = randomUUID(), role = randomUUID(), group = randomUUID();
@@ -20,7 +20,24 @@ before(async () => {
     assignments: [{ userId: admin, departmentIds: [main], primaryDepartmentId: main }, { userId: editor, departmentIds: [child], primaryDepartmentId: child }, { userId: reviewer, departmentIds: [other], primaryDepartmentId: other }],
   } });
   definition = await h.definition("组织字段", layout()); page = (await h.request(`/pages?definitionId=${definition.id}`))[0];
-  await h.request(`/definitions/${definition.id}/grants`, "PUT", { userId: editor, read: true, create: true, edit: true, scope: "all", fields: { note: "edit", department: "edit", owner: "edit", reviewers: "hidden", manager: "hidden", departments: "edit", lines: "edit", lineDepartment: "edit", handler: "read", helpers: "edit" } });
+  await h.permissionGroup(definition.id, {
+    id: "member_" + editor,
+    subjects: [{ kind: "member", id: editor }],
+    scope: "all",
+    fields: {
+      note: "edit",
+      department: "edit",
+      owner: "edit",
+      reviewers: "hidden",
+      manager: "hidden",
+      departments: "edit",
+      lines: "edit",
+      lineDepartment: "edit",
+      handler: "read",
+      helpers: "edit",
+    },
+    actions: ["view", "create", "edit"],
+  });
 });
 after(() => h.close());
 
@@ -80,10 +97,10 @@ test("publication rejects cross-row dependencies, cycles and nonexistent directo
     [member("x", "member", { mode: "custom", employeeIds: [randomUUID()] })],
     [member("x", "member", { mode: "fieldDepartment", fieldId: "nested" }), field("rows", "subform", { children: [member("nested", "department")] })],
   ]) {
-    const def = await h.request("/definitions", "POST", { title: "不合法范围", schema: schema(...fields) }, "admin", 201);
-    await h.request(`/definitions/${def.id}/publish`, "POST", { expectedRevision: 1 }, "admin", 400);
+    const def = await h.request("/data-objects", "POST", { title: "不合法范围", model: separateFormSchema(schema(...fields) as unknown as FormSchema).model }, "admin", 201);
+    await h.request(`/data-objects/${def.id}/publish`, "POST", { expectedRevision: 1 }, "admin", 400);
   }
-  for (const item of [member("x", "member", {}, { defaultMode: "currentDepartment" }), member("x", "department", {}, { defaultIds: [main, other] }), member("x", "member", { employeeIds: ["local-person"] })]) await h.request("/definitions", "POST", { title: "无效格式", schema: schema(item) }, "admin", 400);
+  for (const item of [member("x", "member", {}, { defaultMode: "currentDepartment" }), member("x", "department", {}, { defaultIds: [main, other] }), member("x", "member", { employeeIds: ["local-person"] })]) await h.request("/data-objects", "POST", { title: "无效格式", model: separateFormSchema(schema(item) as unknown as FormSchema).model }, "admin", 400);
 });
 
 test("a page cannot request field candidates or alter department conditions outside its binding", async () => {
@@ -124,8 +141,27 @@ test("task field candidates enforce task state, row identity and current permiss
 test("record upgrades preview resolved identity defaults and reject changed organization defaults without mutating history", async () => {
   const def = await h.definition("组织默认值升级", schema(field("text"))), record = await h.record(def.id, { text: "保留" });
   const page = (await h.request(`/pages?definitionId=${def.id}`))[0];
-  await h.request(`/definitions/${def.id}`, "PUT", { title: "组织默认值升级", expectedRevision: 2, schema: schema(field("text"), member("department", "department", {}, { defaultMode: "currentDepartment" }), member("manager", "member", {}, { defaultMode: "departmentManager" })) });
-  await h.request(`/definitions/${def.id}/publish`, "POST", { expectedRevision: 3 }, "admin", 201);
+  const next = separateFormSchema(schema(
+    field("text"),
+    member("department", "department", {}, { defaultMode: "currentDepartment" }),
+    member("manager", "member", {}, { defaultMode: "departmentManager" }),
+  ) as unknown as FormSchema);
+  await h.request(`/data-objects/${def.id}`, "PUT", { title: "组织默认值升级", expectedRevision: 2, model: next.model });
+  await h.request(`/data-objects/${def.id}/publish`, "POST", { expectedRevision: 3 }, "admin", 201);
+  const currentPage = await h.request(`/pages/${page.id}/draft`);
+  const nextPage = await h.request(`/pages/${page.id}`, "PUT", {
+    ...currentPage,
+    expectedRevision: currentPage.revision,
+    definitionVersion: 2,
+    schema: next.page,
+  });
+  await h.request(
+    `/pages/${page.id}/publish`,
+    "POST",
+    { expectedRevision: nextPage.revision },
+    "admin",
+    201,
+  );
   const path = `/pages/${page.id}/records/${record.record.id}/upgrade`, plan = await h.request(`${path}?version=2`);
   assert.equal(plan.allowed, true); assert.equal(plan.additions.find((item: any) => item.fieldId === "department").defaultDisplay, "业务部");
   let org = await h.request("/organization"); org.spec.departments.find((item: any) => item.id === main).managerIds = [editor];
@@ -154,11 +190,11 @@ test("deleted-row recovery checks current identity availability and retains the 
 test("model review counts current organization-scope incompatibilities without rewriting historical records", async () => {
   const def = await h.definition("选人范围变更", schema(member("owner")));
   const record = await h.record(def.id, { owner: editor });
-  await h.request(`/definitions/${def.id}`, "PUT", { title: "选人范围变更", expectedRevision: 2, schema: schema(member("owner", "member", { mode: "custom", employeeIds: [reviewer] })) });
-  const preview = await h.request(`/definitions/${def.id}/publish-preview`, "POST", { expectedRevision: 3 }, "admin", 201);
+  await h.request(`/data-objects/${def.id}`, "PUT", { title: "选人范围变更", expectedRevision: 2, model: separateFormSchema(schema(member("owner", "member", { mode: "custom", employeeIds: [reviewer] })) as unknown as FormSchema).model });
+  const preview = await h.request(`/data-objects/${def.id}/publish-preview`, "POST", { expectedRevision: 3 }, "admin", 201);
   assert.equal(preview.records[0].incompatible, 1); assert.match(preview.organizationCheck, /当前检查人/);
   assert.ok(preview.changes.changed[0].details.some((text: string) => text.includes(users.find(user => user.id === reviewer).name)));
-  await h.request(`/definitions/${def.id}/publish`, "POST", { expectedRevision: 3, impactToken: preview.token }, "admin", 201);
+  await h.request(`/data-objects/${def.id}/publish`, "POST", { expectedRevision: 3, impactToken: preview.token }, "admin", 201);
   const old = await h.request(`/records/${record.record.id}`);
   assert.equal(old.record.definitionVersion, 1); assert.equal(old.record.values.owner, editor);
 });

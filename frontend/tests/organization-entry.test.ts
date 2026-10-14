@@ -58,7 +58,6 @@ beforeEach(() => {
       }
       if (path.startsWith("/organization/member-accounts"))
         return { links: [] };
-      if (path === "/organization/role-applications") return [];
       if (path === "/organization")
         return {
           revision: 4,
@@ -93,7 +92,8 @@ async function mount() {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
-      { path: "/", component: { template: "<p>工作台登录入口</p>" } },
+      { path: "/", component: { template: "<p>工作台</p>" } },
+      { path: "/login", component: { template: "<p>登录</p>" } },
       { path: "/admin/organization", component: EmployeesView },
       { path: "/admin/members", component: EmployeesView },
       { path: "/admin/roles", component: RolesView },
@@ -203,7 +203,7 @@ it("signing out clears server directory state and returns to the login entry", a
   await settle();
   expect(document.body.textContent).not.toContain("切换体验成员");
   await click("退出登录");
-  await vi.waitFor(() => expect(router.currentRoute.value.path).toBe("/"));
+  await vi.waitFor(() => expect(router.currentRoute.value.path).toBe("/login"));
   expect(vi.mocked(platformApi).mock.calls).toContainEqual([
     "/auth/logout",
     "POST",

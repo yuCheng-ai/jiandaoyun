@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { useWorkspaceStore } from "../../../stores/workspace";
+import { useRuntimeData } from "../../../composables/useRuntimeData";
 import { copy, type FormSchema, type FormValues } from "../../../domain/form";
 import { configurableFields, sampleValues } from "../../../domain/extensions";
 import FieldControl from "../../forms/components/FieldControl.vue";
@@ -10,10 +10,10 @@ const props = defineProps<{
   modelValue: FormValues;
 }>();
 const emit = defineEmits<{ "update:modelValue": [values: FormValues] }>();
-const store = useWorkspaceStore(),
-  selected = ref("");
+const runtimeData = useRuntimeData();
+const selected = ref("");
 const records = computed(() =>
-  store.data.entries.filter(
+  runtimeData.value.entries.filter(
     (e) => e.formId === props.formId && e.status !== "draft" && !e.deletedAt,
   ),
 );

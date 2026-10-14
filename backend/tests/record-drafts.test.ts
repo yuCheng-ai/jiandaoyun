@@ -1,15 +1,28 @@
 import { before, after, test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { pageForModel } from "@platform/contracts";
+import { pageForModel, type RecordPermissionGroup } from "@platform/contracts";
 import { harness, field, schema } from "./helpers";
 const h = harness(); let editor: string, reviewer: string, admin: string;
 const layout = () => schema(field("title", "text", { required: true }), field("quantity", "number", { required: true, min: 1 }), field("lines", "subform", { required: true, children: [field("item", "text", { required: true })] }));
 async function setup() {
   const definition = await h.definition("草稿业务", layout()), page = (await h.request(`/pages?definitionId=${definition.id}`))[0];
-  const policy = { read: true, create: true, edit: false, scope: "all", fields: { title: "edit", quantity: "edit", lines: "edit", item: "edit" } };
-  await h.grant(definition.id, { userId: editor, ...policy });
-  await h.grant(definition.id, { userId: reviewer, ...policy, edit: true });
+  const policy: Pick<RecordPermissionGroup, "scope" | "fields" | "actions"> = {
+    scope: "all",
+    fields: { title: "edit", quantity: "edit", lines: "edit", item: "edit" },
+    actions: ["view", "create"],
+  };
+  await h.permissionGroup(definition.id, {
+    id: "member_" + editor,
+    subjects: [{ kind: "member", id: editor }],
+    ...policy,
+  });
+  await h.permissionGroup(definition.id, {
+    id: "member_" + reviewer,
+    subjects: [{ kind: "member", id: reviewer }],
+    ...policy,
+    actions: ["view", "create", "edit"],
+  });
   return { definition, page, policy };
 }
 const draft = (f: any, values = {}, user = "editor") => h.request(`/pages/${f.page.id}/records`, "POST", { requestId: randomUUID(), pageVersion: 1, state: "draft", values }, user, 201);
@@ -58,8 +71,13 @@ test("read-all policies do not reveal other members' drafts and revoked creation
   await h.request(`/records/${d.record.id}`, "GET", undefined, "reviewer", 403);
   await h.request(`/records/${d.record.id}`, "PATCH", { requestId: randomUUID(), changes: [{ fieldId: "title", expectedRevision: 1, value: "他人草稿" }] }, "reviewer", 403);
   await submit(f, d, {}, 403, "reviewer");
-  await h.grant(f.definition.id, { userId: editor, ...f.policy, create: false, edit: true });
-  assert.equal((await h.request(`/records/${d.record.id}`, "GET", undefined, "editor")).access.edit, false);
+  await h.permissionGroup(f.definition.id, {
+    id: "member_" + editor,
+    subjects: [{ kind: "member", id: editor }],
+    ...f.policy,
+    actions: ["view", "edit"],
+  });
+  await h.request(`/records/${d.record.id}`, "GET", undefined, "editor", 403);
   await h.request(`/records/${d.record.id}`, "PATCH", { requestId: randomUUID(), changes: [{ fieldId: "title", expectedRevision: 1, value: "撤权后" }] }, "editor", 403);
   await submit(f, d, {}, 403);
 });
@@ -70,7 +88,37 @@ test("drafts never enter direct processes, wait bindings or published-template c
   await h.request("/processes", "POST", { requestId: randomUUID(), spec, bindings: { business: d.record.id } }, "admin", 409);
   await h.request("/processes", "POST", { requestId: randomUUID(), spec: { ...spec, tasks: [{ ...spec.tasks[0], waitFor: { recordBinding: "waiting", fieldId: "title", equals: content.title } }] }, bindings: { business: active.record.id, waiting: d.record.id } }, "admin", 409);
   const object = await h.request(`/data-objects/${f.definition.id}/draft`);
-  const template = await h.request("/process-templates", "POST", { requestId: randomUUID(), applicationId: object.applicationId, spec: { title: "草稿排除", bindings: [{ id: "business", title: "业务", definitionId: f.definition.id, definitionVersion: 1 }], tasks: [{ ...spec.tasks[0], pageId: f.page.id, pageVersion: 1, requiredFields: [] }] } }, "admin", 201);
+  const template = await h.request(
+    "/process-templates",
+    "POST",
+    {
+      requestId: randomUUID(),
+      applicationId: object.applicationId,
+      spec: {
+        title: "草稿排除",
+        startTaskIds: ["work"],
+        endTaskIds: ["work"],
+        bindings: [
+          {
+            id: "business",
+            title: "业务",
+            definitionId: f.definition.id,
+            definitionVersion: 1,
+          },
+        ],
+        tasks: [
+          {
+            ...spec.tasks[0],
+            pageId: f.page.id,
+            pageVersion: 1,
+            requiredFields: [],
+          },
+        ],
+      },
+    },
+    "admin",
+    201,
+  );
   await h.request(`/process-templates/${template.id}/publish`, "POST", { expectedRevision: template.revision }, "admin", 201);
   const candidates = await h.request(`/process-templates/${template.id}/versions/1/records?bindingId=business`);
   assert.equal(candidates.some((row: any) => row.id === d.record.id), false);

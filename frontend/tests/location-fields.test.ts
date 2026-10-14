@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createApp, h, nextTick, reactive } from "vue";
 import { createPinia } from "pinia";
@@ -37,7 +38,7 @@ import { seedWorkspace, newForm } from "../src/domain/workspace";
 import LocationFieldControl from "../src/features/forms/components/LocationFieldControl.vue";
 import LocationPickerDialog from "../src/features/forms/components/LocationPickerDialog.vue";
 import { deviceLocation, loadLocationMap } from "../src/services/locationMap";
-import { useWorkspaceStore } from "../src/stores/workspace";
+
 import { coerceFrontendValue } from "../src/domain/frontendEventValues";
 
 const point: LocationValue = {
@@ -331,51 +332,6 @@ it("links the original structured location rather than stringifying or treating 
   expect(() => coerceFrontendValue(field, "伪造地址", data, {})).toThrow(
     "有效的定位对象",
   );
-});
-
-it("saves and submits structured positions through the real repository while retaining a published text-only V1", async () => {
-  localStorage.clear();
-  const store = useWorkspaceStore(createPinia());
-  const created = (await store.createForm("oa", "SYN-定位保存验收", "form"))!;
-  const form = store.openForm(created.id)!;
-  const old = location();
-  delete old.location;
-  form.schema.fields = [old];
-  expect(await store.publishForm(form.id)).toBeTruthy();
-  const original = (await store.submitEntry(form.id, {
-    position: "SYN-历史位置",
-  }))!;
-  expect(original.definitionVersion).toBe(1);
-  const draftForm = store.openForm(form.id)!;
-  draftForm.schema.fields = [location()];
-  expect(await store.publishForm(form.id)).toBeTruthy();
-  const draft = (await store.submitEntry(
-    form.id,
-    { position: point },
-    "draft",
-  ))!;
-  expect(draft.definitionVersion).toBe(2);
-  const submitted = (await store.submitEntry(
-    form.id,
-    { position: point },
-    "submitted",
-    draft.id,
-  ))!;
-  expect(submitted.id).toBe(draft.id);
-  const cold = useWorkspaceStore(createPinia());
-  await cold.refreshForRead();
-  const records = cold.data.entries.filter((entry) => entry.formId === form.id);
-  expect(records).toHaveLength(2);
-  expect(
-    records.find((entry) => entry.id === original.id)?.values.position,
-  ).toBe("SYN-历史位置");
-  expect(
-    records.find((entry) => entry.id === draft.id)?.values.position,
-  ).toEqual(point);
-  expect(
-    cold.data.forms.find((item) => item.id === form.id)!.versions[0]!.schema
-      .fields[0]!.location,
-  ).toBeUndefined();
 });
 
 it("keeps the existing position on permission failure, then retries with a structured device fix", async () => {

@@ -29,6 +29,7 @@ import ServerFieldControl from "./ServerFieldControl.vue";
 import BaseDialog from "../../components/BaseDialog.vue";
 import RecordRelations from "../data/RecordRelations.vue";
 import { useDraftDismiss } from "../../composables/useDraftDismiss";
+import { useNotices } from "../../stores/notices";
 import { provideFileUploads } from "../../composables/useFileUploads";
 import {
   canEditField,
@@ -43,6 +44,8 @@ import {
   subformRowCountIssue,
   subformPermissions,
 } from "@platform/contracts";
+const { notify } = useNotices();
+const router = useRouter();
 const props = defineProps<{
   published: PublishedAccess;
   detail?: RecordDetail;
@@ -57,7 +60,12 @@ const submission = ref<{
   message: string;
   mode: "inline" | "page";
   canContinue: boolean;
+  processId?: string;
 }>();
+function viewProcess(id: string) {
+  if (working.value) return;
+  void router.push({ name: "home", query: { tab: "started", process: id } });
+}
 const current = ref(props.detail);
 const collection = ref<CollectionStatus | undefined>(
   props.detail?.collection || props.published.collection,
@@ -80,6 +88,29 @@ async function checkCollection() {
   }
 }
 const active = computed(() => current.value || props.published);
+const settings = computed(() => active.value.definition.schema.settings ?? {});
+const canWrite = computed(() =>
+  current.value ? active.value.access.edit : active.value.access.create,
+);
+// 提交设置只影响填写入口；已提交记录和任务仍按服务端返回的编辑权限保存。
+const canSaveDraft = computed(
+  () =>
+    canWrite.value &&
+    collecting.value &&
+    !current.value?.task &&
+    settings.value.allowDraft !== false,
+);
+const canSaveRecord = computed(() => {
+  if (!canWrite.value) return false;
+  if (current.value?.task || !collecting.value) return true;
+  return settings.value.allowSubmit !== false;
+});
+const saveLabel = computed(() => {
+  if (current.value?.task || !collecting.value) return "保存修改";
+  const custom = settings.value.submitLabel?.trim();
+  if (custom && custom !== "提交") return custom;
+  return props.embedded ? custom || "提交" : "提交记录";
+});
 const values = ref<FormValues>(
   JSON.parse(
     JSON.stringify(
@@ -101,58 +132,45 @@ const busy = ref(false),
   error = ref(""),
   conflict = ref(false),
   reloadPrompt = ref(false);
-const uploading = provideFileUploads();
+const { uploading, discardUploads } = provideFileUploads();
 const working = computed(() => busy.value || uploading.value);
-const router = props.embedded ? useRouter() : undefined;
-let leaveAction: (() => void | Promise<void>) | undefined;
-const { dirty, requestClose, confirmDiscard, discard, markSaved } =
-  useDraftDismiss(
-    () => true,
-    () => values.value,
-    () => {
-      const action = leaveAction;
-      leaveAction = undefined;
-      if (action) {
-        replaceValues(
-          JSON.parse(
-            current.value
-              ? JSON.stringify(current.value.record.values)
-              : initialValues,
-          ),
-        );
-        removedRows.value = [];
-        markSaved();
-        void action();
-      } else emit("close");
-    },
-  );
-function runAfterLeave(action: () => void | Promise<void>) {
-  if (working.value) return;
-  if (!dirty.value) {
-    void action();
-    return;
-  }
-  leaveAction = action;
-  requestClose();
+const {
+  dirty,
+  requestClose: requestDraftClose,
+  confirmLeave,
+  confirmDiscard,
+  discard,
+  markSaved,
+} = useDraftDismiss(
+  () => true,
+  () => values.value,
+  () => {
+    void discardUploads();
+    emit("close");
+  },
+);
+function requestClose() {
+  if (!working.value) requestDraftClose();
 }
-defineExpose({ runAfterLeave, dirty, busy: working });
-onBeforeRouteLeave((to) => {
-  if (working.value) return false;
-  if (props.embedded && !dirty.value) return true;
-  if (props.embedded)
-    leaveAction = () => router!.push(to.fullPath).then(() => {});
-  requestClose();
-  return false;
-});
-if (props.embedded)
-  onBeforeRouteUpdate((to) => {
-    if (!props.embedded) return;
-    if (working.value) return false;
-    if (!dirty.value) return true;
-    leaveAction = () => router!.push(to.fullPath).then(() => {});
-    requestClose();
-    return false;
-  });
+async function runAfterLeave(action: () => void | Promise<void>) {
+  if (working.value) return;
+  if (!(await confirmLeave()) || working.value) return;
+  // 页内操作不会卸载填写区，放弃修改后要恢复已保存内容。
+  if (dirty.value) {
+    const savedValues = current.value
+      ? JSON.stringify(current.value.record.values)
+      : initialValues;
+    replaceValues(JSON.parse(savedValues));
+    removedRows.value = [];
+    markSaved();
+    void discardUploads();
+  }
+  await action();
+}
+defineExpose({ runAfterLeave, save, dirty, busy: working });
+const confirmRouteLeave = () => !working.value && confirmLeave();
+onBeforeRouteLeave(confirmRouteLeave);
+onBeforeRouteUpdate(confirmRouteLeave);
 const newRow = (row: FormValues) =>
   !current.value || String(row._rowId).startsWith("draft:");
 const editable = (field: FormField, parent?: FormField, row?: FormValues) =>
@@ -248,8 +266,7 @@ const removedRows = ref<
 >([]);
 const historyField = ref<FormField>(),
   deletedRows = ref<RemovedRecordRow[]>([]),
-  historyError = ref(""),
-  notice = ref("");
+  historyError = ref("");
 const hasChanges = computed(
   () =>
     !!current.value &&
@@ -322,7 +339,7 @@ async function restoreRow(row: RemovedRecordRow) {
     removedRows.value = [];
     markSaved();
     historyField.value = undefined;
-    notice.value = "明细已恢复，原有行身份保留。";
+    notify("明细已恢复");
     error.value = "";
   } catch (cause) {
     historyError.value = (cause as Error).message;
@@ -477,8 +494,10 @@ function continueWarning() {
 async function save(
   mode: "active" | "draft" | "submit" = "active",
   ignoredFingerprint?: string,
-) {
-  if (busy.value || uploading.value || submission.value) return;
+): Promise<boolean> {
+  if (working.value || submission.value) return false;
+  if (mode === "draft" ? !canSaveDraft.value : !canSaveRecord.value)
+    return false;
   const validate =
     mode !== "draft" &&
     (mode === "submit" || current.value?.record.state !== "draft") &&
@@ -490,7 +509,7 @@ async function save(
     if (blocked) {
       error.value = "";
       warning.value = undefined;
-      return;
+      return false;
     }
     const fingerprint = validationFingerprint(mode);
     if (
@@ -498,7 +517,7 @@ async function save(
       ignoredFingerprint !== fingerprint
     ) {
       warning.value = { mode: mode as "active" | "submit", fingerprint };
-      return;
+      return false;
     }
   }
   warning.value = undefined;
@@ -543,7 +562,7 @@ async function save(
       !payload.rows?.length
     ) {
       emit("close");
-      return;
+      return true;
     }
     const fingerprint = writeFingerprint(payload, mode);
     if (fingerprint !== pendingPayload) {
@@ -572,11 +591,22 @@ async function save(
           : {}),
       },
     );
+    await discardUploads();
+    if (submitting) {
+      // 草稿正式提交后同样展示已发布的提交回执，不因是否配置流程而改变体验。
+      current.value = result;
+      replaceValues(JSON.parse(JSON.stringify(result.record.values)));
+      removedRows.value = [];
+    }
     markSaved();
-    if (props.embedded && !current.value && mode !== "draft") {
-      submission.value = receipt;
+    if (
+      (props.embedded && !current.value && mode !== "draft") ||
+      submitting
+    ) {
+      submission.value = { ...receipt, processId: result.processId };
     }
     emit("saved", result);
+    return true;
   } catch (cause) {
     error.value = (cause as Error).message;
     if (cause instanceof PlatformError && cause.collection)
@@ -585,6 +615,7 @@ async function save(
       cause instanceof PlatformError &&
       cause.status === 409 &&
       !cause.collection;
+    return false;
   } finally {
     busy.value = false;
   }
@@ -596,6 +627,7 @@ async function reload() {
     const fresh = await platformApi<RecordDetail>(
       `${currentPath()}${active.value.page && !current.value.task ? `?version=${active.value.page.version}` : ""}`,
     );
+    await discardUploads();
     current.value = fresh;
     replaceValues(JSON.parse(JSON.stringify(fresh.record.values)));
     removedRows.value = [];
@@ -613,6 +645,7 @@ async function reload() {
   }
 }
 function relationUpdated(result: RecordDetail) {
+  void discardUploads();
   current.value = result;
   replaceValues(JSON.parse(JSON.stringify(result.record.values)));
   removedRows.value = [];
@@ -629,54 +662,51 @@ function relationUpdated(result: RecordDetail) {
         ? current.task.title
         : `${current ? '记录详情' : '新增记录'} · ${active.page?.title || active.definition.title}`
     "
-    :busy="busy"
+    :busy="working"
     @close="requestClose"
   >
     <SubmissionReceipt
       v-if="submission?.mode === 'page'"
       :message="submission.message"
       :can-continue="submission.canContinue"
+      :process-id="submission.processId"
       mode="page"
       @continue="emit('continue')"
+      @view-process="viewProcess"
     />
     <div v-else :inert="!!submission || undefined">
-      <p v-if="current?.task" class="collab-notice">
-        {{
-          current.task.rowId
-            ? "本任务仅处理指定明细行，其他行不显示。"
-            : "本页展示任务关联的业务数据。"
-        }}{{
-          current.task.writable
-            ? "可以先保存，必填内容在完成任务时检查。"
-            : "任务当前只可查看。"
-        }}
+      <p v-if="current?.task?.rowId" class="collab-notice">
+        本次仅处理指定明细行。
       </p>
-      <p v-if="current?.processId && !current.task && !current.access.edit" class="collab-notice">
-        此记录已进入流程。请在工作台查看流程进度，由当前待办的处理人办理。
-      </p>
-      <p v-if="!embedded" class="collab-help">
-        {{
-          active.page
-            ? `当前页面 V${active.page.version}，数据版本 V${active.definition.version}。`
-            : `按数据版本 V${active.definition.version} 填写。`
-        }}{{
-          current
-            ? "字段与明细修改在保存时一起提交。"
-            : "提交后由系统保存记录和明细身份。"
-        }}
+      <p
+        v-if="
+          !embedded &&
+          current?.processId &&
+          !current.task &&
+          !current.access.edit
+        "
+        class="collab-notice"
+      >
+        此记录已进入流程。
+        <button class="text-button" @click="viewProcess(current.processId)">
+          查看申请
+        </button>
       </p>
       <p v-if="active.access.create && !active.access.read" class="collab-help">
-        可以保存自己的草稿，提交后由有查看权限的成员处理。
+        <template v-if="canSaveDraft">可以保存自己的草稿，</template>
+        提交后由有查看权限的成员处理。
       </p>
       <p v-if="current?.record.state === 'draft'" class="collab-notice">
-        这是尚未提交的草稿，提交后才进入正式记录及业务协作。可以先保存未填完的内容。
+        草稿尚未提交，可以继续填写。
       </p>
       <p
         v-if="collecting && collection && !collection.accepting"
         class="collab-notice"
         role="status"
       >
-        {{ collection.reason }}。可以先保存草稿，开放收集后再提交。<button
+        {{ collection.reason }}。
+        <template v-if="canSaveDraft">可以先保存草稿，</template>
+        开放收集后再提交。<button
           class="text-button"
           :disabled="busy"
           @click="checkCollection"
@@ -725,7 +755,6 @@ function relationUpdated(result: RecordDetail) {
           撤销上一次删除
         </button>
       </div>
-      <p v-if="notice" class="collab-success" role="status">{{ notice }}</p>
       <div v-if="reloadPrompt" class="collab-notice">
         重新读取会放弃当前输入。<button
           class="button"
@@ -741,10 +770,7 @@ function relationUpdated(result: RecordDetail) {
       >
         有尚未保存的修改。<button
           class="button"
-          @click="
-            confirmDiscard = false;
-            leaveAction = undefined;
-          "
+          @click="confirmDiscard = false"
         >
           继续编辑</button
         ><button class="button" @click="discard">放弃修改</button>
@@ -760,7 +786,7 @@ function relationUpdated(result: RecordDetail) {
             <label :for="`value-${field.id}`"
               >{{ field.label
               }}<span v-if="field.required" class="required"> *</span
-              ><small v-if="!editable(field)"> 只读</small></label
+              ><small v-if="canWrite && !editable(field)"> 只读</small></label
             >
             <ServerFieldControl
               :values="values"
@@ -800,7 +826,9 @@ function relationUpdated(result: RecordDetail) {
                     <th>序号</th>
                     <th v-for="child in field.children" :key="child.id">
                       {{ child.label
-                      }}<small v-if="!editable(child, field)"> · 只读</small>
+                      }}<small v-if="canWrite && !editable(child, field)">
+                        · 只读</small
+                      >
                     </th>
                     <th v-if="canRemoveRow(field) || canInsertRow(field)">
                       操作
@@ -816,7 +844,7 @@ function relationUpdated(result: RecordDetail) {
                     <td v-for="child in field.children" :key="child.id">
                       <ServerFieldControl
                         v-if="visible(child, row)"
-                        :values="row"
+                        :values="{ ...values, ...row }"
                         :field="child"
                         :organization-request="
                           organizationRequest(child, field, row)
@@ -880,37 +908,31 @@ function relationUpdated(result: RecordDetail) {
         v-if="submission?.mode === 'inline'"
         :message="submission.message"
         :can-continue="submission.canContinue"
+        :process-id="submission.processId"
         mode="inline"
         @continue="emit('continue')"
+        @view-process="viewProcess"
       />
       <template v-else-if="!submission">
         <button v-if="!embedded" class="button" @click="requestClose">
           关闭</button
         ><button
-          v-if="
-            !current
-              ? active.access.create
-              : current.record.state === 'draft' && active.access.edit
-          "
+          v-if="canSaveDraft"
           class="button"
           :disabled="busy || uploading"
           @click="save('draft')"
         >
-          保存草稿</button
+          {{ settings.draftLabel?.trim() || "保存草稿" }}</button
         ><button
-          v-if="current ? active.access.edit : active.access.create"
-          class="button primary"
+          v-if="canSaveRecord"
+          class="button"
+          :class="{ primary: !$slots['footer-actions'] }"
           :disabled="busy || uploading"
           @click="save(current?.record.state === 'draft' ? 'submit' : 'active')"
         >
-          {{
-            current && current.record.state !== "draft"
-              ? "保存修改"
-              : embedded
-                ? "提交"
-                : "提交记录"
-          }}
+          {{ saveLabel }}
         </button>
+        <slot name="footer-actions" />
       </template>
     </template>
   </RecordEditorSurface>
@@ -938,9 +960,7 @@ function relationUpdated(result: RecordDetail) {
     @close="removing = undefined"
     ><p>
       将移除「{{ removing?.field.label }}」第
-      {{
-        (removing?.index || 0) + 1
-      }}
+      {{ (removing?.index || 0) + 1 }}
       行。保存前可以撤销，保存后可从“已删除明细”恢复；保存时会检查关系、任务引用及并发修改。
     </p>
     <template #footer

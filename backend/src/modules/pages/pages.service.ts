@@ -14,8 +14,12 @@ import {
   type DataFieldAddition,
   type DataModel,
   type DataObjectDraft,
+  type FormPageSchema,
+  type PageControl,
   type PageDraft,
   type PageEditorData,
+  type PagePublicationResult,
+  type PageVersionSummary,
   type PendingPageFields,
   type PublishedPage,
 } from "@platform/contracts";
@@ -241,14 +245,13 @@ export class PageService {
         applicationId: body.applicationId,
       },
       id,
-      false,
     );
     return this.objectDraft(actor, result.id);
   }
 
   /** 发布数据对象新版本 */
   async publishObject(actor: Actor, id: string, body: unknown) {
-    await this.platform.publish(actor, id, body, false);
+    await this.platform.publish(actor, id, body);
     return this.objectDraft(actor, id);
   }
 
@@ -856,7 +859,7 @@ export class PageService {
   }
 
   /** 发布页面新版本（若包含数据模型修改则在同一事务内自动发布新版本数据模型） */
-  async publish(actor: Actor, id: string, body: unknown) {
+  async publish(actor: Actor, id: string, body: unknown): Promise<PagePublicationResult> {
     requireAdmin(actor);
     object(body);
     return this.db.transaction(async (tx) => {
@@ -965,7 +968,13 @@ export class PageService {
         ],
       );
 
-      return publishedDto(row);
+      // 发布结果和编辑上下文在同一事务内读取，避免发布成功后刷新失败被误报为失败。
+      const latestDefinition = await this.platform.definition(tx, actor, page.definition_id);
+      const latestPage = await this.page(tx, actor, id);
+      return {
+        ...publishedDto(row),
+        editor: await this.editorData(tx, actor, latestDefinition, latestPage),
+      };
     });
   }
 
@@ -980,7 +989,7 @@ export class PageService {
     publishesModel: boolean,
   ) {
     const fields = page.form_model
-      ? await dataModelImpact(tx, definition, model, false, {
+      ? await dataModelImpact(tx, definition, model, {
           organization: await this.organizations.snapshot(tx, actor),
           actorId: actor.id,
           publishingPageId: page.id,
@@ -996,6 +1005,33 @@ export class PageService {
   // --------------------------------------------------------------------------
   // 2.3 已发布页面与页面级记录操作
   // --------------------------------------------------------------------------
+
+  /** 读取发布时保存的版本摘要；与历史版本读取一致，归档后仍可供管理员查阅。 */
+  async versions(actor: Actor, id: string): Promise<PageVersionSummary[]> {
+    requireAdmin(actor);
+    await this.page(this.db, actor, id);
+    const { rows } = await this.db.query<{
+      version: number;
+      title: string;
+      schema: FormPageSchema;
+      created_at: Date;
+    }>(
+      `SELECT version, title, schema, created_at
+       FROM page_versions
+       WHERE page_id = $1
+       ORDER BY version DESC`,
+      [id],
+    );
+    const controlCount = (controls: PageControl[]): number =>
+      controls.reduce((total, control) => total + 1 + controlCount(control.children), 0);
+
+    return rows.map((row) => ({
+      version: row.version,
+      title: row.title,
+      controlCount: controlCount(row.schema.controls),
+      createdAt: row.created_at.toISOString(),
+    }));
+  }
 
   /** 获取已发布页面的指定版本及对应数据模型（仅管理员） */
   async published(actor: Actor, id: string, version?: number) {
@@ -1081,9 +1117,19 @@ export class PageService {
   }
 
   /** 分页并按记录视图配置查询页面下的记录列表，普通成员自动过滤无权限的表格列 */
-  async recordList(actor: Actor, id: string, version?: number, state = "active", pageNumber = 1) {
+  async recordList(
+    actor: Actor,
+    id: string,
+    version?: number,
+    state = "active",
+    pageNumber = 1,
+    keyword = "",
+  ) {
     if (!Number.isSafeInteger(pageNumber) || pageNumber < 1) {
       throw new BadRequestException("页码无效");
+    }
+    if (typeof keyword !== "string" || keyword.length > 200) {
+      throw new BadRequestException("搜索内容不能超过 200 个字符");
     }
     return this.db.transaction(async (tx) => {
       const { scope } = await this.scope(tx, actor, id, version);
@@ -1091,6 +1137,7 @@ export class PageService {
       const result = await this.platform.recordList(actor, scope.definitionId, state, scope, tx, {
         settings: view.settings,
         page: pageNumber,
+        keyword: keyword.trim().toLocaleLowerCase(),
       });
 
       // 普通成员的视图配置仅暴露脱敏后实际可见的字段列
@@ -1239,17 +1286,15 @@ export class PageService {
     }
     const write = async (tx: Transaction) => {
       const { scope } = await this.scope(tx, actor, id, body.pageVersion);
-      const result = recordId
-        ? await this.platform.patchRecord(actor, recordId, body, scope, tx)
-        : await this.platform.createRecord(
+      return recordId
+        ? this.platform.patchRecord(actor, recordId, body, scope, tx)
+        : this.platform.createRecord(
             actor,
             scope.definitionId,
             { ...body, version: scope.definitionVersion },
             scope,
             tx,
           );
-      if (result.accessLost) return result;
-      return this.recordIn(tx, actor, id, result.record.id, body.pageVersion);
     };
     return transaction ? write(transaction) : this.db.transaction(write);
   }

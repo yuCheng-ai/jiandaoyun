@@ -5,20 +5,13 @@ import AppIcon from "../../../components/AppIcon.vue";
 import DataFilterEditor from "../../forms/components/DataFilterEditor.vue";
 import SampleEditor from "./SampleEditor.vue";
 import RunTrace from "./RunTrace.vue";
-import {
-  checkWebhookConnection,
-  type ConnectionCheck,
-  type ConnectionScenario,
-} from "../../../domain/webhookSecurity";
 import { useDraftDismiss } from "../../../composables/useDraftDismiss";
-import { restoreWebhookDraft } from "../../../domain/editorDraftAdapters";
 import { copy, type FormSchema, type FormValues } from "../../../domain/form";
 import {
   configurableFields,
   newWebhook,
   pushEvents,
   validateWebhook,
-  validEndpoint,
   webhookPayload,
   sampleValues,
   runWebhook,
@@ -27,7 +20,7 @@ import {
   type PushEvent,
   type ExtensionRun,
 } from "../../../domain/extensions";
-import { useWorkspaceStore } from "../../../stores/workspace";
+import { useRuntimeData } from "../../../composables/useRuntimeData";
 const props = defineProps<{
   open: boolean;
   modelValue?: WebhookConfig;
@@ -35,27 +28,15 @@ const props = defineProps<{
   formId: string;
 }>();
 const emit = defineEmits<{ close: [] }>();
-const store = useWorkspaceStore(),
-  config = ref(newWebhook()),
+const runtimeData = useRuntimeData();
+const config = ref(newWebhook()),
   step = ref(0),
   errors = ref<ConfigIssue[]>([]),
   values = ref<FormValues>({}),
   event = ref<PushEvent>("data_create"),
   failure = ref(false),
   result = ref<ExtensionRun>(),
-  testedFingerprint = ref(""),
-  connection = ref<ConnectionCheck>(),
-  connectionBusy = ref(false),
-  connectionScenario = ref<ConnectionScenario>("success"),
-  secretVisible = ref(false),
-  rotatePending = ref(false),
-  copyStatus = ref("");
-let connectionRequest = 0;
-const credential = computed(() =>
-  store.data.webhookCredentials?.find(
-    (c) => c.id === config.value.credentialRef,
-  ),
-);
+  testedFingerprint = ref("");
 const fields = computed(() => configurableFields(props.schema));
 const fingerprint = computed(() =>
   JSON.stringify({
@@ -90,35 +71,16 @@ watch(
       values.value = sampleValues(props.schema);
       event.value = config.value.events[0] || "data_create";
       result.value = undefined;
-      connection.value = undefined;
-      connectionBusy.value = false;
-      connectionRequest++;
-      connectionScenario.value = "success";
-      secretVisible.value = false;
-      rotatePending.value = false;
-      copyStatus.value = "";
       failure.value = false;
     }
   },
   { immediate: true },
 );
-watch(
-  () => [
-    config.value.url,
-    config.value.credentialRef,
-    connectionScenario.value,
-  ],
-  () => {
-    connection.value = undefined;
-    connectionBusy.value = false;
-    connectionRequest++;
-  },
-);
 function next() {
   errors.value = validateWebhook(
     config.value,
     props.schema,
-    store.data.webhookCredentials || [],
+    runtimeData.value.webhookCredentials || [],
   ).filter((i) => i.step === step.value);
   if (!errors.value.length) step.value = Math.min(3, step.value + 1);
 }
@@ -127,7 +89,8 @@ function locate(issue: ConfigIssue) {
   errors.value = [issue];
   nextTick(() => document.getElementById(issue.target)?.focus());
 }
-async function trial() {
+// 试算只更新当前对话框，不写入业务记录或执行日志。
+function trial() {
   errors.value = [];
   const previous = result.value;
   result.value = runWebhook(
@@ -135,136 +98,21 @@ async function trial() {
     props.schema,
     values.value,
     event.value,
-    store.data,
+    runtimeData.value,
     failure.value,
   );
   if (previous?.status === "failed") result.value.retryOf = previous.id;
   testedFingerprint.value = fingerprint.value;
-  await store.recordExtensionRun(result.value, props.formId);
 }
-async function generateSecret() {
-  if (!validEndpoint(config.value.url)) {
-    locate({
-      step: 1,
-      target: "push-url",
-      message: "请先填写完整的服务器地址",
-    });
-    return;
-  }
-  try {
-    const next = await store.createWebhookCredential();
-    if (!next) return;
-    config.value.credentialRef = next.id;
-    secretVisible.value = false;
-    rotatePending.value = false;
-    copyStatus.value = "";
-    errors.value = errors.value.filter((e) => e.target !== "credential");
-    store.notify("本地演示 Secret 已生成，请将相同 Secret 配置到接收端");
-  } catch {
-    store.notify(
-      "当前环境无法生成 Secret，请在 localhost 或 HTTPS 环境中使用",
-      "warning",
-    );
-  }
-}
-async function copySecret() {
-  if (!credential.value) return;
-  try {
-    await navigator.clipboard.writeText(credential.value.secret);
-    copyStatus.value = "已复制 Secret";
-  } catch {
-    copyStatus.value = "浏览器未允许复制，请显示 Secret 后选中文本复制";
-  }
-}
-async function testConnection() {
-  if (!validEndpoint(config.value.url)) {
-    locate({
-      step: 1,
-      target: "push-url",
-      message: "请填写完整的 HTTP 或 HTTPS 地址",
-    });
-    return;
-  }
-  if (!credential.value) {
-    locate({
-      step: 1,
-      target: "credential",
-      message: "请先生成 Secret，再进行连接测试",
-    });
-    return;
-  }
-  errors.value = [];
-  const current = ++connectionRequest;
-  connectionBusy.value = true;
-  try {
-    const result = await checkWebhookConnection(
-      config.value.url,
-      JSON.stringify(payload.value),
-      credential.value,
-      connectionScenario.value,
-    );
-    if (current === connectionRequest) connection.value = result;
-  } catch {
-    if (current === connectionRequest)
-      store.notify(
-        "本地签名计算失败，请检查当前浏览器是否支持 Web Crypto",
-        "warning",
-      );
-  } finally {
-    if (current === connectionRequest) connectionBusy.value = false;
-  }
-}
-
-async function save() {
-  errors.value = validateWebhook(
-    config.value,
-    props.schema,
-    store.data.webhookCredentials || [],
-  );
-  if (errors.value.length) {
-    locate(errors.value[0]!);
-    return;
-  }
-  if (await store.saveWebhook(props.formId, config.value)) {
-    markSaved();
-    store.notify("推送配置已保存；发布新版本后用于本地事件触发");
-    emit("close");
-  }
-}
-const { confirmDiscard, requestClose, discard, markSaved, draftKey } =
-  useDraftDismiss(
-    () => props.open,
-    () => config.value,
-    () => emit("close"),
-    {
-      key: () => `webhook:${props.formId}:${props.modelValue?.id || "new"}`,
-      title: () => `数据推送 · ${config.value.name || "未命名推送"}`,
-      context: () => ({
-        schema: props.schema,
-        original: props.modelValue || null,
-        member: store.data.organization.currentUserId,
-      }),
-      restore: (value) => {
-        const restored = restoreWebhookDraft(value, props.modelValue?.id);
-        config.value = restored;
-        step.value = 0;
-        errors.value = [];
-        result.value = undefined;
-        connection.value = undefined;
-        connectionBusy.value = false;
-        connectionRequest++;
-        secretVisible.value = false;
-        rotatePending.value = false;
-        confirmDiscard.value = false;
-      },
-    },
-  );
+const { confirmDiscard, requestClose, discard } = useDraftDismiss(
+  () => props.open,
+  () => config.value,
+  () => emit("close"),
+);
 </script>
 <template>
   <BaseDialog
     :open="open"
-    :busy="store.writePending"
-    :draft-key="draftKey"
     :title="modelValue ? '编辑数据推送' : '新建数据推送'"
     width="1100px"
     @close="requestClose"
@@ -354,42 +202,19 @@ const { confirmDiscard, requestClose, discard, markSaved, draftKey } =
             >
               <div class="secret-heading">
                 <label for="webhook-secret">Secret</label
-                ><span class="mode-tag">本地演示</span>
+                ><span class="mode-tag">暂未开放</span>
               </div>
               <div class="secret-controls">
                 <input
                   id="webhook-secret"
-                  :type="secretVisible ? 'text' : 'password'"
-                  :value="credential?.secret || ''"
+                  type="password"
                   readonly
                   autocomplete="off"
-                  placeholder="填写地址后，点击生成 Secret"
+                  placeholder="尚未接入凭证管理"
                   aria-describedby="secret-hint"
                 />
-                <button
-                  v-if="credential"
-                  class="button"
-                  :aria-label="secretVisible ? '隐藏 Secret' : '显示 Secret'"
-                  @click="secretVisible = !secretVisible"
-                >
-                  <AppIcon :name="secretVisible ? 'hidden' : 'eye'" />
-                </button>
-                <button
-                  v-if="credential"
-                  class="button"
-                  aria-label="复制 Secret"
-                  @click="copySecret"
-                >
-                  <AppIcon name="duplicate" />复制
-                </button>
-                <button
-                  class="button"
-                  :disabled="!validEndpoint(config.url)"
-                  @click="
-                    credential ? (rotatePending = true) : generateSecret()
-                  "
-                >
-                  {{ credential ? "重新生成" : "生成 Secret" }}
+                <button class="button" disabled title="暂未开放凭证管理">
+                  生成 Secret
                 </button>
               </div>
               <p id="secret-hint" class="field-hint">
@@ -397,81 +222,26 @@ const { confirmDiscard, requestClose, discard, markSaved, draftKey } =
                 不随推送发送，也不会自动同步到接收端。
               </p>
               <ol class="receiver-setup" aria-label="接收端接入步骤">
-                <li>在此生成 Secret，并复制给接收服务的管理员。</li>
+                <li>由发送方配置 Secret，并交给接收服务的管理员。</li>
                 <li>
                   在接收服务的 Webhook
                   配置或服务端环境变量中保存同一密钥，并实现验签。
                 </li>
                 <li>若接收方启用了 IP 白名单，另外放行发送服务器的出口 IP。</li>
               </ol>
-              <p
-                v-if="!credential && config.credentialRef"
-                class="config-warning"
-              >
-                旧演示凭证尚无 Secret，请在此重新生成。
-              </p>
-              <p v-if="credential" class="field-hint">
-                生成于
-                {{ new Date(credential.createdAt).toLocaleString("zh-CN") }} ·
-                仅保存在当前浏览器，不能用于生产接入。
-              </p>
-              <p v-if="copyStatus" role="status" class="field-hint">
-                {{ copyStatus }}
-              </p>
-              <div v-if="rotatePending" class="secret-rotation" role="alert">
-                <p>
-                  重新生成后，需要同步更新接收端
-                  Secret。保存并发布后用于新记录；历史版本继续引用旧 Secret。
-                </p>
-                <button class="button" @click="rotatePending = false">
-                  保留当前 Secret</button
-                ><button class="button primary" @click="generateSecret">
-                  确认重新生成
-                </button>
-              </div>
             </section>
             <section class="connection-check" aria-label="服务器连接测试">
-              <h4>服务器连接测试 <span class="optional">本地模拟</span></h4>
+              <h4>服务器连接测试 <span class="optional">暂未开放</span></h4>
               <div class="connection-controls">
-                <select v-model="connectionScenario" aria-label="连接测试场景">
+                <select disabled aria-label="连接测试场景">
                   <option value="success">接收端正常响应</option>
                   <option value="signature">接收端 Secret 不一致</option>
                   <option value="timeout">接收端响应超时</option></select
-                ><button
-                  class="button"
-                  :disabled="
-                    !validEndpoint(config.url) || !credential || connectionBusy
-                  "
-                  @click="testConnection"
-                >
-                  <AppIcon name="link" />{{
-                    connectionBusy ? "正在验签…" : "测试签名与连接"
-                  }}
+                ><button class="button" disabled title="暂未开放连接测试">
+                  <AppIcon name="link" />测试签名与连接
                 </button>
               </div>
-              <p class="field-hint">
-                先生成
-                Secret，再验证请求签名与响应流程。本次测试不会连接外部服务器。
-              </p>
-              <div
-                v-if="connection"
-                class="connection-result"
-                :class="connection.status"
-                role="status"
-              >
-                <AppIcon
-                  :name="
-                    connection.status === 'success' ? 'success' : 'warning'
-                  "
-                /><span>{{ connection.message }}</span>
-              </div>
-              <details v-if="connection" class="connection-request">
-                <summary>查看测试请求（不含 Secret）</summary>
-                <p class="field-hint">
-                  URL 参数与请求头用于验签；消息体保留原始字符串。
-                </p>
-                <pre>{{ JSON.stringify(connection.request, null, 2) }}</pre>
-              </details>
+              <p class="field-hint">凭证管理与连接测试尚未开放。</p>
             </section>
             <details class="webhook-protocol">
               <summary>每次推送如何验签？</summary>
@@ -583,10 +353,8 @@ const { confirmDiscard, requestClose, discard, markSaved, draftKey } =
               @locate="locate"
             /><label class="enable-config"
               ><input type="checkbox" v-model="config.enabled" /><span
-                ><strong>启用本地事件触发</strong
-                ><small
-                  >发布后，提交记录会产生模拟推送日志。不会发送真实网络请求。</small
-                ></span
+                ><strong>启用事件触发</strong
+                ><small>事件触发尚未开放，当前配置仅用于预览。</small></span
               ></label
             ></template
           >
@@ -596,7 +364,7 @@ const { confirmDiscard, requestClose, discard, markSaved, draftKey } =
           <h3>{{ config.name || "新的数据推送" }}</h3>
           <div class="preview-callout">
             <AppIcon name="info" /><span
-              >所有连接与响应均为本地模拟，测试不会发送业务数据。</span
+              >这里只预览推送内容与响应样例，不会连接外部服务器。</span
             >
           </div>
           <div class="preview-endpoint">
@@ -626,7 +394,7 @@ const { confirmDiscard, requestClose, discard, markSaved, draftKey } =
       ><button v-if="step > 0" class="button" @click="step--">上一步</button
       ><button v-if="step < 3" class="button primary" @click="next">
         下一步</button
-      ><button v-else class="button primary" @click="save">
+      ><button v-else class="button primary" disabled title="暂未开放保存">
         保存配置
       </button></template
     >

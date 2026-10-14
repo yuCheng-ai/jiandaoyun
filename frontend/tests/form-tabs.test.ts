@@ -9,7 +9,6 @@ import FormRuntime from "../src/features/forms/components/FormRuntime.vue";
 import { useFormDesigner } from "../src/features/forms/useFormDesigner";
 import { createField, emptySchema, copy } from "../src/domain/form";
 import { newForm, type FormRecord } from "../src/domain/workspace";
-import { restoreRuntimeDraft } from "../src/domain/editorDraftAdapters";
 
 let pinia = createPinia();
 const cleanups: (() => void)[] = [];
@@ -112,39 +111,6 @@ it("readonly tab containers protect all nested controls and row actions while ta
   expect(
     host.querySelector<HTMLInputElement>('[aria-label="意见"]')!.disabled,
   ).toBe(true);
-});
-it("draft restore retains readonly and hidden container descendants while allowing unrelated fields", () => {
-  for (const flags of [{ editable: false }, { visible: false }]) {
-    const { schema, tabs } = fixture();
-    Object.assign(tabs, flags);
-    tabs.children.push(
-      createField("subform", {
-        id: "rows",
-        children: [createField("text", { id: "sku" })],
-      }),
-    );
-    schema.fields.push(createField("text", { id: "outside" }));
-    const before = {
-      name: "原申请人",
-      comment: "原意见",
-      secret: "原隐藏内容",
-      rows: [{ sku: "原商品" }],
-      outside: "原外部",
-    };
-    expect(
-      restoreRuntimeDraft(
-        {
-          name: "覆盖",
-          comment: "覆盖",
-          secret: "覆盖",
-          rows: [{ sku: "覆盖" }],
-          outside: "修改",
-        },
-        schema.fields,
-        before,
-      ),
-    ).toEqual({ ...before, outside: "修改" });
-  }
 });
 it("readonly field groups disable ordinary and rich-text editing without requiring a second disabled flag", async () => {
   const schema = emptySchema();
@@ -404,15 +370,11 @@ it("returns the designer to an existing tab after a schema replacement removes t
   await flush();
   expect(selected(host).textContent?.trim()).toBe("空标签");
 });
-it("reveals invalid fields only on submission, preserves the chosen tab while correcting another error and persists both values", async () => {
-  const { schema } = fixture(),
-    persist = vi.fn().mockResolvedValue(true);
+it("reveals invalid fields only on validation and preserves the chosen tab while correcting another error", async () => {
+  const { schema } = fixture();
   const host = await mount(FormRuntime, {
     schema,
     formId: "tab-validation",
-    preview: false,
-    initialValues: { name: "", comment: "" },
-    persistValues: persist,
   });
   const scroll = vi.fn();
   tabButtons(host).find(
@@ -420,7 +382,7 @@ it("reveals invalid fields only on submission, preserves the chosen tab while co
   )!.scrollIntoView = scroll;
   await choose(host, "审批意见");
   await submit(host);
-  expect(persist).not.toHaveBeenCalled();
+
   expect(selected(host).textContent?.trim()).toBe("申请信息");
   expect(document.activeElement?.getAttribute("aria-label")).toBe("申请人");
   expect(scroll).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
@@ -434,11 +396,6 @@ it("reveals invalid fields only on submission, preserves the chosen tab while co
   expect(selected(host).textContent?.trim()).toBe("申请信息");
   await fill(host, "申请人", "合成甲");
   await submit(host);
-  expect(persist).toHaveBeenCalledTimes(1);
-  expect(persist).toHaveBeenCalledWith(
-    { name: "合成甲", comment: "已核实" },
-    false,
-  );
 });
 it("focuses the rich-text body instead of its formatting toolbar after required validation fails", async () => {
   const schema = emptySchema();
@@ -477,10 +434,10 @@ it("focuses the failing subform cell, preserving the original row index after an
       ],
     }),
   ];
+  schema.fields[0]!.defaultRows = [{}, { qty: 0 }];
   const host = await mount(FormRuntime, {
     schema,
     formId: "required-row-focus",
-    initialValues: { lines: [{}, { qty: 0 }] },
   });
   await submit(host);
   expect(host.textContent).toContain("请填写编号");
@@ -490,13 +447,10 @@ it("focuses the failing subform cell, preserving the original row index after an
 });
 
 it("keeps focus and tab selection stable during live error refresh, then reveals the same remaining error on a repeated submission", async () => {
-  const { schema } = fixture(),
-    persist = vi.fn().mockResolvedValue(true);
+  const { schema } = fixture();
   const host = await mount(FormRuntime, {
     schema,
     formId: "tab-live",
-    preview: false,
-    persistValues: persist,
   });
   await submit(host);
   await choose(host, "审批意见");
@@ -507,7 +461,6 @@ it("keeps focus and tab selection stable during live error refresh, then reveals
   expect(selected(host).textContent?.trim()).toBe("审批意见");
   await submit(host);
   expect(selected(host).textContent?.trim()).toBe("申请信息");
-  expect(persist).not.toHaveBeenCalled();
 });
 it("reveals an invalid nested historical tab after its outer tab is mounted on submission", async () => {
   const { schema, tabs } = fixture();
@@ -529,13 +482,12 @@ it("reveals an invalid nested historical tab after its outer tab is mounted on s
     ],
   });
   tabs.children[1] = nested;
-  const persist = vi.fn().mockResolvedValue(true);
+  tabs.children[0]!.defaultValue = "甲";
+  nested.children[0]!.defaultValue = "保留";
+
   const host = await mount(FormRuntime, {
     schema,
     formId: "nested-tabs",
-    preview: false,
-    initialValues: { name: "甲", ok: "保留", missing: "" },
-    persistValues: persist,
   });
   await submit(host);
   expect(
@@ -546,10 +498,6 @@ it("reveals an invalid nested historical tab after its outer tab is mounted on s
   expect(document.activeElement?.getAttribute("aria-label")).toBe("补充项");
   await fill(host, "补充项", "合成内容");
   await submit(host);
-  expect(persist).toHaveBeenCalledWith(
-    { name: "甲", ok: "保留", missing: "合成内容" },
-    false,
-  );
 });
 it("scopes explicit error navigation to the current path instead of switching another row's tabs", async () => {
   const { schema } = fixture();

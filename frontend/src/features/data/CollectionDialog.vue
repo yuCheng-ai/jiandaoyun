@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { onBeforeRouteLeave } from "vue-router";
+import { onBeforeRouteLeave, onBeforeRouteUpdate } from "vue-router";
 import {
   defaultCollectionRules,
   type CollectionConfiguration,
@@ -44,6 +44,7 @@ const { requestClose, confirmLeave, confirmDiscard, discard, markSaved } = useDr
   () => emit("close"),
 );
 onBeforeRouteLeave(() => !busy.value && confirmLeave());
+onBeforeRouteUpdate(() => !busy.value && confirmLeave());
 function inputRules(): CollectionRules {
   return {
     ...rules.value,
@@ -141,7 +142,6 @@ function merge() {
   // This only updates the editing baseline. It does not acknowledge or save the user's changes.
 }
 onMounted(load);
-defineExpose({ confirmLeave: () => !busy.value && confirmLeave() });
 </script>
 <template>
   <component

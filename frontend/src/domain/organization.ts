@@ -1,10 +1,6 @@
 import { copy, uid, type FormValues } from "./form";
 
-import {
-  roleGrantMatches,
-  type DirectorySpec,
-  type GrantAction,
-} from "@platform/contracts";
+import type { DirectorySpec } from "@platform/contracts";
 export type {
   DirectoryDepartment as Department,
   DirectoryEmployee as Employee,
@@ -390,44 +386,6 @@ export function validateEmployee(
   )
     errors.push("所属部门不存在");
   return errors;
-}
-export function permissionsFor(
-  org: Organization,
-  employeeId: string,
-  appId: string,
-  formId: string,
-  sourceAppId?: string,
-  sourceFormId?: string,
-) {
-  const grants = rolesFor(org, employeeId)
-    .flatMap((r) => r.grants)
-    .filter((g) =>
-      roleGrantMatches(g, appId, formId, sourceAppId, sourceFormId),
-    );
-  return {
-    actions: [...new Set(grants.flatMap((g) => g.actions))],
-    scopes: Object.fromEntries(
-      (["view", "submit", "manage"] as GrantAction[]).map((action) => {
-        const scopes = [
-          ...new Set(
-            grants
-              .filter(
-                (g) =>
-                  g.actions.includes(action) ||
-                  (action === "view" && g.actions.includes("manage")),
-              )
-              .map((g) => g.dataScope),
-          ),
-        ];
-        return [action, scopes.includes("all") ? ["all"] : scopes];
-      }),
-    ) as Record<GrantAction, ("all" | "self" | "department")[]>,
-    dataScope: grants.some((g) => g.dataScope === "all")
-      ? "all"
-      : grants.some((g) => g.dataScope === "department")
-        ? "department"
-        : "self",
-  };
 }
 export function newEmployee(): Employee {
   return {

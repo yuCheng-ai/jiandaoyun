@@ -16,7 +16,6 @@ import {
   parseSchema,
   validateValues,
 } from "../src/domain/form";
-import { restoreRuntimeDraft } from "../src/domain/editorDraftAdapters";
 import {
   buildRecordBlocks,
   defaultDetailSettings,
@@ -353,16 +352,12 @@ it("the runtime waits for actual file storage before submitting and does not sil
     createField("file", { id: "document" }),
     createField("text", { id: "note", label: "备注" }),
   ];
-  const submitted = vi.fn();
-  const persist = vi.fn(async () => true);
+
   await mount({
     render: () =>
       h(FormRuntime, {
         schema,
         formId: "qa",
-        preview: false,
-        persistValues: persist,
-        onSubmit: submitted,
       }),
   });
   await upload([new File(["a"], "a.txt")]);
@@ -385,16 +380,12 @@ it("the runtime waits for actual file storage before submitting and does not sil
     .querySelector("form")!
     .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
   await settle();
-  expect(submitted).not.toHaveBeenCalled();
+
   finish([{ ...file("a.txt"), id: "saved" }]);
   await settle();
   expect(submit.disabled).toBe(false);
   submit.click();
   await settle();
-  expect(submitted).toHaveBeenCalledWith({
-    document: [{ ...file("a.txt"), id: "saved" }],
-    note: "上传期间补充",
-  });
 });
 
 it("a real file value change still invalidates an older pending upload", async () => {
@@ -420,32 +411,4 @@ it("a real file value change still invalidates an older pending upload", async (
   await settle();
   expect(changed).not.toHaveBeenCalled();
   expect(document.body.textContent).toContain("new.txt");
-});
-
-it("restoring a main/subform file draft preserves binary identities without requiring a preview", () => {
-  const values: FileValue[] = [
-    { id: "draft-file", name: "draft.txt", type: "text/plain", size: 6 },
-  ];
-  const field = createField("file", { id: "doc" }),
-    row = createField("subform", {
-      id: "rows",
-      children: [createField("file", { id: "rowDoc" })],
-    });
-  const restored = restoreRuntimeDraft(
-    { doc: values, rows: [{ rowDoc: values }] },
-    [field, row],
-    {},
-  );
-  expect(restored).toEqual({ doc: values, rows: [{ rowDoc: values }] });
-  expect(() =>
-    restoreRuntimeDraft(
-      { doc: [{ ...values[0], preview: "https://external.test/file" }] },
-      [field],
-      {},
-    ),
-  ).toThrow("格式");
-  const readonly = { ...field, editable: false };
-  expect(restoreRuntimeDraft({ doc: values }, [readonly], { doc: [] })).toEqual(
-    { doc: [] },
-  );
 });

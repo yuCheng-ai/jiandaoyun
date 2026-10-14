@@ -33,7 +33,7 @@
   margin-right: 10px;
   gap: 7px;
 }
-.toolbar-divider {
+.form-editor-toolbar .toolbar-divider {
   width: 1px;
   height: 16px;
   background: #e2e6ec;
@@ -1041,6 +1041,15 @@
   position: absolute;
   right: 20px;
   top: 18px;
+}
+.form-preview-title {
+  position: absolute;
+  left: 20px;
+  max-width: calc(50% - 100px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
 }
 .device-tabs {
   height: 33px;

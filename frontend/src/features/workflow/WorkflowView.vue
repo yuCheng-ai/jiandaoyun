@@ -11,7 +11,12 @@ import {
   ref,
   watch,
 } from "vue";
-import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
+import {
+  onBeforeRouteLeave,
+  onBeforeRouteUpdate,
+  useRoute,
+  useRouter,
+} from "vue-router";
 import {
   VueFlow,
   MarkerType,
@@ -33,20 +38,25 @@ import {
   type ProcessTemplateDraft,
   type ProcessTemplateSpec,
   type ProcessTemplateTask,
+  type ProcessTemplateVersionSummary,
+  type PublishedProcessTemplate,
   type PublishedPage,
   type ServerOrganization,
 } from "@platform/contracts";
 import AppIcon from "../../components/AppIcon.vue";
 import WorkflowNode from "../../components/WorkflowNode.vue";
 import PropertyPanel from "../../components/PropertyPanel.vue";
+import WorkflowVersions from "./WorkflowVersions.vue";
 import ShortcutPopover from "../../components/ShortcutPopover.vue";
 import DesignerHeader from "../../components/shared/DesignerHeader.vue";
 import BaseDialog from "../../components/BaseDialog.vue";
 import { useDraftDismiss } from "../../composables/useDraftDismiss";
 import { platformApi } from "../../repositories/platformApi";
+import { useNotices } from "../../stores/notices";
 
 const route = useRoute();
 const router = useRouter();
+const { notify } = useNotices();
 const appId = String(route.params.applicationId);
 const pageId = String(route.params.pageId);
 const page = ref<PageEditorData>();
@@ -60,10 +70,16 @@ const spec = ref<ProcessTemplateSpec>({ title: "", bindings: [], tasks: [] });
 const selectedId = ref("start");
 const loading = ref(true);
 const busy = ref(false);
+const pendingPages = ref(0);
+const versionHistory = ref<ProcessTemplateVersionSummary[]>([]);
+const selectedVersion = ref(0);
+const creatingVersion = ref<number>();
+const operationBusy = computed(() => busy.value || pendingPages.value > 0);
+const editingLocked = computed(
+  () => operationBusy.value || selectedVersion.value > 0,
+);
 const error = ref("");
-const notice = ref("");
 const helpOpen = ref(false);
-const reloadOpen = ref(false);
 const panelTab = ref("node");
 const pageTitle = computed(() => page.value?.draft.title || "表单");
 const formLinked = computed(
@@ -75,18 +91,12 @@ const selected = computed(() =>
 );
 const { dirty, confirmLeave, confirmDiscard, discard, markSaved } =
   useDraftDismiss(
-    () => !loading.value,
+    () => !loading.value && selectedVersion.value === 0,
     () => spec.value,
     () => router.push(`/applications/${appId}?form=${pageId}`),
   );
-onBeforeRouteLeave(() => !busy.value && confirmLeave());
-const saveState = computed(() => {
-  let state = saved.value ? "已保存" : "新流程";
-  if (dirty.value) state = "有未保存修改";
-  if (!saved.value?.latestVersion) return `${state} · 未发布`;
-  const enabled = saved.value.enabled ? "已启用" : "已停用";
-  return `${state} · V${saved.value.latestVersion} ${enabled}`;
-});
+onBeforeRouteLeave(() => !operationBusy.value && confirmLeave());
+onBeforeRouteUpdate(() => !operationBusy.value && confirmLeave());
 const {
   fitView,
   zoomIn,
@@ -154,23 +164,30 @@ async function restore(index: number) {
   restoring = false;
 }
 async function undo() {
-  if (busy.value) return;
+  if (editingLocked.value) return;
   checkpoint();
   if (canUndo.value) await restore(historyIndex.value - 1);
 }
 async function redo() {
-  if (busy.value) return;
+  if (editingLocked.value) return;
   clearTimeout(historyTimer);
   if (canRedo.value) await restore(historyIndex.value + 1);
 }
 
-async function ensurePage(task: ProcessTemplateTask) {
+async function ensurePage(
+  task: Pick<ProcessTemplateTask, "pageId" | "pageVersion">,
+) {
   if (!task.pageId || !task.pageVersion) return;
   const key = `${task.pageId}/${task.pageVersion}`;
   if (!versions.value[key]) {
-    versions.value[key] = await platformApi(
-      `/pages/${task.pageId}?version=${task.pageVersion}`,
-    );
+    pendingPages.value++;
+    try {
+      versions.value[key] = await platformApi(
+        `/pages/${task.pageId}?version=${task.pageVersion}`,
+      );
+    } finally {
+      pendingPages.value--;
+    }
   }
 }
 function taskFields(task: ProcessTemplateTask): FormField[] {
@@ -190,7 +207,7 @@ const pageChoices = computed(() =>
   }),
 );
 async function load() {
-  loading.value = true;
+  busy.value = true;
   error.value = "";
   try {
     const [editor, availablePages, directory, templates] = await Promise.all([
@@ -201,55 +218,57 @@ async function load() {
         `/process-templates?applicationId=${appId}`,
       ),
     ]);
-    page.value = editor;
-    pages.value = availablePages;
-    organization.value = directory;
     const templateId = String(route.query.templateId || "");
-    saved.value = templateId
+    const current = templateId
       ? templates.find((item) => item.id === templateId)
       : templates.find((item) => item.startPageId === pageId);
-    if (templateId && !saved.value)
+    if (templateId && !current)
       throw new Error("流程不存在或当前账号无权配置。");
-    if (saved.value) {
-      spec.value = JSON.parse(JSON.stringify(saved.value.spec));
+    const history = current
+      ? await platformApi<ProcessTemplateVersionSummary[]>(
+          `/process-templates/${current.id}/versions`,
+        )
+      : [];
+    if (current) {
+      // 设计入口始终编辑现有草稿；已发布快照只在主动查看版本时读取。
+      await displayVersion(current, 0);
     } else if (editor.draft.latestVersion) {
       const published = await platformApi<{
         page: PublishedPage;
         model: DataModel;
       }>(`/pages/${pageId}`);
       versions.value[`${pageId}/${published.page.version}`] = published;
-      spec.value = {
-        title: `${editor.draft.title}流程`,
-        bindings: [
-          {
-            id: "main",
-            title: editor.draft.title,
-            definitionId: published.page.definitionId,
-            definitionVersion: published.page.definitionVersion,
-          },
-        ],
-        tasks: [],
-      };
+      await displaySpec(
+        {
+          title: `${editor.draft.title}流程`,
+          bindings: [
+            {
+              id: "main",
+              title: editor.draft.title,
+              definitionId: published.page.definitionId,
+              definitionVersion: published.page.definitionVersion,
+            },
+          ],
+          tasks: [],
+        },
+        0,
+      );
     }
-    await Promise.all(spec.value.tasks.map(ensurePage));
-    // 未存位置的旧节点只在打开时排布一次，手动画线不能重新排列画布。
-    for (const task of spec.value.tasks) {
-      task.position ||= { ...layoutPositions.value[task.id]! };
-    }
-    spec.value.layout ||= {};
-    spec.value.layout.end ||= {
-      ...nodes.value.find((node) => node.id === "end")!.position,
-    };
-    selectedId.value = spec.value.tasks[0]?.id || "start";
+    page.value = editor;
+    pages.value = availablePages;
+    organization.value = directory;
+    saved.value = current;
+    versionHistory.value = history;
   } catch (cause) {
     error.value = (cause as Error).message;
   } finally {
     loading.value = false;
-    await nextTick();
-    markSaved();
-    resetHistory();
-    resetView();
+    busy.value = false;
   }
+}
+async function reload() {
+  if (operationBusy.value || !(await confirmLeave())) return;
+  await load();
 }
 onMounted(load);
 
@@ -389,7 +408,7 @@ function select(id: string) {
 }
 function openNodeMenu({ node, event }: NodeMouseEvent) {
   event.preventDefault();
-  if (busy.value || !(event instanceof MouseEvent)) return;
+  if (editingLocked.value || !(event instanceof MouseEvent)) return;
   select(node.id);
   shortcutPosition.value = null;
   nodeMenu.value = {
@@ -398,13 +417,19 @@ function openNodeMenu({ node, event }: NodeMouseEvent) {
   };
 }
 function resetView() {
+  // 首次载入由画布的 init 事件定位，读取数据时画布还未挂载。
+  if (!canvas.value) return;
   setViewport(
-    { x: (canvas.value?.clientWidth || 1000) / 2 - 80, y: 0, zoom: 1 },
+    { x: canvas.value.clientWidth / 2 - 80, y: 0, zoom: 1 },
     { duration: 150 },
   );
 }
 function startNodeDrag(event: DragEvent, kind: "approval" | "copy") {
-  if (busy.value || spec.value.tasks.length >= 30 || !event.dataTransfer) {
+  if (
+    editingLocked.value ||
+    spec.value.tasks.length >= 30 ||
+    !event.dataTransfer
+  ) {
     event.preventDefault();
     return;
   }
@@ -413,7 +438,7 @@ function startNodeDrag(event: DragEvent, kind: "approval" | "copy") {
   event.dataTransfer.setData("application/x-workflow-node", kind);
 }
 function dragOverCanvas(event: DragEvent) {
-  if (!draggedKind.value || busy.value || !event.dataTransfer) return;
+  if (!draggedKind.value || editingLocked.value || !event.dataTransfer) return;
   event.preventDefault();
   event.dataTransfer.dropEffect = "copy";
 }
@@ -436,7 +461,7 @@ function addTask(
     position?: { x: number; y: number };
   } = {},
 ) {
-  if (busy.value || spec.value.tasks.length >= 30) return;
+  if (editingLocked.value || spec.value.tasks.length >= 30) return;
   checkpoint();
   const pageTask = spec.value.tasks.find((task) => task.pageId === pageId);
   const node =
@@ -479,7 +504,7 @@ function addTask(
   });
 }
 function removeSelected() {
-  if (busy.value) return;
+  if (editingLocked.value) return;
   nodeMenu.value = undefined;
   checkpoint();
   if (selectedEdgeId.value) {
@@ -521,7 +546,7 @@ function removeSelected() {
   checkpoint();
 }
 function connect(connection: Connection) {
-  if (busy.value) return;
+  if (editingLocked.value) return;
   const source = spec.value.tasks.find((task) => task.id === connection.source);
   const target = spec.value.tasks.find((task) => task.id === connection.target);
   if (connection.source === "start" && target) {
@@ -564,7 +589,7 @@ function connect(connection: Connection) {
   checkpoint();
 }
 function positionNode({ node }: { node: Node }) {
-  if (busy.value) return;
+  if (editingLocked.value) return;
   if (node.id === "start" || node.id === "end") {
     spec.value.layout ||= {};
     spec.value.layout[node.id] = { ...node.position };
@@ -575,6 +600,7 @@ function positionNode({ node }: { node: Node }) {
   checkpoint();
 }
 async function arrange(horizontal = false) {
+  if (editingLocked.value) return;
   checkpoint();
   spec.value.layout = undefined;
   for (const task of spec.value.tasks) {
@@ -602,13 +628,11 @@ function copyNode() {
   if (!selected.value) return;
   clipboard.value = JSON.parse(JSON.stringify(selected.value));
   nodeMenu.value = undefined;
-  notice.value = "节点已复制，粘贴后请自行连接办理顺序。";
 }
 function cutNode() {
-  if (!selected.value || busy.value) return;
+  if (!selected.value || editingLocked.value) return;
   copyNode();
   removeSelected();
-  notice.value = "节点已剪切，粘贴后请自行连接办理顺序。";
 }
 function pasteNode() {
   if (clipboard.value)
@@ -630,7 +654,11 @@ function releasePan() {
 }
 function keyboard(event: KeyboardEvent) {
   const target = event.target as HTMLElement;
-  if (loading.value || busy.value || document.querySelector("dialog[open]"))
+  if (
+    loading.value ||
+    operationBusy.value ||
+    document.querySelector("dialog[open]")
+  )
     return;
   const modifier = event.metaKey || event.ctrlKey;
   const key = event.key.toLowerCase();
@@ -681,7 +709,11 @@ function keyboard(event: KeyboardEvent) {
 // 使用原生剪贴板事件，菜单复制和快捷键共用同一个节点副本。
 function clipboardEvent(event: ClipboardEvent) {
   const target = event.target as HTMLElement;
-  if (busy.value || loading.value || document.querySelector("dialog[open]"))
+  if (
+    editingLocked.value ||
+    loading.value ||
+    document.querySelector("dialog[open]")
+  )
     return;
   if (/INPUT|TEXTAREA|SELECT/.test(target.tagName) || target.isContentEditable)
     return;
@@ -727,18 +759,15 @@ function removeUnusedBindings() {
     used.has(binding.id),
   );
 }
-async function changePage(task: ProcessTemplateTask) {
-  const target = pages.value.find((item) => item.id === task.pageId);
+async function changePage(task: ProcessTemplateTask, targetPageId: string) {
+  if (editingLocked.value) return;
+  const target = pages.value.find((item) => item.id === targetPageId);
   if (!target) return;
-  task.pageVersion = target.latestVersion;
-  task.subformId = undefined;
-  task.requiredFields = [];
-  task.fieldPermissions = {};
-  task.waitFor = undefined;
   try {
-    await ensurePage(task);
-    const published =
-      versions.value[`${task.pageId}/${task.pageVersion}`]!.page;
+    const pageVersion = target.latestVersion;
+    await ensurePage({ pageId: target.id, pageVersion });
+    if (!spec.value.tasks.includes(task)) return;
+    const published = versions.value[`${target.id}/${pageVersion}`]!.page;
     let binding = spec.value.bindings.find(
       (item) =>
         item.definitionId === published.definitionId &&
@@ -753,8 +782,18 @@ async function changePage(task: ProcessTemplateTask) {
       };
       spec.value.bindings.push(binding);
     }
-    task.recordBinding = binding.id;
+    // 页面版本与数据绑定一起替换，加载失败时保留原节点配置。
+    Object.assign(task, {
+      pageId: target.id,
+      pageVersion,
+      recordBinding: binding.id,
+      subformId: undefined,
+      requiredFields: [],
+      fieldPermissions: {},
+      waitFor: undefined,
+    });
     removeUnusedBindings();
+    checkpoint();
   } catch (cause) {
     error.value = (cause as Error).message;
   }
@@ -762,7 +801,7 @@ async function changePage(task: ProcessTemplateTask) {
 let requestId = crypto.randomUUID();
 let requestFingerprint = "";
 async function save(publish: boolean) {
-  if (busy.value) return;
+  if (editingLocked.value) return;
   if (publish) {
     const connectionError = processTemplateConnectionError(spec.value);
     if (connectionError) {
@@ -772,9 +811,9 @@ async function save(publish: boolean) {
   }
   busy.value = true;
   error.value = "";
-  notice.value = "";
   try {
     const fingerprint = JSON.stringify(spec.value);
+    const submitted: ProcessTemplateSpec = JSON.parse(fingerprint);
     if (fingerprint !== requestFingerprint) {
       requestId = crypto.randomUUID();
       requestFingerprint = fingerprint;
@@ -788,11 +827,11 @@ async function save(publish: boolean) {
         applicationId: appId,
         requestId,
         expectedRevision: saved.value?.revision,
-        spec: spec.value,
+        spec: submitted,
         ...(formLinked.value ? { startPageId: pageId } : {}),
       },
     );
-    markSaved();
+    markSaved(submitted);
     if (publish) {
       await platformApi(
         `/process-templates/${saved.value.id}/publish`,
@@ -804,11 +843,9 @@ async function save(publish: boolean) {
           `/process-templates?applicationId=${appId}`,
         )
       ).find((item) => item.id === saved.value?.id);
+      await loadVersions();
     }
-    markSaved();
-    notice.value = publish
-      ? "流程已发布，后续提交按新版本办理。"
-      : "流程草稿已保存。";
+    notify(publish ? "已发布" : "已保存");
   } catch (cause) {
     error.value = (cause as Error).message;
   } finally {
@@ -816,17 +853,167 @@ async function save(publish: boolean) {
   }
 }
 async function disable() {
-  if (!saved.value || busy.value) return;
+  if (!saved.value || operationBusy.value) return;
   busy.value = true;
   error.value = "";
   try {
-    await platformApi(`/process-templates/${saved.value.id}/state`, "PUT", {
-      expectedRevision: saved.value.revision,
-      enabled: false,
-    });
-    saved.value.revision++;
-    saved.value.enabled = false;
-    notice.value = "流程已停用，已有待办继续办理。";
+    saved.value = await platformApi(
+      `/process-templates/${saved.value.id}/state`,
+      "PUT",
+      {
+        expectedRevision: saved.value.revision,
+        enabled: false,
+      },
+    );
+    await loadVersions();
+    notify("已停用");
+  } catch (cause) {
+    error.value = (cause as Error).message;
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function loadVersions() {
+  versionHistory.value = saved.value
+    ? await platformApi<ProcessTemplateVersionSummary[]>(
+        `/process-templates/${saved.value.id}/versions`,
+      )
+    : [];
+}
+
+/** 加载完整后再替换画布，失败时保留原内容和未保存状态。 */
+async function displaySpec(content: ProcessTemplateSpec, version: number) {
+  await Promise.all(content.tasks.map(ensurePage));
+  spec.value = JSON.parse(JSON.stringify(content));
+  selectedVersion.value = version;
+  for (const task of spec.value.tasks) {
+    task.position ||= { ...layoutPositions.value[task.id]! };
+  }
+  spec.value.layout ||= {};
+  spec.value.layout.end ||= {
+    ...nodes.value.find((node) => node.id === "end")!.position,
+  };
+  selectedId.value = spec.value.tasks[0]?.id || "start";
+  selectedEdgeId.value = "";
+  nodeMenu.value = undefined;
+  await nextTick();
+  markSaved();
+  resetHistory();
+  resetView();
+}
+
+async function displayVersion(current: ProcessTemplateDraft, version: number) {
+  const target = version
+    ? await platformApi<PublishedProcessTemplate>(
+        `/process-templates/${current.id}/versions/${version}`,
+      )
+    : current;
+  await displaySpec(target.spec, version);
+}
+
+async function showVersion(version: number) {
+  if (operationBusy.value || version === selectedVersion.value) return;
+  if (!(await confirmLeave())) return;
+  busy.value = true;
+  error.value = "";
+  try {
+    const templates = await platformApi<ProcessTemplateDraft[]>(
+      `/process-templates?applicationId=${appId}`,
+    );
+    const current = templates.find((item) => item.id === saved.value?.id);
+    if (!current) throw new Error("流程不存在，请重新读取。");
+    const history = await platformApi<ProcessTemplateVersionSummary[]>(
+      `/process-templates/${current.id}/versions`,
+    );
+    await displayVersion(current, version);
+    saved.value = current;
+    versionHistory.value = history;
+  } catch (cause) {
+    error.value = (cause as Error).message;
+  } finally {
+    busy.value = false;
+  }
+}
+
+function requestVersionDraft(version: number) {
+  if (operationBusy.value || !version) return;
+  // 仅覆盖实际修改时确认，空设计稿直接进入编辑。
+  if (dirty.value || saved.value?.hasDraftChanges) {
+    creatingVersion.value = version;
+  } else {
+    void createVersionDraft(version);
+  }
+}
+
+async function createVersionDraft(version = creatingVersion.value) {
+  if (!saved.value || !version || operationBusy.value) return;
+  busy.value = true;
+  error.value = "";
+  try {
+    const source = await platformApi<PublishedProcessTemplate>(
+      `/process-templates/${saved.value.id}/versions/${version}`,
+    );
+    await Promise.all(source.spec.tasks.map(ensurePage));
+    const next = await platformApi<ProcessTemplateDraft>(
+      `/process-templates/${saved.value.id}`,
+      "PUT",
+      {
+        expectedRevision: saved.value.revision,
+        spec: source.spec,
+      },
+    );
+    saved.value = next;
+    await displaySpec(next.spec, 0);
+    creatingVersion.value = undefined;
+    notify(`已创建 V${next.latestVersion + 1} 草稿`);
+  } catch (cause) {
+    error.value = (cause as Error).message;
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function activateVersion(version: number) {
+  if (!saved.value || operationBusy.value) return;
+  busy.value = true;
+  error.value = "";
+  try {
+    saved.value = await platformApi<ProcessTemplateDraft>(
+      `/process-templates/${saved.value.id}/state`,
+      "PUT",
+      {
+        expectedRevision: saved.value.revision,
+        enabled: true,
+        version,
+      },
+    );
+    await loadVersions();
+    notify(`已启用 V${version}`);
+  } catch (cause) {
+    error.value = (cause as Error).message;
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function removeVersion(version: number) {
+  if (!saved.value || operationBusy.value) return;
+  busy.value = true;
+  error.value = "";
+  try {
+    saved.value = await platformApi<ProcessTemplateDraft>(
+      `/process-templates/${saved.value.id}/versions/${version}`,
+      "DELETE",
+      {
+        expectedRevision: saved.value.revision,
+      },
+    );
+    await loadVersions();
+    if (selectedVersion.value === version) {
+      await displayVersion(saved.value, 0);
+    }
+    notify(`已删除 V${version}`);
   } catch (cause) {
     error.value = (cause as Error).message;
   } finally {
@@ -855,18 +1042,8 @@ async function disable() {
       <p v-if="loading" class="flow-message" role="status">正在读取流程…</p>
       <div v-if="error" class="flow-message error" role="alert">
         {{ error
-        }}<button class="text-button" @click="reloadOpen = true">
+        }}<button class="text-button" :disabled="operationBusy" @click="reload">
           重新读取
-        </button>
-      </div>
-      <div v-if="notice" class="flow-message" role="status">
-        {{ notice
-        }}<button
-          class="icon-button"
-          aria-label="关闭提示"
-          @click="notice = ''"
-        >
-          <AppIcon name="close" :size="14" />
         </button>
       </div>
       <div
@@ -876,9 +1053,9 @@ async function disable() {
       >
         流程尚未保存。<button class="button" @click="confirmDiscard = false">
           继续编辑</button
-        ><button class="button" @click="discard">放弃修改并离开</button>
+        ><button class="button" @click="discard">放弃修改并继续</button>
       </div>
-      <div v-if="!loading && !ready" class="flow-empty">
+      <div v-if="!loading && page && !ready" class="flow-empty">
         <h2>先发布表单，再设置流程</h2>
         <p>流程使用已发布的字段和权限。</p>
         <button
@@ -890,7 +1067,7 @@ async function disable() {
       </div>
       <template v-if="!loading && ready">
         <div class="toolbar" role="toolbar" aria-label="流程设计工具">
-          <div class="toolbar-tools" :inert="busy || undefined">
+          <div class="toolbar-tools" :inert="editingLocked || undefined">
             <div class="tool-group history-tools">
               <button
                 class="icon-button"
@@ -983,34 +1160,40 @@ async function disable() {
             </button>
           </div>
           <div class="toolbar-actions">
-            <button
-              class="version-button"
-              :title="saveState"
-              @click="
-                panelTab = 'flow';
-                showInspector = true;
-              "
-            >
-              <span
-                class="status-dot"
-                :class="{ enabled: saved?.enabled && saved.latestVersion }"
-              /><span>{{
-                dirty ? "未保存" : `流程版本（V${saved?.latestVersion || 0}）`
-              }}</span>
-            </button>
+            <WorkflowVersions
+              :versions="versionHistory"
+              :draft-version="(saved?.latestVersion || 0) + 1"
+              :selected-version="selectedVersion"
+              :busy="operationBusy"
+              :dirty="dirty"
+              @select="showVersion"
+              @create="requestVersionDraft"
+              @activate="activateVersion"
+              @remove="removeVersion"
+            />
             <button class="button outline" @click="previewOpen = true">
               预览
             </button>
             <button
+              v-if="selectedVersion"
+              class="button primary"
+              :disabled="operationBusy"
+              @click="requestVersionDraft(selectedVersion)"
+            >
+              编辑此版本
+            </button>
+            <button
+              v-if="!selectedVersion"
               class="button outline"
-              :disabled="busy"
+              :disabled="operationBusy"
               @click="save(false)"
             >
               保存
             </button>
             <button
+              v-if="!selectedVersion"
               class="button primary activate-button"
-              :disabled="busy"
+              :disabled="operationBusy"
               @click="save(true)"
             >
               {{
@@ -1019,7 +1202,10 @@ async function disable() {
             </button>
           </div>
         </div>
-        <div class="designer-body" :inert="busy || undefined">
+        <div v-if="pendingPages" class="flow-message" role="status">
+          正在读取办理表单…
+        </div>
+        <div class="designer-body" :inert="operationBusy || undefined">
           <section
             ref="canvas"
             class="canvas-area"
@@ -1037,8 +1223,8 @@ async function disable() {
               :max-zoom="2"
               :delete-key-code="null"
               pan-activation-key-code="Space"
-              :nodes-draggable="!spacePanning"
-              :nodes-connectable="!spacePanning"
+              :nodes-draggable="!spacePanning && !editingLocked"
+              :nodes-connectable="!spacePanning && !editingLocked"
               :connection-radius="28"
               :zoom-on-double-click="false"
               @dragenter="dragOverCanvas"
@@ -1058,6 +1244,7 @@ async function disable() {
                 ><WorkflowNode
                   v-bind="props"
                   :selected="selectedId === props.id && !selectedEdgeId"
+                  :readonly="editingLocked"
               /></template>
               <MiniMap v-if="showMinimap" pannable zoomable />
             </VueFlow>
@@ -1158,6 +1345,7 @@ async function disable() {
           </section>
           <PropertyPanel
             v-if="showInspector"
+            :readonly="selectedVersion > 0"
             v-model:tab="panelTab"
             :task="selected"
             :selected-id="selectedId"
@@ -1165,6 +1353,12 @@ async function disable() {
             :saved="saved"
             :fields="selected ? taskFields(selected) : []"
             :pages="pageChoices"
+            :task-page-title="
+              selected
+                ? versions[`${selected.pageId}/${selected.pageVersion}`]?.page
+                    .title
+                : undefined
+            "
             :organization="organization"
             :form-linked="formLinked"
             @page="changePage"
@@ -1211,6 +1405,35 @@ async function disable() {
       :modifier="modifierKey"
     />
     <BaseDialog
+      :open="creatingVersion !== undefined"
+      :busy="busy"
+      title="基于历史版本新建"
+      @close="creatingVersion = undefined"
+    >
+      <p>
+        将 V{{ creatingVersion }} 复制为 V{{ (saved?.latestVersion || 0) + 1 }}
+        草稿，替换当前设计中的内容。
+      </p>
+      <p>当前启用版本和已发起的流程保持不变。</p>
+      <p v-if="error" class="field-error" role="alert">{{ error }}</p>
+      <template #footer>
+        <button
+          class="button"
+          :disabled="busy"
+          @click="creatingVersion = undefined"
+        >
+          取消
+        </button>
+        <button
+          class="button primary"
+          :disabled="busy"
+          @click="createVersionDraft()"
+        >
+          创建草稿
+        </button>
+      </template>
+    </BaseDialog>
+    <BaseDialog
       :open="previewOpen"
       title="流程预览"
       width="920px"
@@ -1239,24 +1462,6 @@ async function disable() {
         </button></template
       >
     </BaseDialog>
-    <BaseDialog
-      :open="reloadOpen"
-      title="重新读取流程"
-      @close="reloadOpen = false"
-      ><p>重新读取会替换当前未保存的修改。</p>
-      <template #footer
-        ><button class="button" @click="reloadOpen = false">继续编辑</button
-        ><button
-          class="button primary"
-          @click="
-            reloadOpen = false;
-            load();
-          "
-        >
-          重新读取
-        </button></template
-      ></BaseDialog
-    >
     <BaseDialog :open="helpOpen" title="流程设计说明" @close="helpOpen = false"
       ><p>
         将工具栏节点拖到画布，松手添加。拖动节点调整位置，拖动连接点设置流转顺序。节点负责人、字段权限与流转条件在右侧设置。

@@ -10,7 +10,6 @@ import AppIcon from "../../../components/AppIcon.vue";
 import ChoiceFieldControl from "./ChoiceFieldControl.vue";
 import { useDraftDismiss } from "../../../composables/useDraftDismiss";
 import { useRuntimeData } from "../../../composables/useRuntimeData";
-import { useWorkspaceStore } from "../../../stores/workspace";
 import {
   copy,
   type FormField,
@@ -52,7 +51,6 @@ const emit = defineEmits<{
   ];
 }>();
 const data = useRuntimeData();
-const store = useWorkspaceStore();
 const before = copy((props.values[props.field.id] || []) as FormValues[]);
 const fieldBaseline = JSON.stringify(props.field);
 const contexts = before.length
@@ -385,8 +383,8 @@ function next() {
 }
 async function apply() {
   try {
-    if (!store.refreshForRead()) throw Error("无法读取最新表单数据，请重试");
     await nextTick();
+    // 回填只校验当前表单上下文，旧浏览器工作空间与这次编辑无关。
     if (!props.enabled || fieldBaseline !== JSON.stringify(props.field))
       throw Error("明细权限或字段已变化，请关闭后重新打开快速填报");
     if (

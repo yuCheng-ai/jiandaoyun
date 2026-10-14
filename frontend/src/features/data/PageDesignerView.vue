@@ -4,7 +4,6 @@ import { useRoute } from "vue-router";
 import { usePageDesignerStore } from "../../stores/pageDesigner";
 import { usePlatformSession } from "../../stores/platformSession";
 import PageEditor from "./PageEditor.vue";
-import PlatformLogin from "../session/PlatformLogin.vue";
 import "../collaboration/collaboration.css";
 const route = useRoute();
 const store = usePageDesignerStore();
@@ -35,10 +34,6 @@ onMounted(load);
       <p v-else-if="store.error" role="alert" class="collab-error">
         {{ store.error }} <button class="button" @click="load">重试</button>
       </p>
-      <PlatformLogin
-        v-show="!session.user && !store.busy && !store.error"
-        @signed-in="load"
-      />
       <p v-if="session.user && !store.busy && !store.error">
         当前账号不能设计表单，请返回应用填写表单或处理待办。
       </p>

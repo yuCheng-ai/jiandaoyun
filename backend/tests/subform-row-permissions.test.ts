@@ -1,10 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  separateFormSchema,
-  composeFormSchema,
-  newSubformPermissions,
-} from "@platform/contracts";
+import { separateFormSchema, composeFormSchema, newSubformPermissions, type FormSchema } from "@platform/contracts";
 import { parseSchema } from "../src/core/database/schema";
 import { parsePage } from "../src/modules/pages/page-schema";
 import { field, schema } from "./helpers";

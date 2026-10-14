@@ -30,31 +30,6 @@ export interface RoleGrant {
   actions: GrantAction[];
   dataScope: "all" | "self" | "department";
 }
-export function roleGrantMatches(
-  grant: RoleGrant,
-  appId: string,
-  formId: string,
-  sourceAppId?: string,
-  sourceFormId?: string,
-): boolean {
-  const native = grant.appId === appId,
-    source = !!sourceAppId && grant.appId === sourceAppId,
-    any = grant.appId === "*";
-  return (
-    (native || source || any) &&
-    (!grant.formIds.length ||
-      grant.formIds.includes(formId) ||
-      ((source || any) &&
-        !!sourceFormId &&
-        grant.formIds.includes(sourceFormId)))
-  );
-}
-export interface RoleApplication {
-  id: string;
-  name: string;
-  sourceId?: string;
-  forms: { id: string; title: string; sourceId?: string; grouped: boolean }[];
-}
 export interface DirectoryRole {
   id: string;
   name: string;
