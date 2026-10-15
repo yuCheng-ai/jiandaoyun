@@ -156,7 +156,9 @@ onMounted(load);
     <p class="collab-help">
       同一业务数据的所有页面共用这些设置。仅限制新提交；已有记录仍可处理，草稿不占数量。
     </p>
-    <p v-if="busy" class="collab-notice" role="status">正在处理收集设置…</p>
+    <p v-if="inline && busy" class="dialog-pending" role="status">
+      <span class="visually-hidden">正在处理收集设置…</span>
+    </p>
     <div
       v-if="confirmDiscard"
       class="config-discard collab-notice"
@@ -288,6 +290,9 @@ onMounted(load);
   </component>
 </template>
 <style scoped>
+.publish-card {
+  position: relative;
+}
 .collab-check {
   display: flex;
   align-items: center;

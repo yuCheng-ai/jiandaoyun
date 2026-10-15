@@ -1,9 +1,9 @@
+import { seedWorkspace, newAccessGroup } from "./fixtures/workspace";
 import { describe, it, expect } from "vitest";
 
 import { createField, copy } from "../src/domain/form";
 import {
   defaultAccess,
-  newAccessGroup,
   eligibleGroups,
   memberSchema,
   visibleValues,
@@ -11,7 +11,6 @@ import {
 } from "../src/domain/access";
 
 import {
-  seedWorkspace,
   newForm,
   type FormEntry,
 } from "../src/domain/workspace";

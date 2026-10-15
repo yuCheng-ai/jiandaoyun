@@ -46,7 +46,9 @@ async function login() {
           :disabled="busy"
       /></label>
       <p v-if="error" class="collab-error" role="alert">{{ error }}</p>
-      <p v-if="busy" role="status">正在登录…</p>
+      <p v-if="busy" class="dialog-pending" role="status">
+        <span class="visually-hidden">正在登录…</span>
+      </p>
       <button
         class="button primary"
         type="submit"
@@ -67,6 +69,7 @@ async function login() {
   background: #f2f3f8;
 }
 .platform-login {
+  position: relative;
   width: min(100%, 420px);
   padding: 28px;
 }

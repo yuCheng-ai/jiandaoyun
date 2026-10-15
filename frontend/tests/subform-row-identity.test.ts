@@ -1,3 +1,4 @@
+import { seedWorkspace, newAccessGroup } from "./fixtures/workspace";
 // @vitest-environment jsdom
 // @vitest-environment jsdom
 import { expect, it, vi } from "vitest";
@@ -14,13 +15,11 @@ import {
 } from "../src/domain/form";
 import {
   defaultAccess,
-  newAccessGroup,
   visibleValues,
   memberSchema,
 } from "../src/domain/access";
 import {
   newForm,
-  seedWorkspace,
   type FormEntry,
 } from "../src/domain/workspace";
 

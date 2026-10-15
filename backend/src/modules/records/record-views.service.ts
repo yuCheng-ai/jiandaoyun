@@ -4,16 +4,17 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
 import {
   hasFieldValue,
   validateRecordView,
   type FormSchema,
   type SavedRecordView,
 } from "@platform/contracts";
+import { randomUUID } from "node:crypto";
 import { Actor, requireAdmin } from "../../core/auth/auth.service";
 import { Database, Transaction } from "../../core/database/database";
-import { object, uuid } from "../../core/database/schema";
+import { object, uuid } from "../../core/validation";
+
 
 /** 记录列表视图服务：管理表单在数据管理页的列展示、默认排序、分页大小与行高配置 */
 @Injectable()

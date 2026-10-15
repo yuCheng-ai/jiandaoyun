@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createApp, h, nextTick, reactive, ref } from "vue";
@@ -18,7 +19,7 @@ import {
   buildRecordBlocks,
   defaultDetailSettings,
 } from "../src/domain/presentation";
-import { seedWorkspace } from "../src/domain/workspace";
+
 
 let app: ReturnType<typeof createApp> | undefined;
 const image = "data:image/png;base64,c2lnbmF0dXJl";

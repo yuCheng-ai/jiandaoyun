@@ -1,4 +1,5 @@
-import { seedOrganization } from "../src/domain/organization";
+import { seedOrganization } from "./fixtures/workspace";
+
 import { describe, it, expect } from "vitest";
 import {
   initialDocument,

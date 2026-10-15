@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { composeFormSchema, separateFormSchema } from "@platform/contracts";
-import { parseSchema } from "../src/core/database/schema";
+import { parseSchema } from "../src/modules/records/record-schema";
 import { parsePage } from "../src/modules/pages/page-schema";
 import { field, schema } from "./helpers";
 

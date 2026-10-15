@@ -18,6 +18,7 @@ export type FormValidationIssue = {
   ruleId: string;
   message: string;
   mode: "block" | "warn";
+  fieldIds?: string[];
 };
 export const messageReferences = (message: string) => [
   ...new Set(
@@ -89,37 +90,49 @@ export function formValidationResults(
   } = {},
 ): FormValidationIssue[] {
   const options = context.options;
-  const available = formulaFields((context.displaySchema || schema).fields);
+  const displaySchema = context.displaySchema || schema;
+  const visible = context.visible || ruleFieldVisible;
+  const available = formulaFields(displaySchema.fields);
   const message = (rule: FormValidationRule) =>
     rule.message.replace(/\{\{([a-zA-Z0-9_.:-]+)\}\}/g, (_, id: string) => {
       const item = available.find((item) => item.field.id === id);
       if (!item || !findVisibleColumn(item.field.id)) return "—";
       const render = (value: unknown) =>
         context.display ? context.display(item.field, value) : String(value ?? "");
-      return item.column
-        ? Array.isArray(values[item.column])
-          ? (values[item.column] as FormValues[])
-              .map((row) => render(row[id]))
-              .join("、")
-          : ""
-        : render(values[id]);
+      if (!item.column) return render(values[id]);
+      const rows = values[item.column];
+      if (!Array.isArray(rows)) return "";
+      return rows.map((row) => {
+        if (!visible(item.field, displaySchema, { ...values, ...row })) return "—";
+        return render(row[id]);
+      }).join("、");
     });
   function findVisibleColumn(id: string) {
-    const visit = (fields: FormField[]): boolean =>
-      fields.some(
-        (field) =>
-          (context.visible || ruleFieldVisible)(field, context.displaySchema || schema, values) &&
-          (field.id === id || visit(field.children)),
-      );
-    return visit((context.displaySchema || schema).fields);
+    const visit = (fields: FormField[], current: FormValues): boolean =>
+      fields.some((field) => {
+        if (!visible(field, displaySchema, current)) return false;
+        if (field.id === id) return true;
+        if (field.type === "subform") {
+          const rows = current[field.id];
+          if (Array.isArray(rows) && rows.length) {
+            return rows.some((row) => visit(field.children, { ...current, ...row }));
+          }
+        }
+        return visit(field.children, current);
+      });
+    return visit(displaySchema.fields, values);
   }
+
   return (schema.settings.validations || []).flatMap((rule) => {
     if (context.ruleIds && !context.ruleIds.has(rule.id)) return [];
+    // 只标记表达式实际涉及且当前可见的字段，不能从提示文案猜测或暴露隐藏字段。
+    const fieldIds = formulaReferences(rule.expression).filter(findVisibleColumn);
     const invalid = formValidationErrors(rule, schema.fields)[0];
     if (invalid)
       return [
         {
           ruleId: rule.id,
+          fieldIds,
           mode: "block" as const,
           message: "数据校验设置已失效，请联系表单管理员调整。",
         },
@@ -134,13 +147,14 @@ export function formValidationResults(
       return [
         {
           ruleId: rule.id,
+          fieldIds,
           mode: "block" as const,
           message: "数据校验未完成，请检查条件涉及的填写内容。",
         },
       ];
     return result.value
       ? []
-      : [{ ruleId: rule.id, mode: rule.mode, message: message(rule) }];
+      : [{ ruleId: rule.id, mode: rule.mode, message: message(rule), fieldIds }];
   });
 }
 

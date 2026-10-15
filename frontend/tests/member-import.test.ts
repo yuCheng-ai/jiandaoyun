@@ -1,7 +1,8 @@
+import { seedWorkspace, newAccessGroup } from "./fixtures/workspace";
 import { expect, it } from "vitest";
 import { copy, createField } from "../src/domain/form";
-import { defaultAccess, newAccessGroup } from "../src/domain/access";
-import { seedWorkspace } from "../src/domain/workspace";
+import { defaultAccess } from "../src/domain/access";
+
 import { memberImportColumns } from "../src/domain/recordImport";
 
 it("does not expose hidden/read-only container children after flattening tabs for a creation template", () => {

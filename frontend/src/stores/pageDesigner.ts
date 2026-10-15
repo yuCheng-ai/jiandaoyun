@@ -66,6 +66,17 @@ export const usePageDesignerStore = defineStore("server-page-designer", () => {
     }
   }
 
+  function writeDraft(page: PageEditorData, submittedState: PageEditingState) {
+    if (pageFieldConflicts(page, submittedState).length) {
+      throw new Error("存在同名新增字段，请先选择复用已有字段或更名");
+    }
+    return platformApi<PageDraft>(
+      `/pages/${page.draft.id}`,
+      "PUT",
+      pageUpdate(page, submittedState),
+    );
+  }
+
   async function save() {
     const page = data.value;
     if (!page || busy.value) return false;
@@ -74,14 +85,7 @@ export const usePageDesignerStore = defineStore("server-page-designer", () => {
     busy.value = true;
     error.value = "";
     try {
-      if (pageFieldConflicts(page, submittedState).length) {
-        throw new Error("存在同名新增字段，请先选择复用已有字段或更名");
-      }
-      const draft = await platformApi<PageDraft>(
-        `/pages/${page.draft.id}`,
-        "PUT",
-        pageUpdate(page, submittedState),
-      );
+      const draft = await writeDraft(page, submittedState);
       if (currentRequest !== requestId) return false;
       page.draft = draft;
       // 只将实际提交的内容标记为已保存，请求期间的新修改仍属于未保存内容。
@@ -90,33 +94,6 @@ export const usePageDesignerStore = defineStore("server-page-designer", () => {
     } catch (cause) {
       if (currentRequest === requestId) error.value = (cause as Error).message;
       return false;
-    } finally {
-      if (currentRequest === requestId) busy.value = false;
-    }
-  }
-
-  async function preparePublication() {
-    const page = data.value;
-    if (!page || busy.value) return;
-    if (dirty.value && !(await save())) return;
-    if (data.value !== page || busy.value) return;
-    if (dirty.value) {
-      error.value = "页面已变化，请重新检查发布内容";
-      return;
-    }
-    const currentRequest = ++requestId;
-    busy.value = true;
-    error.value = "";
-    try {
-      const impact = await platformApi<PagePublishImpact>(
-        `/pages/${page.draft.id}/publish-preview`,
-        "POST",
-        { expectedRevision: page.draft.revision },
-      );
-      if (currentRequest !== requestId) return;
-      return impact;
-    } catch (cause) {
-      if (currentRequest === requestId) error.value = (cause as Error).message;
     } finally {
       if (currentRequest === requestId) busy.value = false;
     }
@@ -147,21 +124,37 @@ export const usePageDesignerStore = defineStore("server-page-designer", () => {
     }
   }
 
-  async function publish(impact: PagePublishImpact) {
+  async function publish() {
     const page = data.value;
     if (!page || busy.value) return false;
-    if (
-      dirty.value ||
-      impact.pageId !== page.draft.id ||
-      impact.revision !== page.draft.revision
-    ) {
-      error.value = "页面已变化，请重新检查发布内容";
-      return false;
-    }
     const currentRequest = ++requestId;
     busy.value = true;
     error.value = "";
     try {
+      // 保存、校验和发布共用一次忙碌状态，避免中途重复提交或继续编辑。
+      if (dirty.value) {
+        const submittedState = copy(state.value);
+        const draft = await writeDraft(page, submittedState);
+        if (currentRequest !== requestId) return false;
+        page.draft = draft;
+        saved.value = fingerprint(submittedState, draft);
+      }
+      if (dirty.value) throw new Error("表单已变化，请重新发布");
+
+      // 影响校验由系统完成，令牌仍交给服务端核验，防止并发修改被覆盖。
+      const impact = await platformApi<PagePublishImpact>(
+        `/pages/${page.draft.id}/publish-preview`,
+        "POST",
+        { expectedRevision: page.draft.revision },
+      );
+      if (currentRequest !== requestId) return false;
+      if (
+        dirty.value ||
+        impact.pageId !== page.draft.id ||
+        impact.revision !== page.draft.revision
+      ) {
+        throw new Error("表单已变化，请重新发布");
+      }
       const result = await platformApi<PagePublicationResult>(
         `/pages/${page.draft.id}/publish`,
         "POST",
@@ -202,7 +195,6 @@ export const usePageDesignerStore = defineStore("server-page-designer", () => {
     editorEpoch,
     load,
     save,
-    preparePublication,
     publish,
     adopt,
     discardDraft,

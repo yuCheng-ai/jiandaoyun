@@ -1,5 +1,8 @@
 import { accessGroupSelections } from "./accessGroupState";
-import type { CollectionStatus } from "@platform/contracts";
+import type {
+  CollectionStatus,
+  FieldValidationIssue,
+} from "@platform/contracts";
 
 export class PlatformError extends Error {
   constructor(
@@ -7,6 +10,7 @@ export class PlatformError extends Error {
     readonly status: number,
     readonly collection?: CollectionStatus,
     readonly requestId?: string,
+    readonly issues: FieldValidationIssue[] = [],
   ) {
     super(message);
     this.name = "PlatformError";
@@ -121,12 +125,36 @@ export async function platformRequest(
     typeof collection.code === "string" &&
     "checkedAt" in collection &&
     typeof collection.checkedAt === "string";
+  const issues: FieldValidationIssue[] = [];
+  if (response.status === 400 && Array.isArray(data.issues)) {
+    for (const item of data.issues) {
+      if (!item || typeof item !== "object") continue;
+      if (typeof item.fieldId !== "string" || typeof item.message !== "string")
+        continue;
+      if (item.subformId !== undefined && typeof item.subformId !== "string")
+        continue;
+      if (item.rowId !== undefined && typeof item.rowId !== "string") continue;
+      if (
+        item.rowIndex !== undefined &&
+        (!Number.isInteger(item.rowIndex) || item.rowIndex < 0)
+      )
+        continue;
+      issues.push({
+        fieldId: item.fieldId,
+        message: item.message,
+        subformId: item.subformId,
+        rowId: item.rowId,
+        rowIndex: item.rowIndex,
+      });
+    }
+  }
   fail(
     new PlatformError(
       failureMessage(response.status, data),
       response.status,
       hasCollection ? (collection as CollectionStatus) : undefined,
       requestId,
+      issues,
     ),
     method,
   );

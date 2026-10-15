@@ -68,6 +68,11 @@ export interface RecordCell {
   subformId?: string;
   rowId?: string;
 }
+/** 字段输入校验定位；新建明细尚无行 ID 时，rowIndex 对应提交数组中的零基位置。 */
+export interface FieldValidationIssue extends RecordCell {
+  message: string;
+  rowIndex?: number;
+}
 export interface CellChange extends RecordCell {
   expectedRevision: number;
   value: unknown;
@@ -253,3 +258,20 @@ export interface ProcessView {
   }[];
 }
 export * from "./ocr";
+
+export {
+  effectiveRecordAccess,
+  eligibleRecordGroups,
+  emptyRecordGroupConfiguration,
+  fieldPermission,
+  filterExpected,
+  groupMatches,
+  matchesGroupFilters,
+  RecordAccessDeniedError,
+  recordDepartmentIds,
+  selectRecordGroups,
+  type RecordAccessActor,
+  type RecordAccessContext,
+  type RecordAccessOrganization,
+  type RecordAccessPolicy,
+} from "./record-access";

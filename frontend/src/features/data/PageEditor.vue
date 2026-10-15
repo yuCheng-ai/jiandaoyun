@@ -19,7 +19,6 @@ import {
   dataModelChanges,
   pageForModel,
   type PublishedDataModel,
-  type PagePublishImpact,
 } from "@platform/contracts";
 import { platformApi } from "../../repositories/platformApi";
 import { usePageDesignerStore } from "../../stores/pageDesigner";
@@ -55,7 +54,6 @@ import FieldValueRules from "./FieldValueRules.vue";
 import DateRangeInspector from "../forms/components/DateRangeInspector.vue";
 import { isChoiceField } from "@platform/contracts";
 import UserMenu from "../../components/shared/UserMenu.vue";
-import PagePublishDialog from "./PagePublishDialog.vue";
 const { notify } = useNotices();
 const store = usePageDesignerStore(),
   session = usePlatformSession(),
@@ -95,7 +93,6 @@ const {
   toggleInspector,
 } = useDesignerPanels();
 const preview = ref(false),
-  publishing = ref(false),
   reloading = ref(false);
 const editor = useFormDesigner(facade, (message) => {
   interactionHint.value = message;
@@ -242,12 +239,6 @@ function locateConflict() {
     inspectField();
   }
 }
-const publicationImpact = ref<PagePublishImpact>();
-async function preparePublication() {
-  publicationImpact.value = undefined;
-  publishing.value = true;
-  publicationImpact.value = await store.preparePublication();
-}
 const modelUpdate = ref(false),
   modelLoading = ref(false),
   modelError = ref("");
@@ -367,13 +358,7 @@ async function save() {
   if (await store.save()) notify("草稿已保存");
 }
 async function publish() {
-  if (
-    publicationImpact.value &&
-    (await store.publish(publicationImpact.value))
-  ) {
-    publishing.value = false;
-    notify("表单已发布");
-  } else publicationImpact.value = undefined;
+  if (await store.publish()) notify("表单已发布");
 }
 async function reload() {
   await store.load(data.value.draft.id);
@@ -413,7 +398,6 @@ function keyboard(event: KeyboardEvent) {
     store.busy ||
     discarding.value ||
     recycling.value ||
-    publishing.value ||
     preview.value ||
     leaveTo.value ||
     reloading.value ||
@@ -601,7 +585,7 @@ onBeforeUnmount(() => {
         ><button
           class="button primary"
           :disabled="store.busy || !!conflicts.length"
-          @click="preparePublication"
+          @click="publish"
         >
           发布
         </button>
@@ -1055,15 +1039,6 @@ onBeforeUnmount(() => {
         </button></template
       >
     </BaseDialog>
-    <PagePublishDialog
-      v-if="publishing"
-      :impact="publicationImpact"
-      :busy="store.busy"
-      :error="store.error"
-      @close="publishing = false"
-      @retry="preparePublication"
-      @confirm="publish"
-    />
     <BaseDialog
       :open="!!reuseReview"
       title="复用已有字段"

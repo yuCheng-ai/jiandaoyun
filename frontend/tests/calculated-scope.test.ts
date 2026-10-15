@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 // @vitest-environment jsdom
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it } from "vitest";
@@ -22,7 +23,6 @@ import {
   validateFieldConfiguration,
   validateDynamicValues,
 } from "../src/domain/fieldValidation";
-import { seedWorkspace } from "../src/domain/workspace";
 
 import FormulaEditor from "../src/features/forms/components/FormulaEditor.vue";
 

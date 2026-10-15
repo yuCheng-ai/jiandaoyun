@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 // @vitest-environment jsdom
 import { afterEach, expect, it } from "vitest";
 import { createApp, h, nextTick, reactive, shallowRef } from "vue";
@@ -13,7 +14,6 @@ import {
 } from "../src/domain/form";
 import {
   newForm,
-  seedWorkspace,
   type FormRecord,
 } from "../src/domain/workspace";
 import {

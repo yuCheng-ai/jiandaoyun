@@ -1,8 +1,9 @@
+import { seedWorkspace } from "./fixtures/workspace";
 // @vitest-environment jsdom
 import { expect, it } from "vitest";
 import { createField, emptySchema, validateValues } from "../src/domain/form";
 import { validateDynamicValues } from "../src/domain/fieldValidation";
-import { seedWorkspace } from "../src/domain/workspace";
+
 
 it("validates ordinary text literally, including angle brackets and entity spelling", () => {
   const schema = emptySchema();

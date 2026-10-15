@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 // @vitest-environment jsdom
 import { afterEach, expect, it } from "vitest";
 import { createApp, h, nextTick, reactive } from "vue";
@@ -20,7 +21,7 @@ import {
 import { validateFieldConfiguration } from "../src/domain/fieldValidation";
 import { quickFillValue } from "../src/domain/quickFill";
 import { emptyServerRecord } from "../src/domain/serverRecords";
-import { seedWorkspace } from "../src/domain/workspace";
+
 import FieldControl from "../src/features/forms/components/FieldControl.vue";
 
 import ServerFieldControl from "../src/features/collaboration/ServerFieldControl.vue";

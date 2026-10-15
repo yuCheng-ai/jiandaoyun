@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -6,7 +7,7 @@ import {
   emptySchema,
   type FormField,
 } from "../src/domain/form";
-import { newForm, seedWorkspace } from "../src/domain/workspace";
+import { newForm } from "../src/domain/workspace";
 import { parseExtensions } from "../src/domain/extensions";
 import { memberContext } from "../src/domain/access";
 

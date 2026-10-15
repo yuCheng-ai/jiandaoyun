@@ -5,7 +5,8 @@ import { json } from "express";
 import { AppModule } from "./app.module";
 import { config } from "./core/config/config";
 import { Database } from "./core/database/database";
-import { AuthService } from "./core/auth/auth.service";
+import { passwordHash } from "./core/auth/auth.service";
+import { randomUUID } from "node:crypto";
 import { ApplicationService } from "./modules/applications/applications.service";
 import { upgradeDataProjection } from "./modules/records/data-projection";
 import { requestLogging, RequestExceptionFilter } from "./core/logging/request-logging";
@@ -58,12 +59,34 @@ export async function createApp() {
     const db = app.get(Database);
     await db.migrate();
     await upgradeDataProjection(db);
-    await app.get(AuthService).seed();
+    await seedLocalAccounts(db);
     await app.get(ApplicationService).seed();
     app.enableShutdownHooks();
     return app;
   } catch (error) {
     await app.close();
     throw error;
+  }
+}
+
+/** 当前产品的本地账号初始化属于启动编排，认证模块不预设用户或工作空间。 */
+async function seedLocalAccounts(db: Database) {
+  const accounts = [
+    ["admin", "平台管理员", "admin", process.env.PLATFORM_ADMIN_PASSWORD],
+    ["editor", "录入成员", "member", process.env.PLATFORM_EDITOR_PASSWORD],
+    ["reviewer", "核对成员", "member", process.env.PLATFORM_REVIEWER_PASSWORD],
+  ] as const;
+
+  for (const [username, name, role, password] of accounts) {
+    if (!password || password.length < 16) {
+      throw new Error("Local account passwords of at least 16 characters are required.");
+    }
+
+    const sql = `
+      INSERT INTO users (id, workspace_id, username, name, role, password_hash)
+      VALUES ($1, 'local', $2, $3, $4, $5)
+      ON CONFLICT (username) DO NOTHING
+    `;
+    await db.query(sql, [randomUUID(), username, name, role, passwordHash(password)]);
   }
 }

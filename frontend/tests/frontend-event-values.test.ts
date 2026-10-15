@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 import { expect, it } from "vitest";
 import type { FrontendEvent } from "@platform/contracts";
 import {
@@ -6,7 +7,7 @@ import {
   emptySchema,
   type FormValues,
 } from "../src/domain/form";
-import { seedWorkspace, newForm } from "../src/domain/workspace";
+import { newForm } from "../src/domain/workspace";
 import { newFrontendRequest } from "../src/domain/frontendRequests";
 import { newFrontendSelection } from "../src/domain/frontendSelections";
 import {

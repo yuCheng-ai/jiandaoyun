@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 // @vitest-environment jsdom
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -57,7 +58,6 @@ import { fieldExtensionImpacts } from "../src/domain/extensions";
 import { validateFieldConfiguration } from "../src/domain/fieldValidation";
 import { runtimeDataKey } from "../src/composables/useRuntimeData";
 import {
-  seedWorkspace,
   newForm,
   type FormEntry,
 } from "../src/domain/workspace";

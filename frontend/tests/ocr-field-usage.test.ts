@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 // @vitest-environment jsdom
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it } from "vitest";
@@ -51,7 +52,6 @@ import { reminderFields } from "../src/domain/reminders";
 import { configurableFields, compatibleField } from "../src/domain/extensions";
 import {
   newForm,
-  seedWorkspace,
   type FormEntry,
 } from "../src/domain/workspace";
 

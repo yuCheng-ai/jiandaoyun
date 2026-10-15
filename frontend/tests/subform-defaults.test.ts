@@ -1,3 +1,4 @@
+import { seedWorkspace, newAccessGroup } from "./fixtures/workspace";
 // @vitest-environment jsdom
 // @vitest-environment jsdom
 import { expect, it } from "vitest";
@@ -12,7 +13,7 @@ import {
   defaultValues,
   type FormValues,
 } from "../src/domain/form";
-import { newForm, seedWorkspace } from "../src/domain/workspace";
+import { newForm } from "../src/domain/workspace";
 import {
   linkedDefault,
   runtimeDefaults,
@@ -21,7 +22,6 @@ import {
 import { defaultLinkErrors } from "../src/domain/fieldValidation";
 import {
   memberContext,
-  newAccessGroup,
   defaultAccess,
 } from "../src/domain/access";
 

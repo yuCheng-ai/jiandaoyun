@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 // @vitest-environment jsdom
 import { afterEach, expect, it } from "vitest";
 import { createApp, h, nextTick, ref } from "vue";
@@ -21,7 +22,7 @@ import {
   matchesFilters,
   resolveChoices,
 } from "../src/domain/relations";
-import { seedWorkspace } from "../src/domain/workspace";
+
 import { filterAndSortRecords, defaultRecordView } from "../src/domain/records";
 import ChoiceFieldControl from "../src/features/forms/components/ChoiceFieldControl.vue";
 import ManualChoiceEditor from "../src/features/forms/components/ManualChoiceEditor.vue";

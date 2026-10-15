@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 // @vitest-environment jsdom
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it } from "vitest";
@@ -19,7 +20,6 @@ import {
   validateValues,
 } from "../src/domain/form";
 import { validateFieldConfiguration } from "../src/domain/fieldValidation";
-import { seedWorkspace } from "../src/domain/workspace";
 
 import FieldControl from "../src/features/forms/components/FieldControl.vue";
 import FieldValueRules from "../src/features/data/FieldValueRules.vue";

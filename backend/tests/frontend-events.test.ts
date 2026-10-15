@@ -5,7 +5,7 @@ import {
   frontendEventSettingsErrors,
   type FrontendEvent,
 } from "@platform/contracts";
-import { parseSchema } from "../src/core/database/schema";
+import { parseSchema } from "../src/modules/records/record-schema";
 import { parsePage } from "../src/modules/pages/page-schema";
 import { field, schema } from "./helpers";
 

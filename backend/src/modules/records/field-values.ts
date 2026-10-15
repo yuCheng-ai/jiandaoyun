@@ -1,28 +1,29 @@
 import { BadRequestException } from "@nestjs/common";
 import {
-  isChoiceField,
-  isMultipleChoice,
+  addressTypes,
   choiceValueIssue,
-  maxChoiceOptions,
-  maxChoiceLabelLength,
-  isOrganizationField,
-  isMultipleOrganization,
   emptyFieldValue,
-  textFormatSettingsErrors,
-  textFormatValueIssue,
-  numberValueIssue,
-  isDateFormat,
-  validDateValue,
   fileSettingsErrors,
   fileValueIssue,
+  isChoiceField,
+  isDateFormat,
+  isMultipleChoice,
+  isMultipleOrganization,
+  isOrganizationField,
+  maxChoiceLabelLength,
+  maxChoiceOptions,
   normalizeDateValue,
-  addressTypes,
+  numberValueIssue,
   richTextValueIssue,
-  type FormField,
-  type FileValue,
+  textFormatSettingsErrors,
+  textFormatValueIssue,
+  validDateValue,
   type ChoiceValue,
+  type FieldValidationIssue,
+  type FileValue,
+  type FormField,
 } from "@platform/contracts";
-import { validateOrganizationRule } from "../directory/organization-fields";
+import { validateOrganizationRule } from "./organization-fields";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PHONE_REGEX = /^1[3-9]\d{9}$/;
@@ -138,19 +139,47 @@ export function validateFieldRules(
   }
 }
 
-/**
- * 校验并标准化单个标量字段的运行时输入值
- */
-export function scalar(field: FormField, value: unknown, required = true): any {
+/** 只有可定位的填写错误才参与批量收集；权限、冲突及其他异常必须直接中止。 */
+export class FieldValidationException extends BadRequestException {
+  constructor(readonly issues: FieldValidationIssue[]) {
+    super({ message: issues[0]?.message || "填写内容不符合要求", issues });
+  }
+}
+
+export function collectFieldIssues<T>(
+  issues: FieldValidationIssue[],
+  validate: () => T,
+): T | undefined {
+  try {
+    return validate();
+  } catch (error) {
+    if (!(error instanceof FieldValidationException)) throw error;
+    issues.push(...error.issues);
+  }
+}
+
+/** 校验并标准化单个字段；配置检查不传 location，填写检查才提供当前可见字段的定位。 */
+export function scalar(
+  field: FormField,
+  value: unknown,
+  required = true,
+  location?: Omit<FieldValidationIssue, "fieldId" | "message">,
+): any {
+  const fail: (message: string) => never = (message) => {
+    if (location) {
+      throw new FieldValidationException([{ fieldId: field.id, ...location, message }]);
+    }
+    throw new BadRequestException(message);
+  };
   const multiple = isMultipleChoice(field.type) || isMultipleOrganization(field.type);
 
   // 附件必须是文件列表；空列表遵守必填规则，非空列表还会在保存事务中核验真实内容。
   if (field.type === "file" || field.type === "image") {
     const files = value == null || value === "" ? [] : value;
     const issue = fileValueIssue(field, files);
-    if (issue) throw new BadRequestException(`「${field.label}」${issue}`);
+    if (issue) fail(`「${field.label}」${issue}`);
     if (required && field.required && Array.isArray(files) && !files.length) {
-      throw new BadRequestException(`「${field.label}」不能为空`);
+      fail(`「${field.label}」不能为空`);
     }
     return (files as FileValue[]).map(file => ({
       id: file.id,
@@ -163,10 +192,10 @@ export function scalar(field: FormField, value: unknown, required = true): any {
   // 1. 空值处理与必填校验
   if (emptyFieldValue(value)) {
     if (required && field.required) {
-      throw new BadRequestException(`「${field.label}」不能为空`);
+      fail(`「${field.label}」不能为空`);
     }
     if (Array.isArray(value) && !multiple) {
-      throw new BadRequestException(`「${field.label}」的值格式不合法`);
+      fail(`「${field.label}」的值格式不合法`);
     }
     return multiple ? [] : "";
   }
@@ -175,7 +204,7 @@ export function scalar(field: FormField, value: unknown, required = true): any {
   if (isOrganizationField(field.type)) {
     const hasInvalidContainer = multiple ? !Array.isArray(value) : typeof value !== "string";
     if (hasInvalidContainer) {
-      throw new BadRequestException(`「${field.label}」的组织身份格式不合法`);
+      fail(`「${field.label}」的组织身份格式不合法`);
     }
 
     const selected = (multiple ? value : [value]) as unknown[];
@@ -184,7 +213,7 @@ export function scalar(field: FormField, value: unknown, required = true): any {
       new Set(selected).size !== selected.length ||
       selected.some((id) => typeof id !== "string" || !UUID_REGEX.test(id));
     if (hasInvalidId) {
-      throw new BadRequestException(`「${field.label}」包含无效或重复的组织身份`);
+      fail(`「${field.label}」包含无效或重复的组织身份`);
     }
     return multiple ? ([...selected] as string[]) : (selected[0] as string);
   }
@@ -192,7 +221,7 @@ export function scalar(field: FormField, value: unknown, required = true): any {
   // 3. 选项类字段校验
   if (isChoiceField(field.type)) {
     const issue = choiceValueIssue(field, value);
-    if (issue) throw new BadRequestException(`「${field.label}」${issue}`);
+    if (issue) fail(`「${field.label}」${issue}`);
     return structuredClone(value) as ChoiceValue | ChoiceValue[];
   }
 
@@ -203,7 +232,7 @@ export function scalar(field: FormField, value: unknown, required = true): any {
       let message = `最多输入 ${field.precision ?? 2} 位小数`;
       if (issue === "invalid") message = "请输入有效数字";
       else if (issue === "range") message = "超出允许范围";
-      throw new BadRequestException(`「${field.label}」${message}`);
+      fail(`「${field.label}」${message}`);
     }
     return value as number;
   }
@@ -216,31 +245,31 @@ export function scalar(field: FormField, value: unknown, required = true): any {
   // 6. 文本、日期时间与手机号校验
   if (field.type === "richtext") {
     const issue = richTextValueIssue(value);
-    if (issue) throw new BadRequestException(`「${field.label}」${issue}`);
+    if (issue) fail(`「${field.label}」${issue}`);
     if (required && field.required && !(value as string).trim()) {
-      throw new BadRequestException(`「${field.label}」不能为空`);
+      fail(`「${field.label}」不能为空`);
     }
     return value as string;
   }
   if (typeof value !== "string" || value.length > (field.maxLength || 10000)) {
-    throw new BadRequestException(`「${field.label}」的文本格式或长度不符合要求`);
+    fail(`「${field.label}」的文本格式或长度不符合要求`);
   }
   if (required && field.required && !value.trim()) {
-    throw new BadRequestException(`「${field.label}」不能为空`);
+    fail(`「${field.label}」不能为空`);
   }
   if (field.type === "datetime") {
     if (!validDateValue(field.format, value)) {
-      throw new BadRequestException(`「${field.label}」的日期或时间不合法`);
+      fail(`「${field.label}」的日期或时间不合法`);
     }
     return normalizeDateValue(field.format, value);
   }
   if (field.type === "phone" && !PHONE_REGEX.test(value)) {
-    throw new BadRequestException(`「${field.label}」应为有效的 11 位手机号`);
+    fail(`「${field.label}」应为有效的 11 位手机号`);
   }
 
   const formatIssue = textFormatValueIssue(field, value);
   if (formatIssue) {
-    throw new BadRequestException(`「${field.label}」${formatIssue}`);
+    fail(`「${field.label}」${formatIssue}`);
   }
 
   return value;

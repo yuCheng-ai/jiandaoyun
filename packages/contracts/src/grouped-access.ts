@@ -82,12 +82,13 @@ export interface RecordPermissionGroup {
 }
 export interface RecordGroupConfiguration {
   revision: number;
-  mode: 'direct' | 'groups';
+  mode: "groups";
   allowMerged: boolean;
   groups: RecordPermissionGroup[];
 }
 export interface RecordGroupOptions {
-  mode: 'direct' | 'groups';
+  /** 仅描述管理员无需选择权限组的界面行为，不作为授权输入。 */
+  administrator: boolean;
   revision: number;
   allowMerged: boolean;
   groups: Pick<RecordPermissionGroup, 'id' | 'name' | 'actions'>[];

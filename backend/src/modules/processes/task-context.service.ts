@@ -1,43 +1,34 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-} from "@nestjs/common";
-import { emptyFieldValue, ruleFieldVisible } from "@platform/contracts";
+import { BadRequestException, ForbiddenException, Injectable } from "@nestjs/common";
 import type {
+  FieldValidationIssue,
   FormField,
   FormSchema,
   FormValues,
   RecordDetail,
   TaskSpec,
 } from "@platform/contracts";
-import { recordCreator } from "../directory/organization-fields";
-import { requireActiveRecord } from "../records/record-state";
+import {
+  emptyFieldValue,
+  fieldPermission as permission,
+  ruleFieldVisible,
+} from "@platform/contracts";
 import type { Actor } from "../../core/auth/auth.service";
 import type { Transaction } from "../../core/database/database";
 import { PageService } from "../pages/pages.service";
-import {
-  PlatformService,
-  definitionDto,
-  recordDto,
-} from "../pages/platform.service";
-import {
-  pageAccess,
-  validatePageSubmission,
-  type RecordPageScope,
-} from "../pages/page-runtime";
-import {
-  allFields,
-  masked,
-  permission,
-  rowActions,
-  scalar,
-} from "../../core/database/schema";
+import { recordCreator } from "../records/organization-fields";
+import { allFields, masked, rowActions } from "../records/record-schema";
+import { pageAccess, validatePageSubmission, type RecordPageScope } from "../records/record-scope";
+import { requireActiveRecord } from "../records/record-state";
+import { RecordValuesService } from "../records/record-values.service";
+import { RecordService, definitionDto, recordDto } from "../records/records.service";
+import { FieldValidationException, collectFieldIssues, scalar } from "../records/field-values";
+
 
 @Injectable()
 export class TaskContextService {
   constructor(
-    private readonly platform: PlatformService,
+    private readonly recordService: RecordService,
+    private readonly values: RecordValuesService,
     private readonly pages: PageService,
   ) {}
 
@@ -125,7 +116,7 @@ export class TaskContextService {
     task: TaskSpec,
     allowArchived = true,
   ) {
-    const source = await this.platform.loadRecord(tx, actor, recordId);
+    const source = await this.recordService.loadRecord(tx, actor, recordId);
     if (!source.access.read) {
       throw new ForbiddenException("当前成员没有任务记录的查看权限");
     }
@@ -260,6 +251,7 @@ export class TaskContextService {
     }
 
     // 未绑定处理页面的任务，仍需按记录原始字段校验节点必填要求。
+    const issues: FieldValidationIssue[] = [];
     for (const fieldId of task.requiredFields || []) {
       const field = source.schema.fields.find(
         (field) => field.id === fieldId && field.type !== "subform",
@@ -267,8 +259,16 @@ export class TaskContextService {
       if (!field || permission(source.access, field) === "hidden") {
         throw new ForbiddenException("无法检查任务要求的字段");
       }
-      scalar({ ...field, required: true }, source.row.values[fieldId]);
+      collectFieldIssues(issues, () => {
+        return scalar(
+          { ...field, required: true },
+          source.row.values[fieldId],
+          true,
+          {},
+        );
+      });
     }
+    if (issues.length) throw new FieldValidationException(issues);
   }
 
   /** 生成任务节点专属的记录详情视图（对非 ready 任务自动降级为只读，并按权限脱敏字段与子表行） */
@@ -344,7 +344,7 @@ export class TaskContextService {
           }
         : {}),
       creator: await recordCreator(tx, actor, source.row.created_by),
-      identities: await this.platform.identityLabels(
+      identities: await this.values.identityLabels(
         tx,
         actor,
         visible.schema,

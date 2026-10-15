@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 // @vitest-environment jsdom
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -26,7 +27,7 @@ import {
 import { validateFieldConfiguration } from "../src/domain/fieldValidation";
 import { runtimeDefaults } from "../src/domain/relations";
 import { memberSchema } from "../src/domain/access";
-import { newForm, seedWorkspace } from "../src/domain/workspace";
+import { newForm } from "../src/domain/workspace";
 import { useFormDesigner } from "../src/features/forms/useFormDesigner";
 
 import FormRuntime from "../src/features/forms/components/FormRuntime.vue";

@@ -1,4 +1,3 @@
-import { requireActiveRecord } from "../records/record-state";
 import {
   BadRequestException,
   ConflictException,
@@ -6,25 +5,36 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { fieldValueLabel } from "@platform/contracts";
-import { randomUUID } from "node:crypto";
 import type {
   AccessGrant,
   FormField,
   FormSchema,
   FormValues,
+  RecordRelationGroup,
   RelationCandidate,
   RelationCandidatesPage,
   RelationDefinition,
   RelationLinkView,
   RelationSpec,
-  RecordRelationGroup,
 } from "@platform/contracts";
+import { fieldValueLabel, fieldPermission as permission } from "@platform/contracts";
+import { randomUUID } from "node:crypto";
 import { Actor, requireAdmin } from "../../core/auth/auth.service";
+import { once } from "../../core/database/commands";
 import { Database, Transaction } from "../../core/database/database";
-import { PlatformService } from "../pages/platform.service";
-import { once } from "../processes/commands";
-import { cellKey, object, permission, rowPolicy, scalar, uuid } from "../../core/database/schema";
+import { object, uuid } from "../../core/validation";
+import { AccessService } from "../access/access.service";
+import { scalar } from "../records/field-values";
+import { cellKey, rowPolicy } from "../records/record-schema";
+import {
+  assertPageActive,
+  pageAccess,
+  validatePageSubmission,
+  type RecordPageScope,
+} from "../records/record-scope";
+import { requireActiveRecord } from "../records/record-state";
+import { RecordValuesService } from "../records/record-values.service";
+import { RecordService } from "../records/records.service";
 import {
   matchesRelation,
   parseRelation,
@@ -32,12 +42,7 @@ import {
   relationScope,
   requireRelationFields,
 } from "./relation-rules";
-import { assertPageActive } from "../pages/page-lifecycle";
-import {
-  pageAccess,
-  validatePageSubmission,
-  type RecordPageScope,
-} from "../pages/page-runtime";
+
 
 // ============================================================================
 // 1. 基础辅助函数
@@ -69,7 +74,9 @@ const fieldList = (spec: RelationSpec) => [...new Set([spec.labelFieldId, ...spe
 export class RelationService {
   constructor(
     private readonly db: Database,
-    private readonly platform: PlatformService,
+    private readonly recordService: RecordService,
+    private readonly authorization: AccessService,
+    private readonly values: RecordValuesService,
   ) {}
 
   /** 加载关联关系定义及其最新发布版本配置 */
@@ -102,7 +109,7 @@ export class RelationService {
     const defIds = [...new Set([spec.sourceDefinitionId, spec.targetDefinitionId])].sort();
 
     for (const id of defIds) {
-      const def = await this.platform.definition(tx, actor, id, lock ? "FOR SHARE" : "");
+      const def = await this.recordService.definition(tx, actor, id, lock ? "FOR SHARE" : "");
       const { rows } = await tx.query(
         "SELECT schema FROM definition_versions WHERE definition_id = $1 AND version = $2",
         [id, def.latest_version],
@@ -256,7 +263,7 @@ export class RelationService {
       await assertPageActive(tx, actor, page.id);
     }
 
-    const source = await this.platform.loadRecord(tx, actor, recordId);
+    const source = await this.recordService.loadRecord(tx, actor, recordId);
     requireActiveRecord(source.row);
     source.access = pageAccess(
       page,
@@ -343,8 +350,8 @@ export class RelationService {
       const spec = relation.spec as RelationSpec;
       const source = await this.source(tx, actor, recordId, relation, rowId, true, page);
       const schemas = await this.schemas(tx, actor, spec);
-      const access = await this.platform.access(tx, actor, spec.targetDefinitionId, schemas.target);
-      const readScope = await this.platform.readableScope(tx, actor, spec.targetDefinitionId);
+      const access = await this.authorization.effective(tx, actor, spec.targetDefinitionId, schemas.target);
+      const readScope = await this.authorization.readers(tx, actor, spec.targetDefinitionId);
       const fields = requireRelationFields(
         spec,
         source.version.schema,
@@ -411,7 +418,7 @@ export class RelationService {
       for (const row of scanned) {
         let rowAccess: AccessGrant;
         try {
-          rowAccess = await this.platform.access(tx, actor, spec.targetDefinitionId, row.schema, {
+          rowAccess = await this.authorization.effective(tx, actor, spec.targetDefinitionId, row.schema, {
             createdBy: row.created_by,
             createdDepartmentIds: row.created_department_ids,
             values: row.values,
@@ -435,13 +442,13 @@ export class RelationService {
           (field) => neededFieldIds.includes(field.id) && permission(rowAccess, field) !== "hidden",
         );
 
-        const identities = await this.platform.identityLabels(
+        const identities = await this.values.identityLabels(
           tx,
           actor,
           { ...row.schema, fields: shown },
           row.values,
         );
-        const sourceIdentities = await this.platform.identityLabels(
+        const sourceIdentities = await this.values.identityLabels(
           tx,
           actor,
           {
@@ -574,7 +581,7 @@ export class RelationService {
 
         await this.lockRecords(tx, actor, spec, recordId, body.targetRecordId);
         const source = await this.source(tx, actor, recordId, relation, body.sourceRowId, true, page);
-        const target = await this.platform.loadRecord(tx, actor, body.targetRecordId);
+        const target = await this.recordService.loadRecord(tx, actor, body.targetRecordId);
 
         if (
           body.expectedTargetRevision !== undefined &&
@@ -670,7 +677,7 @@ export class RelationService {
           source.row.cell_revisions[key]++;
         }
 
-        await this.platform.validateRecordOrganizations(
+        await this.values.validateRecordOrganizations(
           tx,
           actor,
           source.version.schema,
@@ -738,7 +745,7 @@ export class RelationService {
       });
 
       // 每次响应（包括策略变更后的幂等重试）均重新执行实时权限校验与数据脱敏
-      const record = await this.platform.writeDetailIn(
+      const record = await this.recordService.writeDetailIn(
         tx,
         actor,
         recordId,
@@ -832,7 +839,7 @@ export class RelationService {
         return recordId;
       });
 
-      const record = await this.platform.writeDetailIn(
+      const record = await this.recordService.writeDetailIn(
         tx,
         actor,
         recordId,
@@ -905,7 +912,7 @@ export class RelationService {
       try {
         // 渲染阶段读取不可变版本，不再额外申请表单定义锁，避免在写链路锁记录后升级锁顺序
         const schemas = await this.schemas(tx, actor, spec, false);
-        const targetAccess = await this.platform.access(
+        const targetAccess = await this.authorization.effective(
           tx,
           actor,
           spec.targetDefinitionId,
@@ -964,14 +971,14 @@ export class RelationService {
         let restricted = false;
 
         try {
-          const target = await this.platform.loadRecord(tx, actor, link.target_record_id);
+          const target = await this.recordService.loadRecord(tx, actor, link.target_record_id);
           const available = (target.version.schema as FormSchema).fields.filter(
             (f) => fieldList(rule).includes(f.id) && permission(target.access, f) !== "hidden",
           );
           const raw = rule.valueMode === "snapshot" ? link.snapshot : target.row.values;
           values = Object.fromEntries(available.map((field) => [field.id, raw[field.id]]));
 
-          const identities = await this.platform.identityLabels(
+          const identities = await this.values.identityLabels(
             tx,
             actor,
             { ...target.version.schema, fields: available },
@@ -1052,7 +1059,7 @@ export class RelationService {
     for (const link of incoming) {
       const spec = link.spec as RelationSpec;
       try {
-        const origin = await this.platform.loadRecord(tx, actor, link.source_record_id);
+        const origin = await this.recordService.loadRecord(tx, actor, link.source_record_id);
         if (relationPermission(actor, origin.access, link.relation_id) === "hidden") {
           continue;
         }
@@ -1073,7 +1080,7 @@ export class RelationService {
 
         const scope = relationScope(spec, origin.row.values, link.source_row_id || undefined);
         const values = Object.fromEntries(fields.map((f) => [f.id, scope[f.id]]));
-        const identities = await this.platform.identityLabels(
+        const identities = await this.values.identityLabels(
           tx,
           actor,
           { ...origin.version.schema, fields },

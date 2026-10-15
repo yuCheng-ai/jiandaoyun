@@ -17,8 +17,9 @@ let app: ReturnType<typeof createApp> | undefined;
 const settle = async () => {
   for (let i = 0; i < 8; i++) await nextTick();
 };
+// 字段容器也带无障碍名称；交互需定位内部控件，不能点击或修改外层分组。
 const control = <T extends HTMLElement = HTMLInputElement>(label: string) =>
-  document.querySelector<T>(`[aria-label="${label}"]`)!;
+  document.querySelector<T>(`[aria-label="${label}"]:not(.server-field-control)`)!;
 async function mount(render: Parameters<typeof createApp>[0]) {
   document.body.innerHTML = '<div id="app"></div>';
   app = createApp(render);

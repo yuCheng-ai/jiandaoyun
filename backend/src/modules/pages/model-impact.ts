@@ -1,24 +1,29 @@
 import { BadRequestException } from "@nestjs/common";
-import { createHash } from "node:crypto";
 import {
-  isOrganizationField,
-  emptyFieldValue,
-  fieldDefaultValue,
-  textFormats,
   dataFields,
   dataModelChanges,
+  emptyFieldValue,
+  fieldDefaultValue,
+  isOrganizationField,
   modelFormSchema,
-  type ServerOrganization,
+  textFormats,
   type DataModel,
   type DataModelImpact,
   type ModelFieldChange,
   type ProcessTemplateSpec,
+  type ServerOrganization,
 } from "@platform/contracts";
+import { createHash } from "node:crypto";
 import type { Transaction } from "../../core/database/database";
-import { pageBindings } from "./page-schema";
+import { scalar } from "../records/field-values";
+import {
+  organizationCandidates,
+  organizationDefaultResolver,
+} from "../records/organization-fields";
+import { allFields } from "../records/record-schema";
 import { referencedRelationFields } from "../relations/relation-rules";
-import { allFields, scalar } from "../../core/database/schema";
-import { organizationCandidates, organizationDefaultResolver } from "../directory/organization-fields";
+import { pageBindings } from "./page-schema";
+
 
 // ============================================================================
 // 1. 字段设置差异格式化辅助函数

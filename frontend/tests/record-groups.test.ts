@@ -3,6 +3,17 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createApp, defineComponent, h, nextTick } from "vue";
 import { createPinia } from "pinia";
 import { createMemoryHistory, createRouter, RouterView } from "vue-router";
+import {
+  effectiveRecordAccess,
+  emptyOrganizationSpec,
+  fieldPermission,
+  groupMatches,
+  matchesGroupFilters,
+  RecordAccessDeniedError,
+  selectRecordGroups,
+  type RecordAccessPolicy,
+  type RecordPermissionGroup,
+} from "@platform/contracts";
 import { createField, emptySchema } from "../src/domain/form";
 import RecordGroupDialog from "../src/features/collaboration/RecordGroupDialog.vue";
 import RecordGroupSelector from "../src/features/collaboration/RecordGroupSelector.vue";
@@ -48,7 +59,7 @@ vi.mock("../src/components/BaseDialog.vue", () => ({
   }),
 }));
 const options = () => ({
-  mode: "groups" as const,
+  administrator: false,
   revision: 2,
   allowMerged: true,
   groups: [
@@ -57,7 +68,9 @@ const options = () => ({
   ],
 });
 const config = () => ({
-  ...options(),
+  mode: "groups" as const,
+  revision: 2,
+  allowMerged: true,
   groups: options().groups.map((g) => ({
     ...g,
     enabled: true,
@@ -138,6 +151,118 @@ afterEach(() => {
   app?.unmount();
   document.body.innerHTML = "";
 });
+it("shared permission rules clamp each group's action and parent before merging and reject forged or inactive membership", () => {
+  const actor = { id: "member", role: "member" as const };
+  const schema = {
+    ...emptySchema(),
+    fields: [
+      createField("subform", {
+        id: "lines",
+        children: [createField("text", { id: "detail" })],
+      }),
+    ],
+  };
+  const makeGroup = (id: string, overrides: Partial<RecordPermissionGroup>): RecordPermissionGroup => ({
+    id,
+    name: id,
+    enabled: true,
+    archived: false,
+    subjects: [{ kind: "member", id: actor.id }],
+    actions: ["view"],
+    scope: "all",
+    filters: [],
+    fields: { lines: "edit", detail: "edit" },
+    relations: {},
+    ...overrides,
+  });
+  const policy: RecordAccessPolicy = {
+    definitionId: "form",
+    organization: {
+      spec: emptyOrganizationSpec(),
+      users: [{ id: actor.id, active: true }],
+    },
+    config: {
+      revision: 1,
+      groups: [
+        makeGroup("read", {}),
+        makeGroup("edit-child", {
+          actions: ["view", "edit"],
+          fields: { lines: "read", detail: "edit" },
+        }),
+      ],
+    },
+  };
+  const original = structuredClone({ schema, policy });
+  const access = effectiveRecordAccess(actor, schema, policy, { createdBy: "other" });
+  expect(access.edit).toBe(true);
+  expect(access.fields).toEqual({ lines: "read", detail: "read" });
+  expect(fieldPermission(access, { id: "absent" })).toBe("hidden");
+  expect({ schema, policy }).toEqual(original);
+  expect(() => effectiveRecordAccess(actor, schema, { ...policy, selection: "forged" }))
+    .toThrow(RecordAccessDeniedError);
+
+  const inactive = { ...policy.organization, users: [{ id: actor.id, active: false }] };
+  expect(() => selectRecordGroups(actor, inactive, policy.config)).toThrow(RecordAccessDeniedError);
+  const administrator = effectiveRecordAccess({ id: "admin", role: "admin" }, schema, {
+    ...policy,
+    config: { revision: 0, groups: [] },
+  });
+  expect(administrator.fields).toEqual({ lines: "edit", detail: "edit" });
+});
+
+it("shared permission rules isolate creation and output fields while matching department snapshots and identity filters", () => {
+  const actor = { id: "member", role: "member" as const };
+  const organization = {
+    spec: {
+      ...emptyOrganizationSpec(),
+      assignments: [{ userId: actor.id, departmentIds: ["sales"], primaryDepartmentId: "sales" }],
+    },
+    users: [{ id: actor.id, active: true }],
+  };
+  const schema = {
+    ...emptySchema(),
+    fields: [createField("text", { id: "name" }), createField("text", { id: "secret" })],
+  };
+  const base: RecordPermissionGroup = {
+    id: "create",
+    name: "登记组",
+    enabled: true,
+    archived: false,
+    subjects: [{ kind: "member", id: actor.id }],
+    actions: ["create"],
+    scope: "department",
+    filters: [],
+    fields: { name: "edit" },
+    relations: {},
+  };
+  const policy: RecordAccessPolicy = {
+    definitionId: "form",
+    organization,
+    config: {
+      revision: 1,
+      groups: [
+        base,
+        { ...base, id: "view", actions: ["view", "edit"], fields: { secret: "edit" } },
+        { ...base, id: "export", actions: ["view", "export"], fields: { name: "read" } },
+      ],
+    },
+  };
+  const record = { createdBy: "other", createdDepartmentIds: ["sales"] };
+  expect(effectiveRecordAccess(actor, schema, policy, { ...record, operation: "create" }).fields)
+    .toEqual({ name: "edit" });
+  expect(effectiveRecordAccess(actor, schema, policy, { ...record, operation: "export" }).fields)
+    .toEqual({ name: "read" });
+  expect(groupMatches(base, actor, organization, record)).toBe(true);
+  expect(groupMatches(base, actor, organization, { ...record, createdDepartmentIds: ["finance"] }))
+    .toBe(false);
+  expect(matchesGroupFilters([
+    { id: "owner", sourceFieldId: "owner", operator: "equals", source: "currentUser", value: "" },
+  ], { owner: actor.id }, actor, organization)).toBe(true);
+  expect(matchesGroupFilters([
+    { id: "department", sourceFieldId: "department", operator: "equals", source: "currentDepartment", value: "" },
+  ], { department: "sales" }, actor, organization)).toBe(true);
+});
+
 it("reads group options without changing the active selection", async () => {
   vi.mocked(platformApi).mockResolvedValue(options());
   let current = await recordGroupOptions("object");
@@ -157,6 +282,13 @@ it("reads group options without changing the active selection", async () => {
   expect(accessGroupSelections.value.object).toBe("removed-group");
   vi.mocked(platformApi).mockResolvedValue(undefined);
   await expect(recordGroupOptions("object")).rejects.toThrow("正确读取");
+});
+it("administrators open forms without selecting a permission group", async () => {
+  vi.mocked(platformApi).mockResolvedValue({ ...options(), administrator: true, groups: [] });
+  const current = await recordGroupOptions("object");
+  expect(accessGroupReady("object", current)).toBe(true);
+  await mount(RecordGroupSelector, { definitionId: "object", options: current });
+  expect(document.querySelector("select")).toBeNull();
 });
 it("never carries the previous account selection into another authenticated account", () => {
   chooseAccessGroup("object", "a");

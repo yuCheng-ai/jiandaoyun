@@ -1,14 +1,13 @@
-import { ConflictException, NotFoundException } from "@nestjs/common";
-import { createHash } from "node:crypto";
 import {
   dataModelChanges,
   type DataModel,
   type PageLifecycleImpact,
   type ProcessTemplateSpec,
 } from "@platform/contracts";
-import type { Actor } from "../../core/auth/auth.service";
-import type { Database, Transaction } from "../../core/database/database";
+import { createHash } from "node:crypto";
+import type { Transaction } from "../../core/database/database";
 import { pageBindings } from "./page-schema";
+
 
 /** 递归将对象属性按字典序排列，用于生成稳定的哈希摘要 */
 function canonical(value: any): any {
@@ -21,23 +20,6 @@ function canonical(value: any): any {
     );
   }
   return value;
-}
-
-/**
- * 校验目标页面存在且处于未归档状态（调用方需持有所属数据定义的锁）
- */
-export async function assertPageActive(tx: Pick<Database, "query">, actor: Actor, id: string) {
-  const { rows } = await tx.query(
-    "SELECT archived_at, title FROM pages WHERE id = $1 AND workspace_id = $2",
-    [id, actor.workspaceId],
-  );
-  const page = rows[0];
-  if (!page) {
-    throw new NotFoundException("表单不存在或不可访问");
-  }
-  if (page.archived_at) {
-    throw new ConflictException(`「${page.title}」已归档，请打开其他表单或由管理员恢复；已发任务可从待办继续处理`);
-  }
 }
 
 /**

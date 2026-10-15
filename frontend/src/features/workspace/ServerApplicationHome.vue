@@ -294,7 +294,7 @@ async function loadForm(resetList = true) {
     return;
   // 只有当前页面、当前账号的响应才能设置选中组，旧请求不改共享选择。
   const current = accessGroupSelections.value[page.definitionId];
-  if (options.mode !== "groups") chooseAccessGroup(page.definitionId, "");
+  if (options.administrator) chooseAccessGroup(page.definitionId, "");
   else if (
     !options.groups.some((group) => group.id === current) &&
     !(current === "*" && (options.allowMerged || options.groups.length === 1))
@@ -728,7 +728,7 @@ async function permissions() {
         :busy="busy || filling?.dirty || filling?.busy"
         @change="run(loadForm)"
       />
-      <p v-if="groups?.mode === 'groups' && !form" class="server-home-message">
+      <p v-if="groups && !groups.administrator && !form" class="server-home-message">
         请先选择本次办理使用的权限组。
       </p>
       <template v-if="form">

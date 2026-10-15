@@ -1,73 +1,42 @@
 import { BadRequestException, ForbiddenException } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
 import {
-  serverFieldTypes,
-  hasFieldValue,
-  maxSubformRows,
-  emptyFieldValue,
-  fieldDefaultValue,
+  choiceSettingsErrors,
   dateRangeErrors,
   dateScopeFields,
-  choiceSettingsErrors,
-  formLayoutErrors,
+  emptyFieldValue,
   externalStyleErrors,
-  subformWidthErrors,
+  fieldDefaultValue,
+  fieldTextPropertiesErrors,
+  formLayoutErrors,
+  formulaReferences,
+  formulaSchemaErrors,
+  formulaTypes,
+  hasFieldValue,
+  maxSubformRows,
+  fieldPermission as permission,
+  readableFormValidations,
+  readableVisibilityRules,
+  serverFieldTypes,
   subformFixedColumnErrors,
   subformMobileErrors,
   subformPermissionSettingErrors,
   subformPermissions,
-  fieldTextPropertiesErrors,
-  readableVisibilityRules,
-  readableFormValidations,
-  formulaSchemaErrors,
-  formulaReferences,
-  formulaTypes,
+  subformWidthErrors,
   type AccessGrant,
+  type FieldValidationIssue,
   type FormField,
   type FormSchema,
   type FormValues,
   type RecordCell,
 } from "@platform/contracts";
-import { scalar, validateFieldRules } from "../../modules/pages/field-values";
-
-export { scalar } from "../../modules/pages/field-values";
-
-// ============================================================================
-// 1. 基础入参断言与工具函数
-// ============================================================================
-
-/** 断言输入为非数组的普通对象 */
-export function object(value: unknown): asserts value is Record<string, any> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new BadRequestException("需要对象格式");
-  }
-}
-
-/** 断言输入为合法的标识符（字母开头，仅含字母/数字/下划线/短横线，且非原型链属性） */
-export function identifier(value: unknown): asserts value is string {
-  if (
-    typeof value !== "string" ||
-    !/^[a-zA-Z][a-zA-Z0-9_-]{0,99}$/.test(value) ||
-    ["constructor", "prototype", "__proto__"].includes(value)
-  ) {
-    throw new BadRequestException("标识不合法");
-  }
-}
-
-/** 断言输入为标准 UUID（v1-v5）格式 */
-export function uuid(value: unknown): asserts value is string {
-  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  if (typeof value !== "string" || !uuidPattern.test(value)) {
-    throw new BadRequestException("记录或请求标识不合法");
-  }
-}
-
-/** 断言输入为 1–100 字符的非空白名称 */
-export function title(value: unknown): asserts value is string {
-  if (typeof value !== "string" || !value.trim() || value.length > 100) {
-    throw new BadRequestException("名称应为 1–100 个字符");
-  }
-}
+import { randomUUID } from "node:crypto";
+import { identifier, object } from "../../core/validation";
+import {
+  FieldValidationException,
+  collectFieldIssues,
+  scalar,
+  validateFieldRules,
+} from "./field-values";
 
 /** 展平获取表单中的所有字段（含顶层字段与子表/标签页内嵌字段） */
 export const allFields = (schema: FormSchema): FormField[] =>
@@ -289,20 +258,6 @@ export function parseSchema(input: unknown, allowIncomplete = false): FormSchema
   return schema;
 }
 
-// ============================================================================
-// 3. 字段级权限掩码、初始值构造与子表行动作计算
-// ============================================================================
-
-/** 计算单个字段（含父级容器约束）的有效访问级别：`hidden` | `read` | `edit` */
-export function permission(grant: AccessGrant, field: FormField, parent?: FormField) {
-  const own = grant.fields[field.id] || "hidden";
-  const outer = parent ? grant.fields[parent.id] || "hidden" : "edit";
-  if ((!grant.read && !grant.create) || own === "hidden" || outer === "hidden") {
-    return "hidden";
-  }
-  return own === "edit" && outer === "edit" ? "edit" : "read";
-}
-
 /**
  * 创建新记录时校验并填充字段初始值与单元格初始版本号：
  * - 拦截未定义字段与无权写入字段；
@@ -320,6 +275,7 @@ export function newValues(
   const values: FormValues = {};
   const revisions: Record<string, number> = {};
   const fields = schema.fields;
+  const issues: FieldValidationIssue[] = [];
 
   for (const key of Object.keys(input)) {
     if (!fields.some((f) => f.id === key)) {
@@ -345,10 +301,12 @@ export function newValues(
         rows.length > maxSubformRows ||
         (field.required && !rows.length)
       ) {
-        throw new BadRequestException(`「${field.label}」的明细数量不符合要求`);
+        const message = `「${field.label}」的明细数量不符合要求`;
+        if (permission(grant, field) === "hidden") throw new BadRequestException(message);
+        throw new FieldValidationException([{ fieldId: field.id, message }]);
       }
 
-      values[field.id] = rows.map((row: unknown) => {
+      values[field.id] = rows.map((row: unknown, rowIndex: number) => {
         object(row);
         for (const key of Object.keys(row)) {
           if (!field.children.some((f) => f.id === key)) {
@@ -369,10 +327,17 @@ export function newValues(
             throw new ForbiddenException("当前权限无法完成必填字段，请联系管理员");
           }
 
-          result[child.id] = scalar(
-            child,
-            canWrite ? (row[child.id] ?? defaultValue) : defaultValue,
-          );
+          const location = permission(grant, child, field) === "hidden"
+            ? undefined
+            : { subformId: field.id, rowIndex };
+          result[child.id] = collectFieldIssues(issues, () => {
+            return scalar(
+              child,
+              canWrite ? (row[child.id] ?? defaultValue) : defaultValue,
+              true,
+              location,
+            );
+          });
           revisions[
             cellKey({
               subformId: field.id,
@@ -389,14 +354,19 @@ export function newValues(
         throw new ForbiddenException("当前权限无法完成必填字段，请联系管理员");
       }
 
-      values[field.id] = scalar(
-        field,
-        allowed ? (input[field.id] ?? defaultValue) : defaultValue,
-      );
+      values[field.id] = collectFieldIssues(issues, () => {
+        return scalar(
+          field,
+          allowed ? (input[field.id] ?? defaultValue) : defaultValue,
+          true,
+          permission(grant, field) === "hidden" ? undefined : {},
+        );
+      });
       revisions[field.id] = 1;
     }
   }
 
+  if (issues.length) throw new FieldValidationException(issues);
   return { values, revisions };
 }
 

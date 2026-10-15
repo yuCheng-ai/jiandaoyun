@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 // @vitest-environment jsdom
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -16,7 +17,7 @@ import {
   resolveRuntimeValues,
   runtimeDefaults,
 } from "../src/domain/relations";
-import { newForm, seedWorkspace } from "../src/domain/workspace";
+import { newForm } from "../src/domain/workspace";
 import { validateFieldConfiguration } from "../src/domain/fieldValidation";
 
 let pinia = createPinia();

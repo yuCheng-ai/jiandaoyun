@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { separateFormSchema, pageForModel, type FormField, type FormSchema } from "@platform/contracts";
 import { harness, field, schema } from "./helpers";
-import { scalar } from "../src/modules/pages/field-values";
+import { scalar } from "../src/modules/records/field-values";
 import { relationFields, matchesRelation } from "../src/modules/relations/relation-rules";
 const h = harness();
 const options = [{ id: "pass", label: "合格" }, { id: "hold", label: "待复核" }];

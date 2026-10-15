@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createApp, computed, h, nextTick, reactive, toRef } from "vue";
@@ -8,7 +9,7 @@ import RolesView from "../src/features/organization/RolesView.vue";
 import { useOrganizationStore } from "../src/stores/organization";
 import { useEditorDraftStore } from "../src/stores/editorDrafts";
 import { organizationActions } from "../src/stores/organizationActions";
-import { seedWorkspace } from "../src/domain/workspace";
+
 import { copy } from "../src/domain/form";
 import { directoryEditContext } from "@platform/contracts";
 import { platformApi } from "../src/repositories/platformApi";

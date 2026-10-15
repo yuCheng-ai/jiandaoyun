@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 // @vitest-environment jsdom
 import { afterEach, expect, it } from "vitest";
 import { createApp, h, nextTick, reactive } from "vue";
@@ -15,7 +16,7 @@ import {
   mapFrontendValues,
 } from "../src/domain/frontendEventValues";
 import { prepareImportRows } from "../src/domain/recordImport";
-import { newForm, seedWorkspace } from "../src/domain/workspace";
+import { newForm } from "../src/domain/workspace";
 import FormFields from "../src/features/forms/components/FormFields.vue";
 import { applyLookupSelection } from "../src/domain/lookup";
 

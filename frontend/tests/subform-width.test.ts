@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 // @vitest-environment jsdom
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it } from "vitest";
@@ -15,7 +16,6 @@ import {
   parseSchema,
   copy,
 } from "../src/domain/form";
-import { seedWorkspace } from "../src/domain/workspace";
 
 import { validateFieldConfiguration } from "../src/domain/fieldValidation";
 

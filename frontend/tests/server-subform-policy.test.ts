@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createApp, h, nextTick } from 'vue';
 import RecordEditor from '../src/features/collaboration/RecordEditor.vue';
 import { createField, emptySchema } from '../src/domain/form';
@@ -11,6 +11,14 @@ vi.mock('vue-router', () => ({
 }));
 vi.mock('../src/repositories/platformApi', async original => ({ ...await original<typeof import('../src/repositories/platformApi')>(), platformApi: vi.fn() }));
 vi.mock('../src/features/data/RecordRelations.vue', () => ({ default: { template: '<div />' } }));
+// jsdom 不实现滚动；保留真实的校验聚焦流程，只补浏览器的滚动能力。
+const originalScrollIntoView = Element.prototype.scrollIntoView;
+beforeEach(() => {
+  Element.prototype.scrollIntoView = vi.fn();
+});
+afterAll(() => {
+  Element.prototype.scrollIntoView = originalScrollIntoView;
+});
 let app: ReturnType<typeof createApp> | undefined;
 const detail = () => ({
   definition: { id: 'object', title: '明细填写', version: 1, schema: { ...emptySchema(), fields: [createField('subform', { id: 'lines', label: '明细', children: [createField('text', { id: 'item', label: '项目' })] })] } },

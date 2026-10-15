@@ -63,7 +63,7 @@ function requestClose() {
           </button>
         </header>
         <p v-if="blocked" class="dialog-pending" role="status">
-          {{ pendingText }}
+          <span class="visually-hidden">{{ pendingText }}</span>
         </p>
         <EditorDraftNotice
           v-if="open && draftKey"

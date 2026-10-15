@@ -5,18 +5,19 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
 import {
   defaultCollectionRules,
   type CollectionConfiguration,
   type CollectionRules,
   type CollectionStatus,
 } from "@platform/contracts";
+import { randomUUID } from "node:crypto";
 import { Actor, requireAdmin } from "../../core/auth/auth.service";
-import { AccessService } from "../access/access.service";
 import { Database, Transaction } from "../../core/database/database";
+import { object, uuid } from "../../core/validation";
+import { AccessService } from "../access/access.service";
 import { OrganizationService } from "../directory/organization.service";
-import { object, uuid } from "../../core/database/schema";
+
 
 type Queryable = Pick<Database, "query">;
 

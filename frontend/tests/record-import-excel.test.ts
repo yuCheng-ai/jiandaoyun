@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 import { expect, it } from "vitest";
 import * as xlsx from "xlsx";
 import { excelBytes, readExcel } from "../src/services/excel";
@@ -7,7 +8,7 @@ import {
   importExcelValue,
 } from "../src/domain/recordImport";
 import { emptySchema, createField } from "../src/domain/form";
-import { seedWorkspace } from "../src/domain/workspace";
+
 it("roundtrips standard templates with hidden IDs, renamed and duplicate labels, zero and literal formula-looking text", async () => {
   const bytes = await excelBytes(
     [

@@ -10,11 +10,11 @@ export async function recordGroupOptions(
   );
   if (
     !result ||
-    !["direct", "groups"].includes(result.mode) ||
+    typeof result.administrator !== "boolean" ||
     !Array.isArray(result.groups)
   )
     throw new Error("权限组信息未能正确读取，请刷新后重试。");
   return result;
 }
 export const accessGroupReady = (id: string, options: RecordGroupOptions) =>
-  options.mode === "direct" || !!accessGroupSelections.value[id];
+  options.administrator || !!accessGroupSelections.value[id];

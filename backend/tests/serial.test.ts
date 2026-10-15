@@ -6,7 +6,7 @@ import {
   type FormSchema,
 } from "@platform/contracts";
 import { field, schema } from "./helpers";
-import { parseSchema } from "../src/core/database/schema";
+import { parseSchema } from "../src/modules/records/record-schema";
 import { parseModel } from "../src/modules/pages/page-schema";
 
 test("unimplemented server serial execution cannot be silently accepted as ordinary metadata", () => {

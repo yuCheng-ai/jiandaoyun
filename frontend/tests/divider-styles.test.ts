@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 // @vitest-environment jsdom
 import { afterEach, expect, it } from "vitest";
 import { createApp, h, nextTick, reactive } from "vue";
@@ -16,7 +17,6 @@ import {
   prepareSubmission,
 } from "../src/domain/form";
 import { validateFieldConfiguration } from "../src/domain/fieldValidation";
-import { seedWorkspace } from "../src/domain/workspace";
 
 import FieldCanvas from "../src/features/forms/components/FieldCanvas.vue";
 

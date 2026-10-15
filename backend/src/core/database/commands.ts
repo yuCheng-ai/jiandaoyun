@@ -1,7 +1,10 @@
 import { ConflictException } from "@nestjs/common";
-import { tokenHash, type Actor } from "../../core/auth/auth.service";
-import type { Transaction } from "../../core/database/database";
-import { uuid } from "../../core/database/schema";
+import { createHash } from "node:crypto";
+import { uuid } from "../validation";
+import type { Transaction } from "./database";
+
+/** 请求摘要只依赖载荷，不依赖认证或任何业务模块。 */
+const payloadHash = (value: string) => createHash("sha256").update(value).digest("hex");
 
 /** 递归将对象属性按字典序排列，用于生成稳定的请求负载摘要 */
 function canonical(value: unknown): unknown {
@@ -25,7 +28,7 @@ function canonical(value: unknown): unknown {
  */
 export async function once(
   tx: Transaction,
-  actor: Actor,
+  actor: { id: string },
   requestId: unknown,
   payload: unknown,
   execute: () => Promise<string>,
@@ -35,21 +38,21 @@ export async function once(
     `${actor.id}:${requestId}`,
   ]);
 
-  const requestHash = `v2:${tokenHash(JSON.stringify(canonical(payload)))}`;
+  const requestHash = `v2:${payloadHash(JSON.stringify(canonical(payload)))}`;
   const { rows } = await tx.query<{
     request_hash: string;
     resource_id: string;
-  }>(
-    "SELECT request_hash, resource_id FROM commands WHERE actor_id = $1 AND request_id = $2",
-    [actor.id, requestId],
-  );
+  }>("SELECT request_hash, resource_id FROM commands WHERE actor_id = $1 AND request_id = $2", [
+    actor.id,
+    requestId,
+  ]);
   const prior = rows[0];
 
   if (prior) {
     // 已入库的旧摘要按原算法校验，避免升级后把相同内容的重试误判为冲突。
     let expectedHash = requestHash;
     if (!prior.request_hash.startsWith("v2:")) {
-      expectedHash = tokenHash(JSON.stringify(payload));
+      expectedHash = payloadHash(JSON.stringify(payload));
     }
     if (prior.request_hash !== expectedHash) {
       throw new ConflictException("同一提交标识不能用于不同内容");

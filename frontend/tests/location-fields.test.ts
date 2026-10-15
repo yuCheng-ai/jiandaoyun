@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 // @vitest-environment jsdom
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -34,7 +35,7 @@ import {
   matchesFilters,
 } from "../src/domain/relations";
 import { validateFieldConfiguration } from "../src/domain/fieldValidation";
-import { seedWorkspace, newForm } from "../src/domain/workspace";
+import { newForm } from "../src/domain/workspace";
 import LocationFieldControl from "../src/features/forms/components/LocationFieldControl.vue";
 import LocationPickerDialog from "../src/features/forms/components/LocationPickerDialog.vue";
 import { deviceLocation, loadLocationMap } from "../src/services/locationMap";

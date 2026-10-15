@@ -1,6 +1,14 @@
 import { BadRequestException, ConflictException } from "@nestjs/common";
-import { maxSubformRows, type FormSchema, type FormValues } from "@platform/contracts";
-import { scalar } from "../../core/database/schema";
+import {
+  maxSubformRows,
+  fieldPermission as permission,
+  type AccessGrant,
+  type FieldValidationIssue,
+  type FormSchema,
+  type FormValues,
+} from "@platform/contracts";
+import { FieldValidationException, collectFieldIssues, scalar } from "./field-values";
+
 
 /** 将表单 Schema 转换为草稿模式 Schema（移除所有主表字段与子表字段的必填限制） */
 export function draftSchema(schema: FormSchema): FormSchema {
@@ -27,22 +35,46 @@ export function requireActiveRecord(record: { state?: string; archived_at?: unkn
 /**
  * 校验正式提交记录的字段值是否符合已绑定的数据模型约束（仅做校验，不填充默认值或覆盖原存储值）
  */
-export function validateSubmittedRecord(schema: FormSchema, values: FormValues) {
+export function validateSubmittedRecord(
+  schema: FormSchema,
+  values: FormValues,
+  access: AccessGrant,
+) {
+  const issues: FieldValidationIssue[] = [];
   for (const field of schema.fields) {
     if (field.type !== "subform") {
-      scalar(field, values[field.id]);
+      collectFieldIssues(issues, () => {
+        return scalar(
+          field,
+          values[field.id],
+          true,
+          permission(access, field) === "hidden" ? undefined : {},
+        );
+      });
       continue;
     }
 
     const rows = values[field.id] ?? [];
     if (!Array.isArray(rows) || rows.length > maxSubformRows || (field.required && !rows.length)) {
-      throw new BadRequestException(`「${field.label}」的明细数量不符合要求`);
+      const message = `「${field.label}」的明细数量不符合要求`;
+      if (permission(access, field) === "hidden") throw new BadRequestException(message);
+      throw new FieldValidationException([{ fieldId: field.id, message }]);
     }
 
-    for (const row of rows) {
+    for (const [rowIndex, row] of rows.entries()) {
       for (const child of field.children) {
-        scalar(child, row[child.id]);
+        collectFieldIssues(issues, () => {
+          return scalar(
+            child,
+            row[child.id],
+            true,
+            permission(access, child, field) === "hidden"
+              ? undefined
+              : { subformId: field.id, rowId: row._rowId, rowIndex },
+          );
+        });
       }
     }
   }
+  if (issues.length) throw new FieldValidationException(issues);
 }

@@ -4,19 +4,20 @@ import {
   ForbiddenException,
   Injectable,
 } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
 import {
-  emptyOrganizationSpec,
   directoryCanonical,
-  type DirectoryIdentity,
+  emptyOrganizationSpec,
   organizationSubjectMembers,
+  type DirectoryIdentity,
   type GrantSubject,
   type OrganizationSpec,
   type ServerOrganization,
 } from "@platform/contracts";
+import { randomUUID } from "node:crypto";
 import { Actor, requireAdmin } from "../../core/auth/auth.service";
 import { Database, type Transaction } from "../../core/database/database";
-import { object, title, uuid } from "../../core/database/schema";
+import { object, title, uuid } from "../../core/validation";
+
 
 type Queryable = Pick<Database, "query">;
 

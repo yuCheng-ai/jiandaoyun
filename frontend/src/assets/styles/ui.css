@@ -718,12 +718,39 @@
   flex-direction: column;
   overflow: hidden;
 }
+/* 请求反馈脱离布局；短请求不闪动，正文和操作栏始终保持原位。 */
 .dialog-pending {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 2;
+  height: 2px;
   margin: 0;
-  padding: 10px 20px;
-  background: #f0f8f8;
-  color: #537079;
-  flex-shrink: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.dialog-pending::after {
+  content: "";
+  display: block;
+  width: 35%;
+  height: 100%;
+  background: var(--teal);
+  opacity: 0;
+  animation: dialog-progress 1.2s linear 250ms infinite;
+}
+@keyframes dialog-progress {
+  from { opacity: 1; transform: translateX(-100%); }
+  to { opacity: 1; transform: translateX(300%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dialog-pending::after {
+    width: 100%;
+    opacity: 1;
+    animation: none;
+  }
+}
+/* 任务弹窗内的填写区沿用外层反馈，避免同一请求重复提示。 */
+.base-dialog[aria-busy="true"] .record-editor-inline > .dialog-pending {
+  display: none;
 }
 .dialog-header {
   flex-shrink: 0;

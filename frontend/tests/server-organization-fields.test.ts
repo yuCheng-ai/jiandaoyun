@@ -19,7 +19,8 @@ vi.mock("../src/components/BaseDialog.vue", () => ({ default: defineComponent({ 
 let app: ReturnType<typeof createApp> | undefined;
 async function settle() { for (let i = 0; i < 15; i++) await nextTick(); }
 async function mount(component: Parameters<typeof createApp>[0]) { document.body.innerHTML = '<div id="app"></div>'; app = createApp(component); app.mount('#app'); await settle(); }
-const control = <T extends HTMLElement>(label: string) => document.querySelector<T>(`[aria-label="${label}"]`)!;
+// 字段容器也带无障碍名称；交互需定位内部控件，不能点击或修改外层分组。
+const control = <T extends HTMLElement>(label: string) => document.querySelector<T>(`[aria-label="${label}"]:not(.server-field-control)`)!;
 const button = (text: string) => [...document.querySelectorAll('button')].find(item => item.textContent?.trim() === text)!;
 const identity = (id: string, name: string, active = true) => ({ id, name, active, kind: 'member' as const });
 const options = { options: [identity('server-a', '业务员甲'), identity('server-b', '业务员乙')], defaultValue: 'server-a', organizationRevision: 3 };

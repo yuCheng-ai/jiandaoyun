@@ -447,11 +447,11 @@ test("cross-workspace IDs and self-only scopes are enforced", async () => {
     "INSERT INTO users(id,workspace_id,username,name,role,password_hash) VALUES($1,'foreign','foreign','外部','admin',$2)",
     [foreign, passwordHash("not-used-password")],
   );
-  const { PlatformService } =
-    require("../src/modules/pages/platform.service") as typeof import("../src/modules/pages/platform.service");
+  const { RecordService } =
+    require("../src/modules/records/records.service") as typeof import("../src/modules/records/records.service");
   await assert.rejects(
     app
-      .get(PlatformService)
+      .get(RecordService)
       .detail(
         {
           id: foreign,

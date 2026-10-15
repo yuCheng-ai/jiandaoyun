@@ -1,8 +1,9 @@
+import { seedWorkspace } from "./fixtures/workspace";
 import { describe, expect, it } from "vitest";
 import { createField, emptySchema, isFieldVisible, prepareSubmission, parseSchema, validateValues, copy } from "../src/domain/form";
 import { editableVisibilityRules, visibilityScopes } from "@platform/contracts";
 import { buildRecordBlocks, defaultDetailSettings } from "../src/domain/presentation";
-import { seedWorkspace } from "../src/domain/workspace";
+
 import type { ConditionalVisibilityRule, VisibilityCondition } from "@platform/contracts";
 
 const condition = (sourceId: string, value: string, operator: VisibilityCondition["operator"] = "equals"): VisibilityCondition => ({ sourceId, operator, value });

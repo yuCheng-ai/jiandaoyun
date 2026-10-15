@@ -1,32 +1,34 @@
 import { BadRequestException, ConflictException } from "@nestjs/common";
 import {
+  choiceSettingsErrors,
   composeFormSchema,
-  modelFormSchema,
-  separateFormSchema,
-  pagePropertyKeys,
-  defaultPageProperties,
-  defaultPageSettings,
   dateRangeErrors,
   dateScopeFields,
-  choiceSettingsErrors,
-  serverFieldTypes,
-  serverDataKinds,
-  fieldTextPropertiesErrors,
-  validateVisibilityRules,
-  validateFormValidations,
-  formLayoutErrors,
+  defaultPageProperties,
+  defaultPageSettings,
   externalStyleErrors,
-  subformWidthErrors,
-  subformPermissionSettingErrors,
+  fieldTextPropertiesErrors,
+  formLayoutErrors,
+  modelFormSchema,
+  pagePropertyKeys,
+  separateFormSchema,
+  serverDataKinds,
+  serverFieldTypes,
   subformFixedColumnErrors,
   subformMobileErrors,
+  subformPermissionSettingErrors,
+  subformWidthErrors,
+  validateFormValidations,
+  validateVisibilityRules,
   type DataField,
   type DataFieldAddition,
   type DataModel,
   type FormPageSchema,
   type PageControl,
 } from "@platform/contracts";
-import { identifier, object, parseSchema } from "../../core/database/schema";
+import { identifier, object } from "../../core/validation";
+import { parseSchema } from "../records/record-schema";
+
 
 const EXTRA_SETTING_KEYS = [
   "labelAlignment",

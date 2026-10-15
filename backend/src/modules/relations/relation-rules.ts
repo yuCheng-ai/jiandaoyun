@@ -7,12 +7,14 @@ import type {
   RelationSpec,
 } from "@platform/contracts";
 import {
-  dataKind,
-  valueMappingCompatible,
-  equalFieldValues,
   choiceConditionValue,
+  dataKind,
+  equalFieldValues,
+  fieldPermission as permission,
+  valueMappingCompatible,
 } from "@platform/contracts";
-import { identifier, object, permission, title, uuid } from "../../core/database/schema";
+import { identifier, object, title, uuid } from "../../core/validation";
+
 
 /** 校验并解析关联关系配置（基数、取值方式、展示列、筛选条件与回填映射） */
 export function parseRelation(input: unknown): RelationSpec {

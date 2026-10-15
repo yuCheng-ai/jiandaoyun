@@ -171,7 +171,7 @@ POST /api/pages/:id/lifecycle-preview 接收 action（archive 或 restore）和 
 
 权限组的 subjects 使用 `{kind: "member" | "department" | "role", id, includeChildren?}`；部门受众的 includeChildren 控制下级部门成员是否被纳入。actions 包含 view、create、edit、delete、export、print；已有记录的修改或输出操作同时要求 view。scope 支持 all、self、department、custom；department 按记录保存的创建部门快照匹配成员当前部门，不因创建人后续调动改写记录归属。
 
-配置读写统一返回 `mode: "groups"`、`allowMerged: true`。旧参数可省略，但不影响校验；引用当前版本已移除的筛选字段时不能启用权限组。管理员的 options 仍使用内部 `direct` 访问结果，不能据此提交旧直授配置。
+配置读写统一返回 `mode: "groups"`、`allowMerged: true`。旧参数可省略，但不影响校验；引用当前版本已移除的筛选字段时不能启用权限组。options 返回 `administrator`、`revision`、`allowMerged` 和 `groups`，不再返回 `direct` 模式；`administrator: true` 只用于界面免组选取，服务端管理权限始终来自真实登录身份，不能通过客户端参数取得。普通成员的权限组选取头由低代码接口守卫解析，并重新检查所选组当前是否属于该成员。
 
 成员可选择单组，也可使用全部有权限的数据。每组先独立计算操作、记录范围和父子字段限制，再合并有效结果；新增权限不能借用仅修改组的可编辑字段。hidden 表示该组不授予，不否定其他有效组。普通成员的新字段默认隐藏；权限查询、候选筛选和任务写入使用同一套服务端规则。旧 grants 与 subject-grants 接口已退役，不再提供直授模式切换。
 

@@ -1,17 +1,17 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from "@nestjs/common";
-import { randomUUID } from "node:crypto";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import type {
+  AccessGrant,
+  FieldValidationIssue,
   FileValue,
   FormField,
   FormSchema,
   FormValues,
 } from "@platform/contracts";
+import { fieldPermission as permission } from "@platform/contracts";
+import { randomUUID } from "node:crypto";
 import type { Actor } from "../../core/auth/auth.service";
 import { Database, type Transaction } from "../../core/database/database";
+import { FieldValidationException } from "./field-values";
 
 export interface UploadedFile {
   originalname: string;
@@ -27,7 +27,7 @@ interface StoredFile {
   uploaded_by: string;
 }
 
-type RecordFileEntry = { key: string } & (
+type RecordFileEntry = { key: string } & Omit<FieldValidationIssue, "message"> & (
   | { kind: "attachment"; file: FileValue }
   | { kind: "richtext"; file: Pick<FileValue, "id"> }
 );
@@ -42,17 +42,28 @@ export function recordFileValues(
 
 function recordFileEntries(schema: FormSchema, values: FormValues) {
   const files: RecordFileEntry[] = [];
-  function collect(field: FormField, input: FormValues, prefix = "") {
+  function collect(
+    field: FormField,
+    input: FormValues,
+    location: Omit<FieldValidationIssue, "fieldId" | "message"> = {},
+  ) {
     if (field.type === "subform") {
       const rows = input[field.id];
       if (!Array.isArray(rows)) return;
-      for (const row of rows) {
+      for (const [rowIndex, row] of rows.entries()) {
         for (const child of field.children) {
-          collect(child, row as FormValues, `${field.id}/${(row as FormValues)._rowId}/`);
+          collect(child, row as FormValues, {
+            subformId: field.id,
+            rowId: (row as FormValues)._rowId as string,
+            rowIndex,
+          });
         }
       }
       return;
     }
+    const key = location.subformId
+      ? `${location.subformId}/${location.rowId}/${field.id}`
+      : field.id;
     const value = input[field.id];
     if (field.type === "richtext" && typeof value === "string") {
       // 编辑器只持久化 img 的 data-file-id；逐项读取属性，避免把 alt 中的文字误当引用。
@@ -65,7 +76,9 @@ function recordFileEntries(schema: FormSchema, values: FormValues) {
           if (attribute[1].toLowerCase() !== "data-file-id") continue;
           const id = attribute[2] ?? attribute[3] ?? attribute[4] ?? "";
           files.push({
-            key: `${prefix}${field.id}`,
+            key,
+            fieldId: field.id,
+            ...location,
             kind: "richtext",
             file: { id },
           });
@@ -77,7 +90,7 @@ function recordFileEntries(schema: FormSchema, values: FormValues) {
     if (field.type !== "file" && field.type !== "image") return;
     if (Array.isArray(value)) {
       for (const file of value as FileValue[]) {
-        files.push({ key: `${prefix}${field.id}`, kind: "attachment", file });
+        files.push({ key, fieldId: field.id, ...location, kind: "attachment", file });
       }
     }
   }
@@ -148,16 +161,25 @@ export class FileService {
     schema: FormSchema,
     values: FormValues,
     previousValues: FormValues = {},
+    access?: AccessGrant,
   ) {
     const entries = recordFileEntries(schema, values);
     if (!entries.length) return;
+    const fail: (entry: RecordFileEntry, message: string) => never = (entry, message) => {
+      const parent = schema.fields.find((field) => field.id === entry.subformId);
+      const field = (parent?.children || schema.fields).find((field) => field.id === entry.fieldId);
+      if (access && field && permission(access, field, parent) !== "hidden") {
+        const { fieldId, subformId, rowId, rowIndex } = entry;
+        throw new FieldValidationException([{ fieldId, subformId, rowId, rowIndex, message }]);
+      }
+      throw new BadRequestException(message);
+    };
     const previous = new Set(
       recordFileEntries(schema, previousValues).map(({ key, file }) => `${key}:${file.id}`),
     );
     const ids = [...new Set(entries.map(({ file }) => file.id))];
-    if (ids.some((id) => !id || !/^file_[a-f0-9-]{36}$/.test(id))) {
-      throw new BadRequestException("附件尚未上传，请重新选择文件");
-    }
+    const missingUpload = entries.find(({ file }) => !file.id || !/^file_[a-f0-9-]{36}$/.test(file.id));
+    if (missingUpload) fail(missingUpload, "附件尚未上传，请重新选择文件");
     // 统一按文件 ID 加排他锁，避免不同记录同时首次绑定或多文件反序加锁。
     const { rows } = await tx.query<StoredFile>(
       `SELECT f.id, f.name, f.size, f.media_type, f.uploaded_by
@@ -191,20 +213,18 @@ export class FileService {
         (linkedHere && !previous.has(`${key}:${file.id}`)) ||
         (!linkedHere && (bound.has(file.id!) || source.uploaded_by !== actor.id))
       ) {
-        throw new BadRequestException("附件不存在或不可使用，请重新上传");
+        fail(entry, "附件不存在或不可使用，请重新上传");
       }
       if (entry.kind === "richtext") {
         if (!/^image\/(png|jpeg|gif|webp)$/.test(source.media_type)) {
-          throw new BadRequestException("富文本图片格式无效，请重新上传");
+          fail(entry, "富文本图片格式无效，请重新上传");
         }
       } else if (
         source.name !== entry.file.name ||
         source.size !== entry.file.size ||
         source.media_type !== entry.file.type
       ) {
-        throw new BadRequestException(
-          "附件信息与上传内容不一致，请重新选择文件",
-        );
+        fail(entry, "附件信息与上传内容不一致，请重新选择文件");
       }
     }
     await tx.query(

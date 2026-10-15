@@ -9,7 +9,6 @@ import {
   copy,
   flattenFields,
   isFieldVisible,
-  uid,
   type FormField,
   type FormSchema,
   type FormValues,
@@ -18,16 +17,14 @@ import { resolveIdentities } from "./organization";
 import { matchesFilters, recordFilterFields } from "./relations";
 import type { FormEntry, FormRecord, WorkspaceData } from "./workspace";
 
-export const memberActions = {
-  view: "查看",
-  create: "添加",
-  edit: "编辑",
-  delete: "删除",
-  import: "导入",
-  export: "导出",
-  print: "打印",
-} as const;
-export type MemberAction = keyof typeof memberActions;
+export type MemberAction =
+  | "view"
+  | "create"
+  | "edit"
+  | "delete"
+  | "import"
+  | "export"
+  | "print";
 export type FieldAccess = "hidden" | "read" | "edit";
 export interface AccessGroup {
   id: string;
@@ -67,55 +64,6 @@ export const defaultAccess = (): FormAccess => ({
   },
   groups: [],
 });
-/** 构造权限预览数据，不保存配置或授予真实访问权。 */
-export function newAccessGroup(
-  schema: FormSchema,
-  preset = "read",
-): AccessGroup {
-  const group: AccessGroup = {
-    id: uid("access"),
-    name: "自定义权限组",
-    enabled: true,
-    archived: false,
-    identities: [],
-    actions: ["view"],
-    scope: "all",
-    filters: [],
-    fields: {},
-  };
-  if (preset === "read") group.name = "查看全部数据";
-  if (preset === "create") {
-    group.name = "仅添加数据";
-    group.actions = ["create"];
-  }
-  if (preset === "self") {
-    group.name = "添加并管理本人数据";
-    group.actions = ["view", "create", "edit", "delete"];
-    group.scope = "self";
-  }
-  if (preset === "manage") {
-    group.name = "管理全部数据";
-    group.actions = [
-      "view",
-      "create",
-      "edit",
-      "delete",
-      "import",
-      "export",
-      "print",
-    ];
-  }
-  for (const field of flattenFields(schema.fields)) {
-    group.fields[field.id] = ["manage", "self"].includes(preset)
-      ? "edit"
-      : "read";
-    if (field.type === "subform") {
-      group.subformPermissions ??= {};
-      group.subformPermissions[field.id] = subformPermissions();
-    }
-  }
-  return group;
-}
 export function accessConfig(data: WorkspaceData, formId: string): FormAccess {
   return data.formAccess?.[formId] || defaultAccess();
 }
@@ -258,7 +206,7 @@ export function memberSchema(
       .filter((field) => field.visible)
       .map((field) => field.id),
   );
-  // The local persistence path rechecks whole-record rules after protected values are merged.
+  // 字段投影只保留当前可见字段涉及的校验，避免在预览中暴露隐藏字段。
   result.settings.validations = readableFormValidations(
     result.settings.validations,
     visible,

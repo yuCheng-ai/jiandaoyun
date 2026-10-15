@@ -1,17 +1,14 @@
 import type { RecordViewSettings } from "./records";
 import { defaultMobileLayout } from "@platform/contracts";
-import { seedOrganization, type Organization } from "./organization";
+import { emptyOrganization, type Organization } from "./organization";
 import type { FormExtensions, ExtensionRun, WebhookCredential } from "./extensions";
 import {
-  createField,
   countCalculatedFields,
   fieldCountLimitError,
   emptySchema,
   uid,
   type FormSchema,
   type FormValues,
-  type FormField,
-  type VisibilityRule,
 } from "./form";
 import {
   initialDocument,
@@ -87,11 +84,12 @@ export interface WorkspaceData {
 /** Empty rendering context for server-backed forms; never reads browser business data. */
 export function emptyWorkspace(): WorkspaceData {
   return {
-    version: 1, apps: [], forms: [], entries: [], recentFormIds: [],
-    organization: {
-      version: 1, name: "组织与成员", currentUserId: "",
-      departments: [], employees: [], roles: [], roleGroups: [],
-    },
+    version: 1,
+    apps: [],
+    forms: [],
+    entries: [],
+    recentFormIds: [],
+    organization: emptyOrganization(),
   };
 }
 /** Archived forms still exist; only removing their active calculations releases capacity. */
@@ -153,160 +151,6 @@ export function newForm(
     extensions: { webhooks: [] },
   };
 }
-export function seedWorkspace(): WorkspaceData {
-  const apps: WorkspaceApp[] = [
-    {
-      id: "oa",
-      name: "OA审批系统",
-      color: "#56ae72",
-      icon: "department",
-      folders: ["行政类", "人事类", "财务类", "其他"],
-      description: "让日常办公和团队协作更高效",
-    },
-    {
-      id: "product",
-      name: "产品需求管理",
-      color: "#f1af56",
-      icon: "layers",
-      folders: ["需求管理", "项目协作"],
-      description: "从需求收集到项目交付",
-    },
-    {
-      id: "production",
-      name: "生产流转管理",
-      color: "#548ddb",
-      icon: "settings",
-      folders: ["生产计划", "质量检查"],
-      description: "连接生产流程与质量数据",
-    },
-    {
-      id: "quality",
-      name: "质量管理",
-      color: "#a777d4",
-      icon: "success",
-      folders: ["质量巡检"],
-      description: "记录问题，跟踪改善",
-    },
-    {
-      id: "assets",
-      name: "资产管理",
-      color: "#53b0bd",
-      icon: "database",
-      folders: ["资产台账"],
-      description: "管理团队的设备和物资",
-    },
-    {
-      id: "tickets",
-      name: "工单管理",
-      color: "#dc7d87",
-      icon: "form",
-      folders: ["工单中心"],
-      description: "接收需求，及时响应",
-    },
-  ];
-  const expense = newForm("oa", "费用报销", "workflow", "财务类");
-  expense.id = "expense";
-  expense.schema.fields = [
-    createField("member", { id: "applicant", label: "申请人", required: true }),
-    createField("department", {
-      id: "department",
-      label: "申请部门",
-      required: true,
-    }),
-    createField("datetime", { id: "date", label: "申请日期", required: true }),
-    createField("number", {
-      id: "amount",
-      label: "申请金额",
-      required: true,
-      min: 0,
-    }),
-    createField("textarea", { id: "note", label: "申请说明" }),
-  ];
-  const leave = newForm("oa", "请假申请", "workflow", "人事类");
-  leave.id = "leave";
-  leave.schema.fields = [
-    createField("member", {
-      id: "leave_applicant",
-      label: "申请人",
-      required: true,
-    }),
-    createField("select", {
-      id: "leave_type",
-      label: "请假类型",
-      required: true,
-      options: ["事假", "病假", "年假", "调休"].map((label) => ({
-        id: uid("option"),
-        label,
-      })),
-    }),
-    createField("datetime", {
-      id: "leave_start",
-      label: "开始时间",
-      format: "datetime-local",
-      width: 6,
-      required: true,
-    }),
-    createField("datetime", {
-      id: "leave_end",
-      label: "结束时间",
-      format: "datetime-local",
-      width: 6,
-      required: true,
-    }),
-    createField("textarea", {
-      id: "leave_reason",
-      label: "请假事由",
-      required: true,
-    }),
-  ];
-  const employee = newForm("oa", "员工详情", "form", "人事类");
-  employee.id = "employee";
-  employee.schema.fields = [
-    createField("text", { label: "姓名", required: true }),
-    createField("phone", { label: "手机号码", required: true }),
-    createField("department", { label: "所属部门" }),
-    createField("datetime", { label: "入职日期" }),
-  ];
-  const unnamed = newForm("oa", "未命名表单", "workflow", "其他");
-  unnamed.id = "untitled";
-  unnamed.schema.fields = [
-    createField("text", { id: "sample_text", label: "单行文本" }),
-    createField("number", { id: "sample_number", label: "数字" }),
-  ];
-  const supplies = newForm("oa", "办公用品申请", "workflow", "行政类");
-  supplies.id = "supplies";
-  const items = createField("subform", { label: "物品明细" });
-  items.children = [
-    createField("text", { label: "物品名称", required: true }),
-    createField("number", { label: "数量", required: true, min: 1 }),
-    createField("textarea", { label: "备注" }),
-  ];
-  supplies.schema.fields = [
-    createField("member", { label: "申请人", required: true }),
-    items,
-  ];
-  const forms = [
-    leave,
-    employee,
-    expense,
-    supplies,
-    unnamed,
-    ...apps
-      .slice(1)
-      .map((app) =>
-        newForm(app.id, `${app.folders[0]}表单`, "form", app.folders[0]),
-      ),
-  ];
-  return {
-    version: 1,
-    organization: seedOrganization(),
-    apps,
-    forms,
-    entries: [],
-    recentFormIds: ["leave", "employee", "untitled"],
-  };
-}
-
 /** Local demonstration runner; external plugin/subflow execution belongs to a server adapter. */
 export function advanceEntry(
   entry: FormEntry,

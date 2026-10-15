@@ -4,7 +4,6 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
 import {
   composeFormSchema,
   dataFields,
@@ -23,22 +22,34 @@ import {
   type PendingPageFields,
   type PublishedPage,
 } from "@platform/contracts";
+import { randomUUID } from "node:crypto";
 import { Actor, requireAdmin } from "../../core/auth/auth.service";
+import { once } from "../../core/database/commands";
 import { Database, Transaction } from "../../core/database/database";
-import { masked, object, rowActions, title, uuid } from "../../core/database/schema";
+import { object, title, uuid } from "../../core/validation";
+import { AccessService } from "../access/access.service";
 import { applicationId } from "../applications/applications.service";
 import { OrganizationService } from "../directory/organization.service";
-import { once } from "../processes/commands";
+import { CollectionService } from "../records/collection.service";
 import { storeModelVersion } from "../records/data-projection";
+import { RecordEvolutionService } from "../records/record-evolution.service";
+import { masked, rowActions } from "../records/record-schema";
+import {
+  assertPageActive,
+  pageAcceptsVersion,
+  pageAccess,
+  type RecordPageScope,
+} from "../records/record-scope";
+import { RecordValuesService } from "../records/record-values.service";
 import { RecordViewService } from "../records/record-views.service";
+import { RecordService, definitionDto } from "../records/records.service";
 import { parseFieldTrash } from "./field-recycle";
 import { dataModelImpact } from "./model-impact";
+import { ModelService } from "./models.service";
 import { pagePublishImpact } from "./page-impact";
-import { assertPageActive, pageLifecycleImpact } from "./page-lifecycle";
-import { pageAccess, pageAcceptsVersion, type RecordPageScope } from "./page-runtime";
+import { pageLifecycleImpact } from "./page-lifecycle";
 import { modelWithAdditions, pageBindings, parseModel, parsePage } from "./page-schema";
-import { definitionDto, PlatformService } from "./platform.service";
-import { RecordEvolutionService } from "./record-evolution.service";
+
 
 // ============================================================================
 // 1. DTO 映射辅助函数
@@ -79,7 +90,11 @@ const publishedDto = (row: any): PublishedPage => ({
 export class PageService {
   constructor(
     private readonly db: Database,
-    private readonly platform: PlatformService,
+    private readonly recordService: RecordService,
+    private readonly models: ModelService,
+    private readonly authorization: AccessService,
+    private readonly values: RecordValuesService,
+    private readonly collection: CollectionService,
     private readonly evolution: RecordEvolutionService,
     private readonly organizations: OrganizationService,
     private readonly recordViews: RecordViewService,
@@ -92,7 +107,7 @@ export class PageService {
   /** 获取指定数据对象的草稿详情（仅管理员） */
   async objectDraft(actor: Actor, id: string): Promise<DataObjectDraft> {
     requireAdmin(actor);
-    const row = await this.platform.definition(this.db, actor, id);
+    const row = await this.recordService.definition(this.db, actor, id);
     return this.objectDto(this.db, row);
   }
 
@@ -131,7 +146,7 @@ export class PageService {
   async latestModel(actor: Actor, id: string) {
     requireAdmin(actor);
     return this.db.transaction(async (tx) => {
-      const row = await this.platform.definition(tx, actor, id, "FOR SHARE");
+      const row = await this.recordService.definition(tx, actor, id, "FOR SHARE");
       return {
         object: await this.objectDto(tx, row),
         model: await this.model(tx, actor, id, row.latest_version),
@@ -144,7 +159,7 @@ export class PageService {
     requireAdmin(actor);
     return this.db.transaction(async (tx) => {
       // 页面保存与模型发布均会互斥锁定同一 definition
-      const definition = await this.platform.definition(tx, actor, id, "FOR SHARE");
+      const definition = await this.recordService.definition(tx, actor, id, "FOR SHARE");
       const objectDraft = await this.objectDto(tx, definition);
       const published = await this.model(tx, actor, id, definition.latest_version);
 
@@ -236,7 +251,7 @@ export class PageService {
     requireAdmin(actor);
     object(body);
     const model = parseModel(body.model, true);
-    const result = await this.platform.saveDefinition(
+    const result = await this.models.saveDefinition(
       actor,
       {
         title: body.title,
@@ -251,7 +266,7 @@ export class PageService {
 
   /** 发布数据对象新版本 */
   async publishObject(actor: Actor, id: string, body: unknown) {
-    await this.platform.publish(actor, id, body);
+    await this.models.publish(actor, id, body);
     return this.objectDraft(actor, id);
   }
 
@@ -260,7 +275,7 @@ export class PageService {
     requireAdmin(actor);
     object(body);
     return this.db.transaction(async (tx) => {
-      const row = await this.platform.definition(tx, actor, id, "FOR UPDATE");
+      const row = await this.recordService.definition(tx, actor, id, "FOR UPDATE");
       if (row.revision !== body.expectedRevision) {
         throw new ConflictException("数据草稿已被修改，请重新读取后决定是否放弃");
       }
@@ -306,7 +321,7 @@ export class PageService {
 
   /** 读取数据对象指定版本的数据模型（若尚未发布且请求版本 0 则返回初始模型草稿） */
   async model(tx: Pick<Database, "query">, actor: Actor, id: string, version: number): Promise<DataModel> {
-    const definition = await this.platform.definition(tx, actor, id);
+    const definition = await this.recordService.definition(tx, actor, id);
     if (version === 0 && definition.latest_version === 0) {
       return definition.model_draft;
     }
@@ -341,7 +356,7 @@ export class PageService {
     if (appId) await applicationId(this.db, actor, appId);
 
     return this.db.transaction(async (tx) => {
-      const ids = await this.platform.accessibleDefinitions(tx, actor);
+      const ids = await this.authorization.definitions(tx, actor);
       const sql = `
         SELECT
           p.*, d.application_id,
@@ -416,7 +431,7 @@ export class PageService {
     requireAdmin(actor);
     return this.db.transaction(async (tx) => {
       const meta = await this.page(tx, actor, id);
-      const definition = await this.platform.definition(tx, actor, meta.definition_id, "FOR SHARE");
+      const definition = await this.recordService.definition(tx, actor, meta.definition_id, "FOR SHARE");
       const page = await this.page(tx, actor, id);
       return this.editorData(tx, actor, definition, page);
     });
@@ -472,7 +487,7 @@ export class PageService {
     object(body);
     return this.db.transaction(async (tx) => {
       const meta = await this.page(tx, actor, id);
-      const definition = await this.platform.definition(tx, actor, meta.definition_id, "FOR UPDATE");
+      const definition = await this.recordService.definition(tx, actor, meta.definition_id, "FOR UPDATE");
       const page = await this.page(tx, actor, id, true);
       await assertPageActive(tx, actor, id);
 
@@ -536,7 +551,7 @@ export class PageService {
 
     return this.db.transaction(async (tx) => {
       const meta = await this.page(tx, actor, id);
-      const definition = await this.platform.definition(tx, actor, meta.definition_id, "FOR UPDATE");
+      const definition = await this.recordService.definition(tx, actor, meta.definition_id, "FOR UPDATE");
       const page = await this.page(tx, actor, id);
 
       if (page.revision !== body.expectedRevision) {
@@ -555,7 +570,7 @@ export class PageService {
     object(body);
     return this.db.transaction(async (tx) => {
       const meta = await this.page(tx, actor, id);
-      const definition = await this.platform.definition(tx, actor, meta.definition_id, "FOR UPDATE");
+      const definition = await this.recordService.definition(tx, actor, meta.definition_id, "FOR UPDATE");
       const page = await this.page(tx, actor, id, true);
 
       if (page.revision !== body.expectedRevision || !!page.archived_at !== (action === "restore")) {
@@ -693,7 +708,7 @@ export class PageService {
     uuid(body.definitionId);
 
     return this.db.transaction(async (tx) => {
-      const definition = await this.platform.definition(tx, actor, body.definitionId, "FOR UPDATE");
+      const definition = await this.recordService.definition(tx, actor, body.definitionId, "FOR UPDATE");
       const old = id ? await this.page(tx, actor, id, true) : undefined;
       if (id) await assertPageActive(tx, actor, id);
 
@@ -727,7 +742,7 @@ export class PageService {
       );
 
       if (formModel) {
-        await this.platform.validateStableFields(tx, definition.id, modelFormSchema(formModel));
+        await this.models.validateStableFields(tx, definition.id, modelFormSchema(formModel));
       }
       if (
         merged.additions.length &&
@@ -821,7 +836,7 @@ export class PageService {
     object(body);
     return this.db.transaction(async (tx) => {
       const meta = await this.page(tx, actor, id);
-      const definition = await this.platform.definition(tx, actor, meta.definition_id, "FOR UPDATE");
+      const definition = await this.recordService.definition(tx, actor, meta.definition_id, "FOR UPDATE");
       const page = await this.page(tx, actor, id);
       await assertPageActive(tx, actor, id);
 
@@ -844,8 +859,8 @@ export class PageService {
         throw new BadRequestException("发布页面至少需要一个可见字段");
       }
 
-      await this.platform.validateOrganizationModel(tx, actor, modelFormSchema(merged.model));
-      await this.platform.validateStableFields(tx, definition.id, modelFormSchema(merged.model));
+      await this.values.validateOrganizationModel(tx, actor, modelFormSchema(merged.model));
+      await this.models.validateStableFields(tx, definition.id, modelFormSchema(merged.model));
       return this.publicationImpact(
         tx,
         actor,
@@ -864,7 +879,7 @@ export class PageService {
     object(body);
     return this.db.transaction(async (tx) => {
       const meta = await this.page(tx, actor, id);
-      const definition = await this.platform.definition(tx, actor, meta.definition_id, "FOR UPDATE");
+      const definition = await this.recordService.definition(tx, actor, meta.definition_id, "FOR UPDATE");
       const page = await this.page(tx, actor, id, true);
       await assertPageActive(tx, actor, id);
 
@@ -900,13 +915,13 @@ export class PageService {
         throw new ConflictException("发布预览已变化，请重新检查使用情况后发布；当前草稿已保留");
       }
 
-      await this.platform.validateOrganizationModel(tx, actor, modelFormSchema(merged.model));
+      await this.values.validateOrganizationModel(tx, actor, modelFormSchema(merged.model));
 
       let dataVersion = page.definition_version;
       if (merged.publishesModel) {
         dataVersion = definition.latest_version + 1;
         const runtime = modelFormSchema(merged.model);
-        await this.platform.validateStableFields(tx, definition.id, runtime);
+        await this.models.validateStableFields(tx, definition.id, runtime);
 
         await tx.query(
           "INSERT INTO definition_versions(definition_id, version, title, schema) VALUES($1, $2, $3, $4)",
@@ -969,7 +984,7 @@ export class PageService {
       );
 
       // 发布结果和编辑上下文在同一事务内读取，避免发布成功后刷新失败被误报为失败。
-      const latestDefinition = await this.platform.definition(tx, actor, page.definition_id);
+      const latestDefinition = await this.recordService.definition(tx, actor, page.definition_id);
       const latestPage = await this.page(tx, actor, id);
       return {
         ...publishedDto(row),
@@ -1074,7 +1089,7 @@ export class PageService {
     allowArchived = false,
   ) {
     const meta = await this.page(tx, actor, id);
-    await this.platform.definition(tx, actor, meta.definition_id, "FOR SHARE");
+    await this.recordService.definition(tx, actor, meta.definition_id, "FOR SHARE");
     if (!allowArchived) {
       await assertPageActive(tx, actor, id);
     }
@@ -1112,7 +1127,7 @@ export class PageService {
   async records(actor: Actor, id: string, version?: number, state = "active") {
     return this.db.transaction(async (tx) => {
       const { scope } = await this.scope(tx, actor, id, version);
-      return this.platform.records(actor, scope.definitionId, state, scope, tx);
+      return this.recordService.records(actor, scope.definitionId, state, scope, tx);
     });
   }
 
@@ -1134,7 +1149,7 @@ export class PageService {
     return this.db.transaction(async (tx) => {
       const { scope } = await this.scope(tx, actor, id, version);
       const view = await this.recordViews.read(tx, scope.definitionId, scope.schema);
-      const result = await this.platform.recordList(actor, scope.definitionId, state, scope, tx, {
+      const result = await this.recordService.recordList(actor, scope.definitionId, state, scope, tx, {
         settings: view.settings,
         page: pageNumber,
         keyword: keyword.trim().toLocaleLowerCase(),
@@ -1169,7 +1184,7 @@ export class PageService {
     version?: number,
   ) {
     const { scope } = await this.scope(tx, actor, id, version);
-    return this.platform.detailIn(tx, actor, recordId, scope);
+    return this.recordService.detailIn(tx, actor, recordId, scope);
   }
 
   /** 在指定页面版本下解析组织字段候选选项与默认值 */
@@ -1180,7 +1195,7 @@ export class PageService {
     }
     return this.db.transaction(async (tx) => {
       const { scope } = await this.scope(tx, actor, id, body.pageVersion);
-      return this.platform.organizationOptions(actor, scope.definitionId, body, scope, tx);
+      return this.recordService.organizationOptions(actor, scope.definitionId, body, scope, tx);
     });
   }
 
@@ -1188,7 +1203,7 @@ export class PageService {
   async form(actor: Actor, id: string, version?: number) {
     return this.db.transaction(async (tx) => {
       const { page, model, scope } = await this.scope(tx, actor, id, version);
-      const baseAccess = await this.platform.access(
+      const baseAccess = await this.authorization.effective(
         tx,
         actor,
         page.definitionId,
@@ -1196,7 +1211,7 @@ export class PageService {
         { operation: "create" },
       );
       const access = pageAccess(scope, page.definitionId, page.definitionVersion, baseAccess);
-      const defaults = await this.platform.recordDefaults(tx, actor, modelFormSchema(model));
+      const defaults = await this.values.recordDefaults(tx, actor, modelFormSchema(model));
       const visible = masked(scope.schema, defaults, {}, access);
 
       const definition = (
@@ -1214,11 +1229,11 @@ export class PageService {
 
       return {
         ...(access.create
-          ? { collection: await this.platform.collectionStatus(tx, actor, page.definitionId) }
+          ? { collection: await this.collection.statusIn(tx, actor, page.definitionId) }
           : {}),
         rowActions: rowActions(definition.schema, { ...access, edit: access.create }, scope.schema),
         defaultValues: visible.values,
-        identities: await this.platform.identityLabels(tx, actor, visible.schema, visible.values),
+        identities: await this.values.identityLabels(tx, actor, visible.schema, visible.values),
         page: { id: page.id, title: page.title, version: page.version },
         access,
         definition: { ...definitionDto(definition), title: page.title, schema: visible.schema },
@@ -1262,7 +1277,7 @@ export class PageService {
   async removedRows(actor: Actor, id: string, recordId: string, version?: number) {
     const targetVersion = version || (await this.page(this.db, actor, id)).latest_version;
     const scope = await this.recordScope(actor, id, targetVersion);
-    return this.platform.removedRows(actor, recordId, scope);
+    return this.recordService.removedRows(actor, recordId, scope);
   }
 
   /** 在指定页面版本下提交草稿记录 */
@@ -1273,7 +1288,7 @@ export class PageService {
     }
     const write = async (tx: Transaction) => {
       const { scope } = await this.scope(tx, actor, id, body.pageVersion);
-      return this.platform.submitRecord(actor, recordId, body, scope, tx);
+      return this.recordService.submitRecord(actor, recordId, body, scope, tx);
     };
     return transaction ? write(transaction) : this.db.transaction(write);
   }
@@ -1287,8 +1302,8 @@ export class PageService {
     const write = async (tx: Transaction) => {
       const { scope } = await this.scope(tx, actor, id, body.pageVersion);
       return recordId
-        ? this.platform.patchRecord(actor, recordId, body, scope, tx)
-        : this.platform.createRecord(
+        ? this.recordService.patchRecord(actor, recordId, body, scope, tx)
+        : this.recordService.createRecord(
             actor,
             scope.definitionId,
             { ...body, version: scope.definitionVersion },

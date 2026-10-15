@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createApp, h, nextTick, reactive } from "vue";
@@ -23,7 +24,7 @@ import {
   applyOcrResult,
   ocrTargets,
 } from "../src/domain/ocr";
-import { seedWorkspace } from "../src/domain/workspace";
+
 import { ocrImageIssue, recognizeOcr } from "../src/services/ocr";
 
 import OcrRecognitionDialog from "../src/features/forms/components/OcrRecognitionDialog.vue";

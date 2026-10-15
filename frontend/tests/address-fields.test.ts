@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vitest";
 import { createApp, h, nextTick, reactive } from "vue";
@@ -28,7 +29,7 @@ import {
   formulaExpressionErrors,
   evaluateFieldFormula,
 } from "@platform/contracts";
-import { seedWorkspace } from "../src/domain/workspace";
+
 import AddressFieldControl from "../src/features/forms/components/AddressFieldControl.vue";
 import FieldControl from "../src/features/forms/components/FieldControl.vue";
 

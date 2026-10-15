@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 // @vitest-environment jsdom
 // @vitest-environment jsdom
 import { afterEach, expect, it } from "vitest";
@@ -23,7 +24,7 @@ import {
 } from "../src/domain/form";
 import { displayValue } from "../src/domain/relations";
 import { validateFieldConfiguration } from "../src/domain/fieldValidation";
-import { seedWorkspace } from "../src/domain/workspace";
+
 import FieldControl from "../src/features/forms/components/FieldControl.vue";
 
 let app: ReturnType<typeof createApp> | undefined;

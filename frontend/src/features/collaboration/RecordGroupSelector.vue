@@ -20,7 +20,7 @@ function select(event: Event) {
 </script>
 <template>
   <div
-    v-if="options?.mode === 'groups' && options.groups.length > 1"
+    v-if="options && !options.administrator && options.groups.length > 1"
     class="record-group-choice"
   >
     <label class="collab-field"

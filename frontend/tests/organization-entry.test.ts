@@ -1,3 +1,4 @@
+import { seedOrganization } from "./fixtures/workspace";
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createApp, h, nextTick } from "vue";
@@ -15,7 +16,7 @@ import {
 } from "../src/repositories/memberAccounts";
 import { directoryEditContext } from "@platform/contracts";
 import { copy } from "../src/domain/form";
-import { seedOrganization } from "../src/domain/organization";
+
 vi.mock("../src/repositories/platformApi", async (original) => ({
   ...(await original<typeof import("../src/repositories/platformApi")>()),
   platformApi: vi.fn(),

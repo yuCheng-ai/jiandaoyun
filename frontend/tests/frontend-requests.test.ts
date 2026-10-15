@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createApp, h, nextTick, reactive } from "vue";
@@ -26,7 +27,7 @@ import {
   frontendEventReferences,
   runFrontendEvent,
 } from "../src/domain/frontendEvents";
-import { seedWorkspace } from "../src/domain/workspace";
+
 import RequestValueInput from "../src/features/forms/components/RequestValueInput.vue";
 
 let pinia = createPinia();

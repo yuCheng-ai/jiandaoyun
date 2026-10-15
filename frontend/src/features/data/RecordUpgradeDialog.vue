@@ -26,7 +26,7 @@ onMounted(load);
 </script>
 <template>
   <BaseDialog :open="true" title="更新记录数据版本" width="600px" :busy="busy" @close="emit('close')">
-    <p v-if="busy" role="status">正在处理…</p><p v-if="error" class="collab-error" role="alert">{{ error }} <button class="text-button" @click="load">重新检查</button></p>
+    <p v-if="error" class="collab-error" role="alert">{{ error }} <button class="text-button" @click="load">重新检查</button></p>
     <template v-if="plan"><p>这条记录将从 V{{ plan.fromVersion }} 更新到 V{{ plan.toVersion }}，用于当前页面。</p>
       <p v-if="!plan.allowed" class="collab-error" role="alert">{{ plan.reason }}</p>
       <table v-if="plan.additions.length" class="collab-table"><thead><tr><th>新增字段</th><th>初始值</th></tr></thead><tbody><tr v-for="item in plan.additions" :key="item.fieldId"><td>{{ item.parentName ? `${item.parentName} / ` : '' }}{{ item.name }}</td><td>{{ item.defaultDisplay ?? (Array.isArray(item.defaultValue) ? '暂无明细' : item.defaultValue === '' || item.defaultValue == null ? '待填写' : item.defaultValue) }}</td></tr></tbody></table>

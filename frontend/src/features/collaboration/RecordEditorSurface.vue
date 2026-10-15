@@ -5,7 +5,9 @@ defineEmits<{ close: [] }>();
 </script>
 <template>
   <section v-if="embedded" class="record-editor-inline" :aria-busy="busy">
-    <p v-if="busy" class="dialog-pending" role="status">正在处理，请稍候…</p>
+    <p v-if="busy" class="dialog-pending" role="status">
+      <span class="visually-hidden">正在处理，请稍候…</span>
+    </p>
     <div class="record-editor-content" :inert="busy || undefined"><slot /></div>
     <footer
       v-if="$slots.footer"
@@ -29,6 +31,7 @@ defineEmits<{ close: [] }>();
 </template>
 <style scoped>
 .record-editor-inline {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;

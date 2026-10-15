@@ -5,13 +5,12 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
 import {
-  fieldValueLabel,
-  validConditionValue,
   dataModelChanges,
-  separateFormSchema,
+  fieldValueLabel,
   processTemplateConnectionError,
+  separateFormSchema,
+  validConditionValue,
   type FormSchema,
   type FormValues,
   type ProcessBindingSpec,
@@ -21,29 +20,24 @@ import {
   type ProcessTemplateSpec,
   type ProcessTemplateVersionSummary,
   type PublishedProcessTemplate,
-  type TaskSpec,
   type RecordDetail,
+  type TaskSpec,
 } from "@platform/contracts";
+import { randomUUID } from "node:crypto";
 import { Actor, requireAdmin, tokenHash } from "../../core/auth/auth.service";
-import {
-  OrganizationService,
-  parseSubject,
-} from "../directory/organization.service";
+import { once } from "../../core/database/commands";
 import { Database, Transaction } from "../../core/database/database";
-import { PlatformService } from "../pages/platform.service";
+import { identifier, object, title, uuid } from "../../core/validation";
+import { AccessService } from "../access/access.service";
+import { applicationId } from "../applications/applications.service";
+import { OrganizationService, parseSubject } from "../directory/organization.service";
+import { PageService } from "../pages/pages.service";
+import { scalar } from "../records/field-values";
+import { allFields } from "../records/record-schema";
+import { RecordService } from "../records/records.service";
 import { ProcessService, checkTaskGraph } from "./processes.service";
 import { TaskContextService } from "./task-context.service";
-import { PageService } from "../pages/pages.service";
-import { applicationId } from "../applications/applications.service";
-import { once } from "./commands";
-import {
-  scalar,
-  allFields,
-  identifier,
-  object,
-  title,
-  uuid,
-} from "../../core/database/schema";
+
 
 // ============================================================================
 // 1. 模板结构校验与 DTO 转换辅助函数
@@ -300,7 +294,8 @@ const dto = (row: any): ProcessTemplateDraft => ({
 export class ProcessTemplateService {
   constructor(
     private readonly db: Database,
-    private readonly platform: PlatformService,
+    private readonly authorization: AccessService,
+    private readonly recordService: RecordService,
     private readonly processes: ProcessService,
     private readonly pages: PageService,
     private readonly context: TaskContextService,
@@ -380,7 +375,7 @@ export class ProcessTemplateService {
         [binding.definitionId, binding.definitionVersion],
       );
       if (!rows[0]) throw new ForbiddenException("此流程暂不可发起");
-      const access = await this.platform.access(
+      const access = await this.authorization.effective(
         tx,
         actor,
         binding.definitionId,
@@ -404,7 +399,7 @@ export class ProcessTemplateService {
     uuid(pageId);
     const binding = spec.bindings[0];
     if (!binding) throw new BadRequestException("请选择发起表单的数据");
-    await this.platform.definition(
+    await this.recordService.definition(
       tx,
       actor,
       binding.definitionId,
@@ -530,7 +525,7 @@ export class ProcessTemplateService {
       ...new Set(rows.map((row) => row.definition_id as string)),
     ].sort();
     for (const definitionId of definitionIds) {
-      await this.platform.definition(tx, actor, definitionId, "FOR SHARE");
+      await this.recordService.definition(tx, actor, definitionId, "FOR SHARE");
     }
   }
 
@@ -547,7 +542,7 @@ export class ProcessTemplateService {
     ].sort();
 
     for (const id of definitionIds) {
-      const def = await this.platform.definition(tx, actor, id, "FOR SHARE");
+      const def = await this.recordService.definition(tx, actor, id, "FOR SHARE");
       if (def.application_id !== appId) {
         throw new BadRequestException("任务模板的数据对象应属于当前应用");
       }
@@ -979,7 +974,7 @@ export class ProcessTemplateService {
         body.pageVersion,
         tx,
       );
-      return this.platform.detailIn(tx, actor, result.record.id, scope);
+      return this.recordService.detailIn(tx, actor, result.record.id, scope);
     });
   }
 
@@ -1055,7 +1050,7 @@ export class ProcessTemplateService {
     for (const row of rows) {
       if (!this.compatible(binding, expected, row)) continue;
       try {
-        const detail = await this.platform.detail(actor, row.id);
+        const detail = await this.recordService.detail(actor, row.id);
         visibleRows.push({ ...row, values: detail.record.values });
       } catch (error) {
         if (!(error instanceof ForbiddenException)) throw error;

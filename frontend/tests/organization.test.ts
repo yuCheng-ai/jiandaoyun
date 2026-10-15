@@ -1,6 +1,6 @@
+import { seedOrganization, seedWorkspace } from "./fixtures/workspace";
 import { describe, it, expect, vi } from "vitest";
 import {
-  seedOrganization,
   parseOrganization,
   roleMembers,
   resolveIdentities,
@@ -12,7 +12,6 @@ import {
   validateDepartment,
 } from "../src/domain/organization";
 
-import { seedWorkspace } from "../src/domain/workspace";
 import { computed, ref, type Ref } from "vue";
 import { organizationActions } from "../src/stores/organizationActions";
 import { copy } from "../src/domain/form";
@@ -37,6 +36,15 @@ function organizationFixture() {
 }
 
 describe("organization and identity", () => {
+  it("keeps an unloaded directory empty instead of creating example identities", () => {
+    expect(parseOrganization(undefined)).toMatchObject({
+      currentUserId: "",
+      departments: [],
+      employees: [],
+      roles: [],
+      roleGroups: [],
+    });
+  });
   it("rejects cycles and moving a department beneath its descendant", () => {
     const org = seedOrganization();
     const engineering = org.departments.find((d) => d.id === "engineering")!;

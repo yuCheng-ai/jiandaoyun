@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 import {
   validateFieldConfiguration,
   validateDynamicValues,
@@ -12,7 +13,7 @@ import {
   prepareSubmission,
   validateValues,
 } from "../src/domain/form";
-import { seedWorkspace, newForm } from "../src/domain/workspace";
+import { newForm } from "../src/domain/workspace";
 import {
   applyFieldChange,
   resolveChoices,

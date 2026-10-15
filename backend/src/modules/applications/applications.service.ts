@@ -1,10 +1,11 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { Actor, requireAdmin } from "../../core/auth/auth.service";
+import { once } from "../../core/database/commands";
 import { Database } from "../../core/database/database";
-import { object, title, uuid } from "../../core/database/schema";
-import { once } from "../processes/commands";
+import { object, title, uuid } from "../../core/validation";
 import { AccessService } from "../access/access.service";
+
 
 /**
  * 解析并校验目标应用 ID：

@@ -1,6 +1,7 @@
+import { seedWorkspace } from "./fixtures/workspace";
 import { expect, it } from "vitest";
 import { copy, createField, type FormField } from "../src/domain/form";
-import { seedWorkspace, type FormEntry } from "../src/domain/workspace";
+import { type FormEntry } from "../src/domain/workspace";
 import {
   importExcelValue,
   prepareImportRows,

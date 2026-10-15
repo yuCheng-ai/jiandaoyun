@@ -1,3 +1,4 @@
+import { seedWorkspace, newAccessGroup } from "./fixtures/workspace";
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { computed, createApp, h, nextTick, reactive } from "vue";
@@ -20,11 +21,9 @@ import { textVisibilityRules } from "@platform/contracts";
 import {
   defaultAccess,
   groupsForEntry,
-  newAccessGroup,
-} from "../src/domain/access";
+  } from "../src/domain/access";
 import {
   newForm,
-  seedWorkspace,
   type FormEntry,
 } from "../src/domain/workspace";
 

@@ -1,6 +1,4 @@
-import { copy, uid, type FormValues } from "./form";
-
-import type { DirectorySpec } from "@platform/contracts";
+import type { DirectorySpec, FormValues } from "@platform/contracts";
 export type {
   DirectoryDepartment as Department,
   DirectoryEmployee as Employee,
@@ -19,7 +17,15 @@ export interface Organization extends DirectorySpec {
   currentUserId: string;
 }
 export function emptyOrganization(): Organization {
-  return { version: 1, name: "组织与成员", currentUserId: "", departments: [], employees: [], roles: [], roleGroups: [] };
+  return {
+    version: 1,
+    name: "组织与成员",
+    currentUserId: "",
+    departments: [],
+    employees: [],
+    roles: [],
+    roleGroups: [],
+  };
 }
 import type {
   SelectionScope,
@@ -42,138 +48,6 @@ export const emptyOrganizationField = (): OrganizationFieldConfig => ({
   defaultMode: "none",
   defaultIds: [],
 });
-export function seedOrganization(): Organization {
-  const departments: Department[] = [
-    {
-      id: "company",
-      name: "示例企业",
-      parentId: null,
-      managerIds: ["zhang"],
-      archived: false,
-    },
-    {
-      id: "product",
-      name: "产品部",
-      parentId: "company",
-      managerIds: ["zhang"],
-      archived: false,
-    },
-    {
-      id: "engineering",
-      name: "研发部",
-      parentId: "company",
-      managerIds: ["wang"],
-      archived: false,
-    },
-    {
-      id: "frontend",
-      name: "前端组",
-      parentId: "engineering",
-      managerIds: ["wang"],
-      archived: false,
-    },
-    {
-      id: "finance",
-      name: "财务部",
-      parentId: "company",
-      managerIds: ["zhao"],
-      archived: false,
-    },
-    {
-      id: "administration",
-      name: "行政人事部",
-      parentId: "company",
-      managerIds: ["chen"],
-      archived: false,
-    },
-  ];
-  const employees: Employee[] = [
-    ["zhang", "张三", "product", "产品经理"],
-    ["li", "李四", "product", "产品设计师"],
-    ["wang", "王五", "engineering", "研发负责人"],
-    ["zhao", "赵六", "finance", "财务负责人"],
-    ["chen", "陈晨", "administration", "人事专员"],
-    ["lin", "林悦", "frontend", "前端工程师"],
-  ].map(([id, name, department, position], i) => ({
-    id: id!,
-    name: name!,
-    number: `E${String(i + 1).padStart(4, "0")}`,
-    email: `${id}@example.com`,
-    phone: "",
-    departmentIds: [department!],
-    primaryDepartmentId: department!,
-    position: position!,
-    status: "active",
-    joinedAt: "2026-01-01",
-  }));
-  return {
-    version: 1,
-    name: "示例企业",
-    departments,
-    employees,
-    roleGroups: [
-      { id: "group_system", name: "系统角色" },
-      { id: "group_business", name: "业务角色" },
-    ],
-    roles: [
-      {
-        id: "role_admin",
-        name: "工作空间管理员",
-        groupId: "group_system",
-        description: "管理应用与组织配置",
-        memberIds: ["zhang"],
-        departmentIds: [],
-        includeChildren: true,
-        grants: [
-          {
-            appId: "*",
-            formIds: [],
-            actions: ["view", "submit", "manage"],
-            dataScope: "all",
-          },
-        ],
-        archived: false,
-      },
-      {
-        id: "role_employee",
-        name: "内部员工",
-        groupId: "group_business",
-        description: "所有在职内部成员",
-        memberIds: [],
-        departmentIds: ["company"],
-        includeChildren: true,
-        grants: [
-          {
-            appId: "*",
-            formIds: [],
-            actions: ["view", "submit"],
-            dataScope: "self",
-          },
-        ],
-        archived: false,
-      },
-      {
-        id: "role_finance",
-        name: "财务审批人",
-        groupId: "group_business",
-        description: "负责财务审核",
-        memberIds: ["zhao"],
-        departmentIds: [],
-        includeChildren: false,
-        grants: [
-          {
-            appId: "oa",
-            formIds: ["expense"],
-            actions: ["view", "manage"],
-            dataScope: "all",
-          },
-        ],
-        archived: false,
-      },
-    ],
-    currentUserId: "zhang",
-  };
-}
 export function descendants(
   org: Organization,
   id: string,
@@ -389,7 +263,7 @@ export function validateEmployee(
 }
 export function newEmployee(): Employee {
   return {
-    id: uid("employee"),
+    id: `employee_${crypto.randomUUID().replaceAll("-", "").slice(0, 12)}`,
     name: "",
     number: "",
     email: "",
@@ -402,8 +276,9 @@ export function newEmployee(): Employee {
   };
 }
 export function parseOrganization(raw: unknown): Organization {
-  if (!raw) return seedOrganization();
-  const org = copy(raw) as Organization;
+  // 未载入组织时保持为空，不能凭空创建示例身份或授权。
+  if (!raw) return emptyOrganization();
+  const org = JSON.parse(JSON.stringify(raw)) as Organization;
   if (
     org.version !== 1 ||
     !Array.isArray(org.departments) ||

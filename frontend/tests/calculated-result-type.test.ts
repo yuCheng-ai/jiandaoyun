@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 // @vitest-environment jsdom
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vitest";
@@ -25,7 +26,7 @@ import {
 import { createLookupFields } from "../src/domain/lookup";
 import { defaultRecordView, filterAndSortRecords } from "../src/domain/records";
 import { fieldValueType } from "../src/domain/extensions";
-import { seedWorkspace, type FormEntry } from "../src/domain/workspace";
+import { type FormEntry } from "../src/domain/workspace";
 
 import FieldControl from "../src/features/forms/components/FieldControl.vue";
 

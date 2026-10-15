@@ -1,3 +1,4 @@
+import { seedWorkspace, newAccessGroup } from "./fixtures/workspace";
 import { describe, expect, it } from "vitest";
 import {
   copy,
@@ -8,14 +9,12 @@ import {
 } from "../src/domain/form";
 import {
   newForm,
-  seedWorkspace,
   type FormEntry,
 } from "../src/domain/workspace";
 import {
   defaultAccess,
   groupsForEntry,
-  newAccessGroup,
-} from "../src/domain/access";
+  } from "../src/domain/access";
 import { conditionValues } from "@platform/contracts";
 import { matchesFilters, relationCandidates } from "../src/domain/relations";
 import { parseFilters } from "../src/domain/fieldConfig";

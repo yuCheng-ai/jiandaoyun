@@ -1,8 +1,9 @@
+import { seedWorkspace } from "./fixtures/workspace";
 // @vitest-environment jsdom
 import { expect, it } from "vitest";
 
 import { copy, createField, emptySchema } from "../src/domain/form";
-import { seedWorkspace, newForm } from "../src/domain/workspace";
+import { newForm } from "../src/domain/workspace";
 import { validateFieldConfiguration } from "../src/domain/fieldValidation";
 
 function fixture() {

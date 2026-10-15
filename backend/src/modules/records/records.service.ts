@@ -5,58 +5,41 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
-import { parseFragment, type DefaultTreeAdapterMap } from "parse5";
 import {
   compareRecordSortValues,
   displayPlainFieldValue,
-  organizationIdentityLabel,
-  isNumericField,
-  hasFieldValue,
-  maxSubformRows,
-  dataKind,
-  separateFormSchema,
-  isOrganizationField,
-  isDepartmentField,
   equalFieldValues,
-  fieldDefaultValue,
-  resolveCalculations,
-  type RecordViewSettings,
-  type OrganizationIdentity,
+  hasFieldValue,
+  isDepartmentField,
+  isNumericField,
+  isOrganizationField,
+  maxSubformRows,
+  organizationIdentityLabel,
+  fieldPermission as permission,
   type AccessGrant,
-  type AccessPolicy,
-  type SubjectGrant,
   type CellChange,
+  type FieldValidationIssue,
   type FormField,
   type FormSchema,
   type FormValues,
-  type RecordDetail,
+  type OrganizationIdentity,
   type PageRecordSummary,
+  type RecordDetail,
+  type RecordViewSettings,
   type ServerDefinition,
   type ServerRecord,
 } from "@platform/contracts";
-import { Database, Transaction } from "../../core/database/database";
+import { randomUUID } from "node:crypto";
+import { parseFragment, type DefaultTreeAdapterMap } from "parse5";
 import { Actor, requireAdmin } from "../../core/auth/auth.service";
-import {
-  allFields,
-  cellKey,
-  masked,
-  newValues,
-  object,
-  parseSchema,
-  permission,
-  scalar,
-  rowActions,
-  rowPolicy,
-  title,
-  uuid,
-} from "../../core/database/schema";
-import {
-  AccessService,
-  AccessContext,
-  effectiveAccess,
-} from "../access/access.service";
-import { applicationId } from "../applications/applications.service";
+import { once } from "../../core/database/commands";
+import { Database, Transaction } from "../../core/database/database";
+import { object, uuid } from "../../core/validation";
+import { AccessService, effectiveAccess, type AccessActor } from "../access/access.service";
+import { OrganizationService } from "../directory/organization.service";
+import { CollectionService } from "./collection.service";
+import { FieldValidationException, collectFieldIssues, scalar } from "./field-values";
+import { FileService, recordFileValues } from "./files.service";
 import {
   historicalLabels,
   organizationCandidates,
@@ -64,28 +47,22 @@ import {
   organizationDefaultResolver,
   organizationLabels,
   recordCreator,
-  validateOrganizationDefinition,
-  validateOrganizationValues,
-} from "../directory/organization-fields";
+} from "./organization-fields";
+import { latestRowEvents } from "./record-rows";
+import { cellKey, masked, rowActions, rowPolicy } from "./record-schema";
 import {
-  OrganizationService,
-  parseSubject,
-  requireSubject,
-} from "../directory/organization.service";
-import { once } from "../processes/commands";
-import { CollectionService } from "../records/collection.service";
-import { storeModelDraft, storeModelVersion } from "../records/data-projection";
-import { latestRowEvents } from "../records/record-rows";
-import { draftSchema, validateSubmittedRecord } from "../records/record-state";
-import { dataModelImpact } from "./model-impact";
-import { assertPageActive } from "./page-lifecycle";
-import {
-  pageAccess,
+  assertPageActive,
   pageAcceptsVersion,
+  pageAccess,
+  recordWorkflow,
+  requireRecordEditable,
+  requireRecordUnreferenced,
+  requireWorkflowEntry,
   validatePageSubmission,
   type RecordPageScope,
-} from "./page-runtime";
-import { FileService, recordFileValues } from "./files.service";
+} from "./record-scope";
+import { draftSchema, validateSubmittedRecord } from "./record-state";
+import { RecordValuesService } from "./record-values.service";
 
 type Queryable = Pick<Database, "query">;
 
@@ -117,219 +94,17 @@ export const recordDto = (row: any): ServerRecord => ({
   updatedAt: new Date(row.updated_at).toISOString(),
 });
 
-// ============================================================================
-// 2. 表单定义与通用记录核心平台服务
-// ============================================================================
-
+/** 记录读写的唯一执行入口：授权、并发控制、值校验、附件与审计共用同一事务。 */
 @Injectable()
-export class PlatformService {
+export class RecordService {
   constructor(
     private readonly db: Database,
     private readonly authorization: AccessService,
     private readonly organizations: OrganizationService,
     private readonly collection: CollectionService,
     private readonly files: FileService,
+    private readonly values: RecordValuesService,
   ) {}
-
-  // --------------------------------------------------------------------------
-  // 2.1 组织架构校验、身份标签与默认值计算
-  // --------------------------------------------------------------------------
-
-  /** 查询表单的数据收集开关与配额状态 */
-  async collectionStatus(tx: Transaction, actor: Actor, id: string) {
-    return this.collection.statusIn(tx, actor, id);
-  }
-
-  /** 校验表单定义中的组织字段配置在当前工作空间组织架构下是否有效 */
-  async validateOrganizationModel(
-    tx: Queryable,
-    actor: Actor,
-    schema: FormSchema,
-  ) {
-    if (allFields(schema).some((field) => isOrganizationField(field.type))) {
-      const snapshot = await this.organizations.snapshot(tx, actor);
-      validateOrganizationDefinition(schema, snapshot);
-    }
-  }
-
-  /** 校验记录中的组织字段值是否符合组织范围与权限约束 */
-  async validateRecordOrganizations(
-    tx: Queryable,
-    actor: Actor,
-    schema: FormSchema,
-    values: FormValues,
-    before?: FormValues,
-  ) {
-    if (allFields(schema).some((field) => isOrganizationField(field.type))) {
-      const snapshot = await this.organizations.snapshot(tx, actor);
-      validateOrganizationValues(schema, values, snapshot, actor.id, before);
-    }
-  }
-
-  /** 解析记录中涉及的组织成员、部门与角色历史身份显示名称 */
-  async identityLabels(
-    tx: Queryable,
-    actor: Actor,
-    schema: FormSchema,
-    values: FormValues,
-  ) {
-    if (!allFields(schema).some((field) => isOrganizationField(field.type))) {
-      return [];
-    }
-    const snapshot = await this.organizations.snapshot(tx, actor);
-    return historicalLabels(
-      tx,
-      actor,
-      organizationLabels(schema, values, snapshot),
-    );
-  }
-
-  /**
-   * 构造字段默认值解析器：
-   * - 支持静态默认值、日期当时值、动态组织默认值（当前成员/主部门/部门负责人）以及默认值公式计算。
-   */
-  async defaultResolver(
-    tx: Queryable,
-    actor: Actor,
-    schema: FormSchema,
-    values: FormValues = {},
-    base: FormValues = {},
-    fullSchema = schema,
-    access?: AccessGrant,
-    strict = false,
-  ) {
-    const hasOrgField = allFields(schema).some((field) =>
-      isOrganizationField(field.type),
-    );
-    const resolveOrg = hasOrgField
-      ? organizationDefaultResolver(
-          fullSchema,
-          await this.organizations.snapshot(tx, actor),
-          actor.id,
-          values,
-          base,
-        )
-      : (field: FormField) => field.defaultValue;
-
-    const now = new Date();
-    const basic = (field: FormField, row?: FormValues) =>
-      isOrganizationField(field.type)
-        ? resolveOrg(field, row)
-        : fieldDefaultValue(field, now);
-
-    const formulas = allFields(schema).filter((field) => field.defaultFormula);
-    if (!formulas.length) return basic;
-
-    const supplied = (
-      field: FormField,
-      input: FormValues,
-      parent?: FormField,
-    ) =>
-      (!access || permission(access, field, parent) === "edit") &&
-      input[field.id] != null;
-
-    const seed = (
-      fields: FormField[],
-      input: FormValues,
-      parent?: FormField,
-    ): FormValues =>
-      Object.fromEntries(
-        fields.map((field) => {
-          if (field.type === "subform") {
-            const rawRows = Array.isArray(input[field.id])
-              ? (input[field.id] as FormValues[])
-              : [];
-            const seededRows = rawRows.map((row) =>
-              row && typeof row === "object" && !Array.isArray(row)
-                ? seed(field.children, row, field)
-                : {},
-            );
-            return [field.id, seededRows];
-          }
-          if (supplied(field, input, parent)) {
-            return [field.id, input[field.id]];
-          }
-          const fallback = field.defaultFormula
-            ? undefined
-            : basic(field, parent ? input : undefined);
-          return [field.id, fallback];
-        }),
-      );
-
-    const failures = new Set<string>();
-    const calculated = resolveCalculations(
-      schema.fields,
-      seed(schema.fields, values),
-      base,
-      {
-        fields: fullSchema.fields,
-        now,
-        defaults: formulas.map((field) => field.id),
-        enabled: (field, input) => input[field.id] === undefined,
-        onError: (field) => failures.add(field.id),
-      },
-    );
-
-    if (strict && failures.size) {
-      throw new BadRequestException(
-        "默认值计算未完成，请检查相关填写内容或联系表单管理员。",
-      );
-    }
-
-    return (field: FormField, row?: FormValues) => {
-      const parent = schema.fields.find((item) =>
-        item.children.some((child) => child.id === field.id),
-      );
-      if (!parent) return calculated[field.id];
-
-      const index = Array.isArray(values[parent.id])
-        ? (values[parent.id] as FormValues[]).findIndex(
-            (item) =>
-              item === row || (!!row?._rowId && item._rowId === row._rowId),
-          )
-        : -1;
-      const target = (calculated[parent.id] as FormValues[])?.[index];
-      return target && Object.hasOwn(target, field.id)
-        ? target[field.id]
-        : basic(field, row);
-    };
-  }
-
-  /** 生成新建记录时的主表初始默认值映射 */
-  async recordDefaults(tx: Queryable, actor: Actor, schema: FormSchema) {
-    const resolve = await this.defaultResolver(tx, actor, schema);
-    return Object.fromEntries(
-      schema.fields.map((field) => [
-        field.id,
-        field.type === "subform" ? [] : resolve(field),
-      ]),
-    );
-  }
-
-  /** 根据用户输入与默认值规则构造新记录的值与初始单元格版本 */
-  async createValues(
-    tx: Queryable,
-    actor: Actor,
-    schema: FormSchema,
-    input: unknown,
-    access: AccessGrant,
-    base: FormValues = {},
-    fullSchema = schema,
-    strictDefaults = true,
-  ) {
-    object(input);
-    const resolve = await this.defaultResolver(
-      tx,
-      actor,
-      schema,
-      input,
-      base,
-      fullSchema,
-      access,
-      strictDefaults,
-    );
-    return newValues(schema, input, access, resolve);
-  }
 
   /** 动态计算表单中指定组织字段的候选成员/部门列表与默认值（支持由部门字段联动的候选范围） */
   async organizationOptions(
@@ -348,17 +123,13 @@ export class PlatformService {
         await assertPageActive(tx, actor, page.id);
       }
 
-      const source = body.recordId
-        ? await this.loadRecord(tx, actor, body.recordId)
-        : undefined;
+      const source = body.recordId ? await this.loadRecord(tx, actor, body.recordId) : undefined;
       if (source && source.row.definition_id !== id) {
         throw new BadRequestException("记录不属于此数据对象");
       }
 
       const versionNumber =
-        source?.row.definition_version ||
-        page?.definitionVersion ||
-        body.version;
+        source?.row.definition_version || page?.definitionVersion || body.version;
       if (!Number.isInteger(versionNumber) || versionNumber < 1) {
         throw new BadRequestException("请选择明确的数据版本");
       }
@@ -378,13 +149,11 @@ export class PlatformService {
       const schema = version.schema as FormSchema;
       const baseAccess =
         source?.access ||
-        (await this.access(tx, actor, id, schema, { operation: "create" }));
+        (await this.authorization.effective(tx, actor, id, schema, { operation: "create" }));
       const access = pageAccess(page, id, versionNumber, baseAccess, schema);
 
       const parent = body.subformId
-        ? schema.fields.find(
-            (field) => field.id === body.subformId && field.type === "subform",
-          )
+        ? schema.fields.find((field) => field.id === body.subformId && field.type === "subform")
         : undefined;
       const field = (parent?.children || schema.fields).find(
         (f) => f.id === body.fieldId && isOrganizationField(f.type),
@@ -399,10 +168,7 @@ export class PlatformService {
         throw new ForbiddenException("没有此组织字段的填写权限");
       }
 
-      if (
-        page?.row &&
-        (body.subformId !== page.row.subformId || body.rowId !== page.row.rowId)
-      ) {
+      if (page?.row && (body.subformId !== page.row.subformId || body.rowId !== page.row.rowId)) {
         throw new ForbiddenException("只能选择当前任务明细中的组织字段");
       }
       if (body.rowId && (!source || !parent)) {
@@ -410,9 +176,7 @@ export class PlatformService {
       }
 
       const currentRow = body.rowId
-        ? (source!.row.values[parent!.id] as FormValues[]).find(
-            (row) => row._rowId === body.rowId,
-          )
+        ? (source!.row.values[parent!.id] as FormValues[]).find((row) => row._rowId === body.rowId)
         : undefined;
       if (body.rowId && !currentRow) {
         throw new BadRequestException("明细行不存在");
@@ -423,17 +187,14 @@ export class PlatformService {
           parent,
           page?.schema.fields.find((item) => item.id === parent.id),
         );
-        const rowEditable = currentRow
-          ? policy.editExisting
-          : policy.add || policy.insert;
+        const rowEditable = currentRow ? policy.editExisting : policy.add || policy.insert;
         if (!rowEditable) {
           throw new ForbiddenException("此明细行不可填写组织字段");
         }
       }
 
       const organization = await this.organizations.snapshot(tx, actor);
-      const values =
-        source?.row.values || (await this.recordDefaults(tx, actor, schema));
+      const values = source?.row.values || (await this.values.recordDefaults(tx, actor, schema));
       const context: FormValues = { ...values, ...currentRow };
 
       const allowedFields = [
@@ -450,27 +211,16 @@ export class PlatformService {
 
       for (const [key, value] of Object.entries(body.context || {})) {
         const dependency = allowedFields.find((item) => item.field.id === key);
-        if (
-          !dependency ||
-          permission(access, dependency.field, dependency.parent) !== "edit"
-        ) {
+        if (!dependency || permission(access, dependency.field, dependency.parent) !== "edit") {
           throw new ForbiddenException("不能修改不可编辑的部门条件");
         }
         context[key] = scalar(dependency.field, value, false);
       }
 
-      const resolve = organizationDefaultResolver(
-        schema,
-        organization,
-        actor.id,
-        context,
-      );
+      const resolve = organizationDefaultResolver(schema, organization, actor.id, context);
       for (const dependency of allowedFields) {
         if (context[dependency.field.id] === undefined) {
-          context[dependency.field.id] = resolve(
-            dependency.field,
-            parent ? context : undefined,
-          );
+          context[dependency.field.id] = resolve(dependency.field, parent ? context : undefined);
         }
       }
 
@@ -482,18 +232,11 @@ export class PlatformService {
           if (equalFieldValues(before, context[dependency.field.id])) continue;
 
           const selected = context[dependency.field.id];
-          const ids = Array.isArray(selected)
-            ? selected
-            : selected
-              ? [selected]
-              : [];
+          const ids = Array.isArray(selected) ? selected : selected ? [selected] : [];
           const eligible = new Set(
-            organizationCandidates(
-              organization,
-              actor.id,
-              dependency.field,
-              context,
-            ).map((item) => item.id),
+            organizationCandidates(organization, actor.id, dependency.field, context).map(
+              (item) => item.id,
+            ),
           );
           if (ids.some((deptId) => !eligible.has(String(deptId)))) {
             throw new BadRequestException("部门条件不在当前允许范围内");
@@ -503,27 +246,12 @@ export class PlatformService {
 
       return {
         options: organizationCandidates(organization, actor.id, field, context),
-        defaultValue: organizationDefault(
-          organization,
-          actor.id,
-          field,
-          context,
-        ),
+        defaultValue: organizationDefault(organization, actor.id, field, context),
         organizationRevision: organization.revision,
       };
     };
 
     return transaction ? read(transaction) : this.db.transaction(read);
-  }
-
-  /** 获取当前工作空间下的有效成员列表（仅管理员） */
-  async users(actor: Actor) {
-    requireAdmin(actor);
-    const { rows } = await this.db.query(
-      "SELECT id, name, username, role FROM users WHERE workspace_id = $1 AND active ORDER BY username",
-      [actor.workspaceId],
-    );
-    return rows;
   }
 
   // --------------------------------------------------------------------------
@@ -545,276 +273,6 @@ export class PlatformService {
       throw new NotFoundException("表单不存在或不可访问");
     }
     return row;
-  }
-
-  /** 计算用户在指定表单定义及上下文下的有效权限 */
-  async access(
-    tx: Queryable,
-    actor: Actor,
-    id: string,
-    schema: FormSchema,
-    context?: AccessContext,
-  ): Promise<AccessGrant> {
-    return this.authorization.effective(tx, actor, id, schema, context);
-  }
-
-  /** 计算用户在指定表单定义下的正式记录可见范围 */
-  async readableScope(tx: Queryable, actor: Actor, id: string) {
-    return this.authorization.readers(tx, actor, id);
-  }
-
-  /** 获取当前用户在工作空间下可访问的所有表单定义 ID */
-  async accessibleDefinitions(tx: Queryable, actor: Actor) {
-    return this.authorization.definitions(tx, actor);
-  }
-
-  /** 查询当前用户可访问的表单定义列表（支持按应用过滤） */
-  async definitions(actor: Actor, appId?: string) {
-    if (appId) await applicationId(this.db, actor, appId);
-    return this.db.transaction(async (tx) => {
-      const ids = await this.accessibleDefinitions(tx, actor);
-      const sql = `
-        SELECT d.id, d.title, d.revision, d.latest_version AS "latestVersion"
-        FROM definitions d
-        WHERE d.workspace_id = $1
-          AND ($2::uuid[] IS NULL OR d.id = ANY($2))
-          AND ($3::uuid IS NULL OR d.application_id = $3)
-        ORDER BY d.created_at DESC
-      `;
-      const { rows } = await tx.query(sql, [
-        actor.workspaceId,
-        ids,
-        appId || null,
-      ]);
-      return rows;
-    });
-  }
-
-  /** 新建或保存数据对象草稿，页面由页面设计器独立保存与发布 */
-  async saveDefinition(actor: Actor, body: unknown, id?: string) {
-    requireAdmin(actor);
-    object(body);
-    title(body.title);
-    const schema = parseSchema(body.schema, true);
-
-    return this.db.transaction(async (tx) => {
-      if (!id) {
-        const newId = randomUUID();
-        const appId = await applicationId(tx, actor, body.applicationId);
-        await tx.query(
-          "INSERT INTO definitions(id, workspace_id, title, draft, application_id) VALUES($1, $2, $3, $4, $5)",
-          [newId, actor.workspaceId, body.title.trim(), schema, appId],
-        );
-        await storeModelDraft(
-          tx,
-          {
-            id: newId,
-            workspace_id: actor.workspaceId,
-            title: body.title.trim(),
-          },
-          schema,
-          false,
-        );
-        return { id: newId, revision: 1 };
-      }
-
-      const def = await this.definition(tx, actor, id, "FOR UPDATE");
-      if (body.expectedRevision !== def.revision) {
-        throw new ConflictException("表单配置已更新，请重新读取");
-      }
-
-      await this.validateStableFields(tx, id, schema);
-
-      await tx.query(
-        "UPDATE definitions SET title = $2, draft = $3, revision = revision + 1 WHERE id = $1",
-        [id, body.title.trim(), schema],
-      );
-      await storeModelDraft(
-        tx,
-        { ...def, title: body.title.trim() },
-        schema,
-        false,
-      );
-      return { id, revision: def.revision + 1 };
-    });
-  }
-
-  /** 发布表单定义新版本，校验发布影响令牌并写入配置审计事件 */
-  async publish(actor: Actor, id: string, body: unknown) {
-    requireAdmin(actor);
-    object(body);
-    return this.db.transaction(async (tx) => {
-      const def = await this.definition(tx, actor, id, "FOR UPDATE");
-      if (body.expectedRevision !== def.revision) {
-        throw new ConflictException("表单配置已更新，请重新读取");
-      }
-
-      const version = def.latest_version + 1;
-      const schema = parseSchema(def.draft);
-      await this.validateOrganizationModel(tx, actor, schema);
-      await this.validateStableFields(tx, id, schema);
-
-      const impact = await dataModelImpact(
-        tx,
-        def,
-        separateFormSchema(schema).model,
-        {
-          organization: await this.organizations.snapshot(tx, actor),
-          actorId: actor.id,
-        },
-      );
-      if (impact.blockers.length) {
-        throw new ConflictException(impact.blockers.join("；"));
-      }
-      if (
-        (impact.changes.removed.length || impact.changes.changed.length) &&
-        !body.impactToken
-      ) {
-        throw new ConflictException(
-          "移除字段或修改数据约束前，请先检查发布影响",
-        );
-      }
-      if (body.impactToken !== undefined && body.impactToken !== impact.token) {
-        throw new ConflictException(
-          "字段或使用情况已变化，请重新检查发布影响；草稿已保留",
-        );
-      }
-
-      const { rows } = await tx.query(
-        "INSERT INTO definition_versions(definition_id, version, title, schema) VALUES($1, $2, $3, $4) RETURNING *",
-        [id, version, def.title, schema],
-      );
-      const row = rows[0];
-
-      await storeModelVersion(tx, id, version, row.schema, false);
-      await tx.query(
-        "UPDATE definitions SET latest_version = $2, revision = revision + 1 WHERE id = $1",
-        [id, version],
-      );
-      await tx.query(
-        "INSERT INTO configuration_events(id, workspace_id, actor_id, resource_kind, resource_id, action, revision, detail) VALUES($1, $2, $3, 'data_object', $4, 'publish', $5, $6)",
-        [
-          randomUUID(),
-          actor.workspaceId,
-          actor.id,
-          id,
-          def.revision + 1,
-          {
-            fromVersion: def.latest_version,
-            toVersion: version,
-            reviewedToken: body.impactToken || null,
-            changes: impact.changes,
-          },
-        ],
-      );
-
-      return definitionDto(row);
-    });
-  }
-
-  /** 预览数据模型发布对关联配置与存量记录的影响 */
-  async modelImpact(actor: Actor, id: string, body: unknown) {
-    requireAdmin(actor);
-    object(body);
-    return this.db.transaction(async (tx) => {
-      // 持有排他锁执行存量记录统计与批次校验，防止并发写入导致计数漂移
-      const definition = await this.definition(tx, actor, id, "FOR UPDATE");
-      if (definition.revision !== body.expectedRevision) {
-        throw new ConflictException("数据草稿已修改，请重新读取后检查");
-      }
-
-      const schema = parseSchema(definition.draft);
-      await this.validateOrganizationModel(tx, actor, schema);
-      await this.validateStableFields(tx, id, schema);
-
-      return dataModelImpact(tx, definition, separateFormSchema(schema).model, {
-        organization: await this.organizations.snapshot(tx, actor),
-        actorId: actor.id,
-      });
-    });
-  }
-
-  /** 校验已发布过的字段是否保持相同的数据类型与子表归属路径 */
-  async validateStableFields(tx: Queryable, id: string, schema: FormSchema) {
-    const { rows: versions } = await tx.query(
-      "SELECT schema FROM definition_versions WHERE definition_id = $1",
-      [id],
-    );
-    const paths = (value: FormSchema) =>
-      new Map(
-        value.fields.flatMap(
-          (field) =>
-            [
-              [field.id, `${dataKind(field.type)}:root`],
-              ...field.children.map((child) => [
-                child.id,
-                `${dataKind(child.type)}:${field.id}`,
-              ]),
-            ] as [string, string][],
-        ),
-      );
-
-    const next = paths(schema);
-    for (const version of versions) {
-      for (const [key, type] of paths(version.schema)) {
-        if (next.has(key) && next.get(key) !== type) {
-          throw new BadRequestException(
-            "已发布字段不能变更类型或所属子表，请新建字段",
-          );
-        }
-      }
-    }
-  }
-
-  /** 获取表单最新已发布版本的定义、默认值与当前用户权限 */
-  async published(actor: Actor, id: string) {
-    return this.db.transaction(async (tx) => {
-      const def = await this.definition(tx, actor, id, "FOR SHARE");
-      const { rows } = await tx.query(
-        "SELECT * FROM definition_versions WHERE definition_id = $1 AND version = $2",
-        [id, def.latest_version],
-      );
-      const row = rows[0];
-      if (!row) {
-        throw new NotFoundException("表单尚未发布");
-      }
-
-      const access = await this.access(tx, actor, id, row.schema, {
-        operation: "create",
-      });
-      const fields = row.schema.fields
-        .filter((f: FormField) => permission(access, f) !== "hidden")
-        .map((f: FormField) => ({
-          ...f,
-          children: f.children.filter(
-            (c) => permission(access, c, f) !== "hidden",
-          ),
-        }));
-
-      const defaults = await this.recordDefaults(tx, actor, row.schema);
-      const defaultValues = Object.fromEntries(
-        fields.map((field: FormField) => [field.id, defaults[field.id]]),
-      );
-
-      return {
-        defaultValues,
-        identities: await this.identityLabels(
-          tx,
-          actor,
-          { ...row.schema, fields },
-          defaultValues,
-        ),
-        rowActions: rowActions(row.schema, { ...access, edit: access.create }),
-        ...(access.create
-          ? { collection: await this.collection.statusIn(tx, actor, id) }
-          : {}),
-        definition: {
-          ...definitionDto(row),
-          schema: { ...row.schema, fields },
-        },
-        access,
-      };
-    });
   }
 
   // --------------------------------------------------------------------------
@@ -841,11 +299,7 @@ export class PlatformService {
     if (row.state === "draft" && operation) {
       throw new ForbiddenException("尚未提交的草稿不能导出或打印");
     }
-    if (
-      row.state === "draft" &&
-      actor.role !== "admin" &&
-      row.created_by !== actor.id
-    ) {
+    if (row.state === "draft" && actor.role !== "admin" && row.created_by !== actor.id) {
       throw new ForbiddenException("不能查看其他成员尚未提交的草稿");
     }
 
@@ -856,7 +310,7 @@ export class PlatformService {
       )
     ).rows[0];
 
-    const access = await this.access(
+    const access = await this.authorization.effective(
       tx,
       actor,
       row.definition_id,
@@ -873,8 +327,7 @@ export class PlatformService {
     return {
       row,
       version,
-      access:
-        row.state === "draft" ? { ...access, edit: access.create } : access,
+      access: row.state === "draft" ? { ...access, edit: access.create } : access,
     };
   }
 
@@ -898,19 +351,12 @@ export class PlatformService {
         try {
           const detail = await this.detailIn(tx, actor, link.record_id);
           const canRead =
-            detail.access.read ||
-            (detail.record.state === "draft" && detail.access.create);
+            detail.access.read || (detail.record.state === "draft" && detail.access.create);
           if (!canRead) continue;
-          const visibleFiles = recordFileValues(
-            detail.definition.schema,
-            detail.record.values,
-          );
+          const visibleFiles = recordFileValues(detail.definition.schema, detail.record.values);
           allowed = visibleFiles.some((value) => value.id === id);
         } catch (cause) {
-          if (
-            !(cause instanceof ForbiddenException) &&
-            !(cause instanceof NotFoundException)
-          ) {
+          if (!(cause instanceof ForbiddenException) && !(cause instanceof NotFoundException)) {
             throw cause;
           }
         }
@@ -948,37 +394,17 @@ export class PlatformService {
       sourceAccess,
       version.schema,
     );
-    const workflow = await tx.query(
-      "SELECT id,status FROM processes WHERE submission_record_id=$1",
-      [id],
-    );
-    const process = workflow.rows[0];
-    if (
-      process?.status === "running" &&
-      actor.role !== "admin" &&
-      !page?.taskId
-    ) {
+    const process = await recordWorkflow(tx, id);
+    if (process?.status === "running" && actor.role !== "admin" && !page?.taskId) {
       access.edit = false;
     }
-    const visible = masked(
-      page?.schema || version.schema,
-      row.values,
-      row.cell_revisions,
-      access,
-    );
+    const visible = masked(page?.schema || version.schema, row.values, row.cell_revisions, access);
 
     return {
       ...(process ? { processId: process.id } : {}),
-      ...(page
-        ? { page: { id: page.id, version: page.version, title: page.title } }
-        : {}),
+      ...(page ? { page: { id: page.id, version: page.version, title: page.title } } : {}),
       creator: await recordCreator(tx, actor, row.created_by),
-      identities: await this.identityLabels(
-        tx,
-        actor,
-        visible.schema,
-        visible.values,
-      ),
+      identities: await this.values.identityLabels(tx, actor, visible.schema, visible.values),
       definition: { ...definitionDto(version), schema: visible.schema },
       access,
       rowActions: rowActions(version.schema, access, page?.schema),
@@ -1006,13 +432,11 @@ export class PlatformService {
     if (action !== "export" && action !== "print") {
       throw new BadRequestException("输出操作不合法");
     }
-    return this.db.transaction((tx) =>
-      this.detailIn(tx, actor, id, undefined, action),
-    );
+    return this.db.transaction((tx) => this.detailIn(tx, actor, id, undefined, action));
   }
 
   /** 提取幂等命令中与当前权限组选择相关的作用域标识 */
-  private commandScope(actor: Actor, definitionId: string) {
+  private commandScope(actor: AccessActor, definitionId: string) {
     const selection = actor.accessGroups?.[definitionId];
     return selection ? { accessGroup: selection } : {};
   }
@@ -1063,9 +487,7 @@ export class PlatformService {
 
       return {
         accessLost: true,
-        ...(page
-          ? { page: { id: page.id, title: page.title, version: page.version } }
-          : {}),
+        ...(page ? { page: { id: page.id, title: page.title, version: page.version } } : {}),
         definition: {
           ...definitionDto(version),
           schema: {
@@ -1175,15 +597,10 @@ export class PlatformService {
       }
 
       const pageSize = settings?.pageSize || 100;
-      let pageNumber = Math.min(
-        options?.page || 1,
-        Math.max(1, Math.ceil(total / pageSize)),
-      );
+      let pageNumber = Math.min(options?.page || 1, Math.max(1, Math.ceil(total / pageSize)));
       let offset = (pageNumber - 1) * pageSize;
       const order = settings?.descending === false ? "ASC" : "DESC";
-      const limitClause = needsVisibleValues
-        ? ""
-        : `LIMIT ${pageSize} OFFSET ${offset}`;
+      const limitClause = needsVisibleValues ? "" : `LIMIT ${pageSize} OFFSET ${offset}`;
 
       const listSql = `
         SELECT r.*, v.schema
@@ -1216,8 +633,8 @@ export class PlatformService {
         );
         for (const record of records) {
           if (!record.preview) continue;
-          record.preview.identities = record.preview.identities.map(
-            (identity) => identities.get(`${identity.kind}:${identity.id}`)!,
+          record.preview.identities = record.preview.identities.map((identity) =>
+            identities.get(`${identity.kind}:${identity.id}`)!,
           );
         }
       };
@@ -1233,23 +650,14 @@ export class PlatformService {
           updatedAt: new Date(row.updated_at).toISOString(),
         };
 
-        if (
-          page &&
-          pageAcceptsVersion(page, row.schema, row.definition_version)
-        ) {
+        if (page && pageAcceptsVersion(page, row.schema, row.definition_version)) {
           const source = effectiveAccess(actor, row.schema, context, {
             createdBy: row.created_by,
             createdDepartmentIds: row.created_department_ids,
             values: row.values,
             ...(row.state === "draft" ? { operation: "create" as const } : {}),
           });
-          const access = pageAccess(
-            page,
-            id,
-            row.definition_version,
-            source,
-            row.schema,
-          );
+          const access = pageAccess(page, id, row.definition_version, source, row.schema);
           const visible = masked(page.schema, row.values, {}, access);
           record.preview = {
             fields: visible.schema.fields,
@@ -1262,57 +670,41 @@ export class PlatformService {
 
       // 搜索或按组织字段排序先补齐所有可见名称；普通列表只补当前页。
       const sortByIdentity = page?.schema.fields.some(
-        (field) =>
-          field.id === settings?.sortField && isOrganizationField(field.type),
+        (field) => field.id === settings?.sortField && isOrganizationField(field.type),
       );
-      const identitiesBeforePagination =
-        !!keyword || (fieldSort && sortByIdentity);
+      const identitiesBeforePagination = !!keyword || (fieldSort && sortByIdentity);
       if (identitiesBeforePagination) await populateIdentities(result);
 
       if (keyword) {
-        result = result.filter((record) =>
-          this.recordMatchesKeyword(record, keyword),
-        );
+        result = result.filter((record) => this.recordMatchesKeyword(record, keyword));
         total = result.length;
-        pageNumber = Math.min(
-          options?.page || 1,
-          Math.max(1, Math.ceil(total / pageSize)),
-        );
+        pageNumber = Math.min(options?.page || 1, Math.max(1, Math.ceil(total / pageSize)));
         offset = (pageNumber - 1) * pageSize;
       }
 
       if (fieldSort) {
         const sortKey = (record: PageRecordSummary) => {
           const preview = record.preview;
-          const field = preview?.fields.find(
-            (f) => f.id === settings!.sortField,
-          );
+          const field = preview?.fields.find((f) => f.id === settings!.sortField);
           if (!field || !preview) return "";
           const value = preview.values[field.id];
           if (isNumericField(field)) return Number(value);
           return displayPlainFieldValue(field, value, {
             identity: (orgId) =>
-              preview.identities.find((identity) => identity.id === orgId)
-                ?.name || "无法识别的成员或部门",
+              preview.identities.find((identity) => identity.id === orgId)?.name ||
+              "无法识别的成员或部门",
           }).toLocaleLowerCase();
         };
 
-        const keys = new Map(
-          result.map((record) => [record.id, sortKey(record)]),
-        );
+        const keys = new Map(result.map((record) => [record.id, sortKey(record)]));
         result.sort(
           (a, b) =>
-            compareRecordSortValues(
-              keys.get(a.id)!,
-              keys.get(b.id)!,
-              settings!.descending,
-            ) || a.id.localeCompare(b.id),
+            compareRecordSortValues(keys.get(a.id)!, keys.get(b.id)!, settings!.descending) ||
+            a.id.localeCompare(b.id),
         );
       }
 
-      const records = needsVisibleValues
-        ? result.slice(offset, offset + pageSize)
-        : result;
+      const records = needsVisibleValues ? result.slice(offset, offset + pageSize) : result;
       if (!identitiesBeforePagination) await populateIdentities(records);
 
       const fields =
@@ -1321,9 +713,7 @@ export class PlatformService {
           : [
               ...new Map(
                 records.flatMap((record) =>
-                  (record.preview?.fields || []).map(
-                    (field) => [field.id, field] as const,
-                  ),
+                  (record.preview?.fields || []).map((field) => [field.id, field] as const),
                 ),
               ).values(),
             ];
@@ -1335,23 +725,17 @@ export class PlatformService {
   }
 
   /** 仅检索已脱敏的展示内容，子表逐列读取，排除行标识和富文本属性等内部值。 */
-  private recordMatchesKeyword(
-    record: PageRecordSummary,
-    keyword: string,
-  ): boolean {
+  private recordMatchesKeyword(record: PageRecordSummary, keyword: string): boolean {
     if (record.id.toLowerCase().includes(keyword)) return true;
     if (record.createdAt.includes(keyword)) return true;
-    if (new Date(record.createdAt).toLocaleString("zh-CN").includes(keyword))
-      return true;
+    if (new Date(record.createdAt).toLocaleString("zh-CN").includes(keyword)) return true;
     const preview = record.preview;
     if (!preview) return false;
 
     const labels = {
       identity: (id: string) => {
         const identity = preview.identities.find((item) => item.id === id);
-        return identity
-          ? organizationIdentityLabel(identity)
-          : "无法识别的成员或部门";
+        return identity ? organizationIdentityLabel(identity) : "无法识别的成员或部门";
       },
     };
     const fieldMatches = (field: FormField, value: unknown): boolean => {
@@ -1359,8 +743,7 @@ export class PlatformService {
         if (typeof value !== "string") return false;
         // HTML 用解析器取文本：链接、图片属性及脚本样式内容都不属于可见值。
         const text = (node: DefaultTreeAdapterMap["node"]): string => {
-          if (node.nodeName === "#text")
-            return (node as DefaultTreeAdapterMap["textNode"]).value;
+          if (node.nodeName === "#text") return (node as DefaultTreeAdapterMap["textNode"]).value;
           if (
             [
               "script",
@@ -1409,32 +792,11 @@ export class PlatformService {
         );
         if (matched) return true;
       }
-      return displayPlainFieldValue(field, value, labels)
-        .toLocaleLowerCase()
-        .includes(keyword);
+      return displayPlainFieldValue(field, value, labels).toLocaleLowerCase().includes(keyword);
     };
     return preview.fields.some(
-      (field) =>
-        hasFieldValue(field) && fieldMatches(field, preview.values[field.id]),
+      (field) => hasFieldValue(field) && fieldMatches(field, preview.values[field.id]),
     );
-  }
-
-  /** 创建正式记录或草稿记录 */
-  /** 已配置提交自动发起的表单必须走表单入口，不能通过底层记录接口绕开流程。 */
-  private async requireWorkflowEntry(
-    tx: Queryable,
-    definitionId: string,
-    page?: RecordPageScope,
-  ) {
-    const { rows } = await tx.query(
-      `SELECT t.start_page_id FROM process_templates t
-       JOIN pages p ON p.id=t.start_page_id
-       WHERE p.definition_id=$1 AND t.enabled AND t.active_version IS NOT NULL`,
-      [definitionId],
-    );
-    if (rows.length && !rows.some((row) => row.start_page_id === page?.id)) {
-      throw new ConflictException("此表单已启用流程，请从填写表单入口提交");
-    }
   }
 
   async createRecord(
@@ -1463,111 +825,95 @@ export class PlatformService {
         ...(page ? { page: { id: page.id, version: page.version } } : {}),
       };
 
-      const recordId = await once(
-        tx,
-        actor,
-        body.requestId,
-        commandPayload,
-        async () => {
-          await this.definition(tx, actor, id, "FOR SHARE");
-          if (page && !page.taskId) {
-            await assertPageActive(tx, actor, page.id);
-          }
+      const recordId = await once(tx, actor, body.requestId, commandPayload, async () => {
+        await this.definition(tx, actor, id, "FOR SHARE");
+        if (page && !page.taskId) {
+          await assertPageActive(tx, actor, page.id);
+        }
 
-          const version = (
-            await tx.query(
-              "SELECT * FROM definition_versions WHERE definition_id = $1 AND version = $2",
-              [id, body.version],
-            )
-          ).rows[0];
-          if (!version) {
-            throw new BadRequestException("发布版本不存在");
-          }
+        const version = (
+          await tx.query(
+            "SELECT * FROM definition_versions WHERE definition_id = $1 AND version = $2",
+            [id, body.version],
+          )
+        ).rows[0];
+        if (!version) {
+          throw new BadRequestException("发布版本不存在");
+        }
 
-          if (!draft) await this.requireWorkflowEntry(tx, id, page);
-          const baseAccess = await this.access(tx, actor, id, version.schema, {
-            operation: "create",
-          });
-          const access = pageAccess(page, id, version.version, baseAccess);
-          if (!access.create) {
-            throw new ForbiddenException("没有新增权限");
-          }
+        if (!draft) await requireWorkflowEntry(tx, id, page);
+        const baseAccess = await this.authorization.effective(tx, actor, id, version.schema, {
+          operation: "create",
+        });
+        const access = pageAccess(page, id, version.version, baseAccess);
+        if (!access.create) {
+          throw new ForbiddenException("没有新增权限");
+        }
 
-          const { values, revisions } = await this.createValues(
-            tx,
-            actor,
-            draft ? draftSchema(version.schema) : version.schema,
-            body.values,
-            access,
-            {},
-            version.schema,
-            !draft,
+        const { values, revisions } = await this.values.createValues(
+          tx,
+          actor,
+          draft ? draftSchema(version.schema) : version.schema,
+          body.values,
+          access,
+          {},
+          version.schema,
+          !draft,
+        );
+
+        const subforms = (version.schema as FormSchema).fields.filter(
+          (field) => field.type === "subform",
+        );
+        for (const field of subforms) {
+          const policy = rowPolicy(
+            field,
+            page?.schema.fields.find((item) => item.id === field.id),
           );
-
-          const subforms = (version.schema as FormSchema).fields.filter(
-            (field) => field.type === "subform",
-          );
-          for (const field of subforms) {
-            const policy = rowPolicy(
-              field,
-              page?.schema.fields.find((item) => item.id === field.id),
-            );
-            if (
-              (values[field.id] as FormValues[]).length &&
-              !policy.add &&
-              !policy.insert
-            ) {
-              throw new ForbiddenException(
-                `「${field.label}」不可新增或插入记录`,
-              );
-            }
+          if ((values[field.id] as FormValues[]).length && !policy.add && !policy.insert) {
+            throw new ForbiddenException(`「${field.label}」不可新增或插入记录`);
           }
+        }
 
-          await this.validateRecordOrganizations(
-            tx,
-            actor,
-            version.schema,
+        await this.values.validateRecordOrganizations(
+          tx,
+          actor,
+          version.schema,
+          values,
+          undefined,
+          access,
+        );
+        if (!draft) {
+          validatePageSubmission(page, values, access);
+          await this.collection.requireSubmission(tx, actor, id);
+        }
+
+        const rid = randomUUID();
+        const orgSnapshot = await this.organizations.snapshot(tx, actor);
+        const createdDepartments =
+          orgSnapshot.spec.assignments.find((item) => item.userId === actor.id)?.departmentIds ||
+          [];
+
+        await tx.query(
+          "INSERT INTO records(id, workspace_id, definition_id, definition_version, values, cell_revisions, created_by, state, created_department_ids) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+          [
+            rid,
+            actor.workspaceId,
+            id,
+            body.version,
             values,
-          );
-          if (!draft) {
-            validatePageSubmission(page, values, access);
-            await this.collection.requireSubmission(tx, actor, id);
-          }
-
-          const rid = randomUUID();
-          const orgSnapshot = await this.organizations.snapshot(tx, actor);
-          const createdDepartments =
-            orgSnapshot.spec.assignments.find(
-              (item) => item.userId === actor.id,
-            )?.departmentIds || [];
-
-          await tx.query(
-            "INSERT INTO records(id, workspace_id, definition_id, definition_version, values, cell_revisions, created_by, state, created_department_ids) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)",
-            [
-              rid,
-              actor.workspaceId,
-              id,
-              body.version,
-              values,
-              revisions,
-              actor.id,
-              draft ? "draft" : "active",
-              createdDepartments,
-            ],
-          );
-          await tx.query(
-            "INSERT INTO record_events(id, record_id, actor_id, revision, changes) VALUES($1, $2, $3, 1, $4)",
-            [
-              randomUUID(),
-              rid,
-              actor.id,
-              { action: draft ? "draft-create" : "create" },
-            ],
-          );
-          await this.files.bind(tx, actor, rid, version.schema, values);
-          return rid;
-        },
-      );
+            revisions,
+            actor.id,
+            draft ? "draft" : "active",
+            createdDepartments,
+          ],
+        );
+        await tx.query(
+          "INSERT INTO record_events(id, record_id, actor_id, revision, changes) VALUES($1, $2, $3, 1, $4)",
+          [randomUUID(), rid, actor.id, { action: draft ? "draft-create" : "create" }],
+        );
+        await this.files.bind(tx, actor, rid, version.schema, values, {}, access);
+        return rid;
+      });
 
       return this.writeDetailIn(tx, actor, recordId, page);
     };
@@ -1594,10 +940,10 @@ export class PlatformService {
 
     const write = async (tx: Transaction) => {
       const meta = (
-        await tx.query(
-          "SELECT definition_id FROM records WHERE id = $1 AND workspace_id = $2",
-          [id, actor.workspaceId],
-        )
+        await tx.query("SELECT definition_id FROM records WHERE id = $1 AND workspace_id = $2", [
+          id,
+          actor.workspaceId,
+        ])
       ).rows[0];
       if (!meta) {
         throw new NotFoundException("记录不存在或不可访问");
@@ -1610,96 +956,84 @@ export class PlatformService {
         ...(page ? { pageId: page.id, pageVersion: page.version } : {}),
       };
 
-      const recordId = await once(
-        tx,
-        actor,
-        body.requestId,
-        commandPayload,
-        async () => {
-          await this.definition(tx, actor, meta.definition_id, "FOR SHARE");
-          if (page) {
-            await assertPageActive(tx, actor, page.id);
-          }
+      const recordId = await once(tx, actor, body.requestId, commandPayload, async () => {
+        await this.definition(tx, actor, meta.definition_id, "FOR SHARE");
+        if (page) {
+          await assertPageActive(tx, actor, page.id);
+        }
 
-          await this.requireWorkflowEntry(tx, meta.definition_id, page);
-          const source = await this.loadRecord(tx, actor, id, true);
-          if (source.row.state !== "draft") {
-            throw new ConflictException("此记录已提交，请重新读取当前记录");
-          }
-          if (source.row.revision !== body.expectedRevision) {
-            throw new ConflictException(
-              "草稿已被修改，请重新读取后再提交；当前输入保留",
-            );
-          }
+        await requireWorkflowEntry(tx, meta.definition_id, page);
+        const source = await this.loadRecord(tx, actor, id, true);
+        if (source.row.state !== "draft") {
+          throw new ConflictException("此记录已提交，请重新读取当前记录");
+        }
+        if (source.row.revision !== body.expectedRevision) {
+          throw new ConflictException("草稿已被修改，请重新读取后再提交；当前输入保留");
+        }
 
-          const access = pageAccess(
-            page,
-            source.row.definition_id,
-            source.row.definition_version,
-            source.access,
-            source.version.schema,
-          );
-          if (!access.create) {
-            throw new ForbiddenException("当前没有提交此草稿的权限");
-          }
+        const access = pageAccess(
+          page,
+          source.row.definition_id,
+          source.row.definition_version,
+          source.access,
+          source.version.schema,
+        );
+        if (!access.create) {
+          throw new ForbiddenException("当前没有提交此草稿的权限");
+        }
 
-          if ((body.changes?.length || 0) + (body.rows?.length || 0)) {
-            await this.patchRecord(
-              actor,
-              id,
-              {
-                requestId: randomUUID(),
-                changes: body.changes || [],
-                rows: body.rows || [],
-              },
-              page,
-              tx,
-            );
-          }
-
-          const current = await this.loadRecord(tx, actor, id);
-          validateSubmittedRecord(current.version.schema, current.row.values);
-          await this.validateRecordOrganizations(
-            tx,
-            actor,
-            current.version.schema,
-            current.row.values,
-            current.row.values,
-          );
-          validatePageSubmission(page, current.row.values, access);
-          await this.collection.requireSubmission(
-            tx,
-            actor,
-            source.row.definition_id,
-            source.row.created_by,
-          );
-
-          await this.files.bind(
-            tx,
+        if ((body.changes?.length || 0) + (body.rows?.length || 0)) {
+          await this.patchRecord(
             actor,
             id,
-            current.version.schema,
-            current.row.values,
-            current.row.values,
+            {
+              requestId: randomUUID(),
+              changes: body.changes || [],
+              rows: body.rows || [],
+            },
+            page,
+            tx,
           );
+        }
 
-          await tx.query(
-            "UPDATE records SET state = 'active', revision = revision + 1, updated_at = now() WHERE id = $1",
-            [id],
-          );
-          await tx.query(
-            "INSERT INTO record_events(id, record_id, actor_id, revision, changes) VALUES($1, $2, $3, $4, $5)",
-            [
-              randomUUID(),
-              id,
-              actor.id,
-              current.row.revision + 1,
-              { action: "submit-draft" },
-            ],
-          );
-          return id;
-        },
-      );
+        const current = await this.loadRecord(tx, actor, id);
+        validateSubmittedRecord(current.version.schema, current.row.values, access);
+        await this.values.validateRecordOrganizations(
+          tx,
+          actor,
+          current.version.schema,
+          current.row.values,
+          current.row.values,
+          access,
+        );
+        validatePageSubmission(page, current.row.values, access);
+        await this.collection.requireSubmission(
+          tx,
+          actor,
+          source.row.definition_id,
+          source.row.created_by,
+        );
+
+        await this.files.bind(
+          tx,
+          actor,
+          id,
+          current.version.schema,
+          current.row.values,
+          current.row.values,
+          access,
+        );
+
+        await tx.query(
+          "UPDATE records SET state = 'active', revision = revision + 1, updated_at = now() WHERE id = $1",
+          [id],
+        );
+        await tx.query(
+          "INSERT INTO record_events(id, record_id, actor_id, revision, changes) VALUES($1, $2, $3, $4, $5)",
+          [randomUUID(), id, actor.id, current.row.revision + 1, { action: "submit-draft" }],
+        );
+        return id;
+      });
 
       return this.writeDetailIn(tx, actor, recordId, page);
     };
@@ -1728,17 +1062,15 @@ export class PlatformService {
       body.changes.length > 200 ||
       body.rows.length > 100;
     if (isInvalidPatchBatch) {
-      throw new BadRequestException(
-        "需要字段或明细修改，单次最多 200 个字段、100 个明细动作",
-      );
+      throw new BadRequestException("需要字段或明细修改，单次最多 200 个字段、100 个明细动作");
     }
 
     const write = async (tx: Transaction) => {
       const meta = (
-        await tx.query(
-          "SELECT definition_id FROM records WHERE id = $1 AND workspace_id = $2",
-          [id, actor.workspaceId],
-        )
+        await tx.query("SELECT definition_id FROM records WHERE id = $1 AND workspace_id = $2", [
+          id,
+          actor.workspaceId,
+        ])
       ).rows[0];
       if (!meta) {
         throw new NotFoundException("记录不存在或不可访问");
@@ -1769,19 +1101,8 @@ export class PlatformService {
           await assertPageActive(tx, actor, page.id);
         }
 
-        const {
-          row,
-          version,
-          access: recordAccess,
-        } = await this.loadRecord(tx, actor, id, true);
-        if (actor.role !== "admin" && !page?.taskId) {
-          const running = await tx.query(
-            "SELECT 1 FROM processes WHERE submission_record_id=$1 AND status='running'",
-            [id],
-          );
-          if (running.rowCount)
-            throw new ForbiddenException("流程处理中，请从待办中办理此记录");
-        }
+        const { row, version, access: recordAccess } = await this.loadRecord(tx, actor, id, true);
+        await requireRecordEditable(tx, actor, id, page);
         const access = pageAccess(
           page,
           row.definition_id,
@@ -1794,9 +1115,7 @@ export class PlatformService {
         }
 
         const schema =
-          row.state === "draft"
-            ? draftSchema(version.schema)
-            : (version.schema as FormSchema);
+          row.state === "draft" ? draftSchema(version.schema) : (version.schema as FormSchema);
         const keys = new Set<string>();
         const beforeValues = structuredClone(row.values);
         const changed: Record<string, unknown>[] = [];
@@ -1807,23 +1126,13 @@ export class PlatformService {
           (body.rows.length ||
             body.changes.some(
               (change: any) =>
-                change.subformId !== page.row!.subformId ||
-                change.rowId !== page.row!.rowId,
+                change.subformId !== page.row!.subformId || change.rowId !== page.row!.rowId,
             ))
         ) {
           throw new ForbiddenException("此任务仅允许修改所绑定的明细行");
         }
 
-        await this.patchRows(
-          tx,
-          actor,
-          row,
-          schema,
-          access,
-          body.rows,
-          changed,
-          page?.schema,
-        );
+        await this.patchRows(tx, actor, row, schema, access, body.rows, changed, page?.schema);
 
         // 恢复明细的附件来自服务端历史值，且 patchRows 已校验该行所有列的编辑权限。
         const fileSources = structuredClone(beforeValues);
@@ -1833,24 +1142,19 @@ export class PlatformService {
           const restored = row.values[subformId].find(
             (item: FormValues) => item._rowId === change.rowId,
           );
-          (fileSources[subformId] as FormValues[]).push(
-            structuredClone(restored),
-          );
+          (fileSources[subformId] as FormValues[]).push(structuredClone(restored));
         }
 
+        const issues: FieldValidationIssue[] = [];
         for (const raw of body.changes) {
           object(raw);
           const change = raw as CellChange;
           const parent = change.subformId
-            ? schema.fields.find(
-                (f) => f.id === change.subformId && f.type === "subform",
-              )
+            ? schema.fields.find((f) => f.id === change.subformId && f.type === "subform")
             : undefined;
           const field = parent
             ? parent.children.find((f) => f.id === change.fieldId)
-            : schema.fields.find(
-                (f) => f.id === change.fieldId && f.type !== "subform",
-              );
+            : schema.fields.find((f) => f.id === change.fieldId && f.type !== "subform");
 
           if (
             !field ||
@@ -1862,9 +1166,7 @@ export class PlatformService {
           }
 
           const target = parent
-            ? (row.values[parent.id] as FormValues[]).find(
-                (r) => r._rowId === change.rowId,
-              )
+            ? (row.values[parent.id] as FormValues[]).find((r) => r._rowId === change.rowId)
             : row.values;
           if (!target) {
             throw new BadRequestException("明细行不存在，请重新读取");
@@ -1891,25 +1193,34 @@ export class PlatformService {
           keys.add(key);
 
           if (row.cell_revisions[key] !== change.expectedRevision) {
-            throw new ConflictException(
-              "该字段已被其他成员修改，输入已保留，请重新读取后合并",
-            );
+            throw new ConflictException("该字段已被其他成员修改，输入已保留，请重新读取后合并");
           }
 
-          const value = scalar(field, change.value);
+          const issueCount = issues.length;
+          const value = collectFieldIssues(issues, () => {
+            return scalar(
+              field,
+              change.value,
+              true,
+              parent ? { subformId: parent.id, rowId: change.rowId } : {},
+            );
+          });
+          if (issues.length > issueCount) continue;
           changed.push({ ...change, before: target[field.id], value });
           target[field.id] = value;
           row.cell_revisions[key]++;
         }
+        if (issues.length) throw new FieldValidationException(issues);
 
-        await this.validateRecordOrganizations(
+        await this.values.validateRecordOrganizations(
           tx,
           actor,
           schema,
           row.values,
           beforeValues,
+          access,
         );
-        await this.files.bind(tx, actor, id, schema, row.values, fileSources);
+        await this.files.bind(tx, actor, id, schema, row.values, fileSources, access);
         if (row.state !== "draft") {
           validatePageSubmission(page, row.values, access);
         }
@@ -1920,13 +1231,7 @@ export class PlatformService {
         );
         await tx.query(
           "INSERT INTO record_events(id, record_id, actor_id, revision, changes) VALUES($1, $2, $3, $4, $5)",
-          [
-            randomUUID(),
-            id,
-            actor.id,
-            row.revision + 1,
-            JSON.stringify(changed),
-          ],
+          [randomUUID(), id, actor.id, row.revision + 1, JSON.stringify(changed)],
         );
         return id;
       });
@@ -1953,9 +1258,7 @@ export class PlatformService {
 
     for (const raw of commands) {
       object(raw);
-      const parent = schema.fields.find(
-        (f) => f.id === raw.subformId && f.type === "subform",
-      );
+      const parent = schema.fields.find((f) => f.id === raw.subformId && f.type === "subform");
       if (!parent || permission(access, parent) !== "edit") {
         throw new ForbiddenException("没有此明细的结构修改权限");
       }
@@ -1976,9 +1279,7 @@ export class PlatformService {
 
       if (raw.action === "add" || raw.action === "insert") {
         if (raw.action === "add" ? !policy.add : !policy.insert) {
-          throw new ForbiddenException(
-            raw.action === "add" ? "不可新增记录" : "不可插入记录",
-          );
+          throw new ForbiddenException(raw.action === "add" ? "不可新增记录" : "不可插入记录");
         }
         let index = rows.length;
         if (raw.action === "insert" && raw.beforeRowId !== null) {
@@ -1989,16 +1290,26 @@ export class PlatformService {
           }
         }
 
-        const created = await this.createValues(
-          tx,
-          actor,
-          { ...schema, fields: [parent] },
-          { [parent.id]: [raw.values] },
-          access,
-          record.values,
-          schema,
-          record.state !== "draft",
-        );
+        const created = await this.values
+          .createValues(
+            tx,
+            actor,
+            { ...schema, fields: [parent] },
+            { [parent.id]: [raw.values] },
+            access,
+            record.values,
+            schema,
+            record.state !== "draft",
+          )
+          .catch((error: unknown) => {
+            if (!(error instanceof FieldValidationException)) throw error;
+            // 单行创建校验的下标从零开始，这里还原到当前表单的实际插入位置。
+            const issues = error.issues.map((issue) => {
+              if (issue.subformId !== parent.id) return issue;
+              return { ...issue, rowIndex: index };
+            });
+            throw new FieldValidationException(issues);
+          });
         const value = (created.values[parent.id] as FormValues[])[0]!;
         rows.splice(index, 0, value);
 
@@ -2021,11 +1332,7 @@ export class PlatformService {
         uuid(raw.rowId);
         object(raw.expectedCells);
 
-        if (
-          parent.children.some(
-            (child) => permission(access, child, parent) !== "edit",
-          )
-        ) {
+        if (parent.children.some((child) => permission(access, child, parent) !== "edit")) {
           throw new ForbiddenException("删除明细需要能够修改该行所有列");
         }
 
@@ -2041,9 +1348,7 @@ export class PlatformService {
             fieldId: child.id,
           });
           if (raw.expectedCells[cell] !== record.cell_revisions[cell]) {
-            throw new ConflictException(
-              "明细内容已被其他成员修改，不能删除旧快照",
-            );
+            throw new ConflictException("明细内容已被其他成员修改，不能删除旧快照");
           }
         }
 
@@ -2052,12 +1357,9 @@ export class PlatformService {
             EXISTS(SELECT 1 FROM record_links WHERE source_record_id = $1 AND source_row_id = $2)
             OR EXISTS(SELECT 1 FROM tasks WHERE record_id = $1 AND row_id = $2) AS referenced
         `;
-        const references = (await tx.query(refSql, [record.id, raw.rowId]))
-          .rows[0];
+        const references = (await tx.query(refSql, [record.id, raw.rowId])).rows[0];
         if (references.referenced) {
-          throw new ConflictException(
-            "明细行已被关系或任务引用，请先处理引用影响",
-          );
+          throw new ConflictException("明细行已被关系或任务引用，请先处理引用影响");
         }
 
         audit.push({
@@ -2086,11 +1388,7 @@ export class PlatformService {
         uuid(raw.rowId);
         uuid(raw.eventId);
 
-        if (
-          parent.children.some(
-            (child) => permission(access, child, parent) !== "edit",
-          )
-        ) {
+        if (parent.children.some((child) => permission(access, child, parent) !== "edit")) {
           throw new ForbiddenException("恢复明细需要能够修改该行所有列");
         }
         if (rows.some((row) => row._rowId === raw.rowId)) {
@@ -2098,31 +1396,33 @@ export class PlatformService {
         }
 
         const deleted = (await latestRowEvents(tx, record.id)).find(
-          (event) =>
-            event.change.subformId === parent.id &&
-            event.change.rowId === raw.rowId,
+          (event) => event.change.subformId === parent.id && event.change.rowId === raw.rowId,
         );
-        if (
-          !deleted ||
-          deleted.id !== raw.eventId ||
-          deleted.change.action !== "row-remove"
-        ) {
-          throw new ConflictException(
-            "删除记录已变化，请选择最近一次删除的明细",
-          );
+        if (!deleted || deleted.id !== raw.eventId || deleted.change.action !== "row-remove") {
+          throw new ConflictException("删除记录已变化，请选择最近一次删除的明细");
         }
 
         const { _rowId, ...before } = deleted.change.before;
-        const restored = await this.createValues(
-          tx,
-          actor,
-          { ...schema, fields: [parent] },
-          { [parent.id]: [before] },
-          access,
-          record.values,
-          schema,
-          record.state !== "draft",
-        );
+        const restored = await this.values
+          .createValues(
+            tx,
+            actor,
+            { ...schema, fields: [parent] },
+            { [parent.id]: [before] },
+            access,
+            record.values,
+            schema,
+            record.state !== "draft",
+          )
+          .catch((error: unknown) => {
+            if (!(error instanceof FieldValidationException)) throw error;
+            const issues = error.issues.map((issue) => {
+              if (issue.subformId !== parent.id) return issue;
+              const { rowIndex, ...location } = issue;
+              return { ...location, rowId: raw.rowId };
+            });
+            throw new FieldValidationException(issues);
+          });
         const value = (restored.values[parent.id] as FormValues[])[0]!;
         value._rowId = raw.rowId;
         rows.push(value);
@@ -2155,7 +1455,12 @@ export class PlatformService {
         record.values[subformId].length > maxSubformRows ||
         (parent.required && !record.values[subformId].length)
       ) {
-        throw new BadRequestException("明细数量不符合要求");
+        throw new FieldValidationException([
+          {
+            fieldId: parent.id,
+            message: "明细数量不符合要求",
+          },
+        ]);
       }
       record.cell_revisions[`@rows/${subformId}`] =
         (record.cell_revisions[`@rows/${subformId}`] || 1) + 1;
@@ -2193,20 +1498,7 @@ export class PlatformService {
             throw new ConflictException("记录已被修改，请刷新后再归档");
           }
 
-          const depSql = `
-            SELECT
-              EXISTS(SELECT 1 FROM record_links WHERE source_record_id = $1 OR target_record_id = $1)
-              OR EXISTS(SELECT 1 FROM tasks WHERE record_id = $1)
-              OR EXISTS(
-                SELECT 1 FROM processes p
-                CROSS JOIN LATERAL jsonb_each_text(p.bindings) b
-                WHERE b.value = $1::text
-              ) AS referenced
-          `;
-          const dependency = (await tx.query(depSql, [id])).rows[0];
-          if (dependency.referenced) {
-            throw new ConflictException("记录已被关系或任务引用，不能归档");
-          }
+          await requireRecordUnreferenced(tx, id);
 
           await tx.query(
             "UPDATE records SET archived_at = now(), updated_at = now(), revision = revision + 1 WHERE id = $1",
@@ -2214,13 +1506,7 @@ export class PlatformService {
           );
           await tx.query(
             "INSERT INTO record_events(id, record_id, actor_id, revision, changes) VALUES($1, $2, $3, $4, $5)",
-            [
-              randomUUID(),
-              id,
-              actor.id,
-              record.row.revision + 1,
-              { action: "archive" },
-            ],
+            [randomUUID(), id, actor.id, record.row.revision + 1, { action: "archive" }],
           );
           return id;
         },
@@ -2272,7 +1558,7 @@ export class PlatformService {
             const targetSubform = restoreSchema.fields.find(
               (field: FormField) => field.id === parent.id,
             )!;
-            const restored = await this.createValues(
+            const restored = await this.values.createValues(
               tx,
               actor,
               { ...restoreSchema, fields: [targetSubform] },
@@ -2282,7 +1568,7 @@ export class PlatformService {
               record.version.schema,
               record.row.state !== "draft",
             );
-            await this.validateRecordOrganizations(
+            await this.values.validateRecordOrganizations(
               tx,
               actor,
               record.version.schema,

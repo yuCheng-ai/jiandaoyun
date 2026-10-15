@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 import { describe, it, expect } from "vitest";
 
 import { createField, copy } from "../src/domain/form";
@@ -12,7 +13,6 @@ import {
 import { parseExtensions } from "../src/domain/extensions";
 import { defaultRecordView, filterAndSortRecords } from "../src/domain/records";
 import {
-  seedWorkspace,
   newForm,
   type FormEntry,
 } from "../src/domain/workspace";

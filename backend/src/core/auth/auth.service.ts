@@ -4,17 +4,15 @@ import {
   Injectable,
   UnauthorizedException,
   ForbiddenException,
-  BadRequestException,
 } from "@nestjs/common";
-import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import type { Request } from "express";
 import type { SessionUser } from "@platform/contracts";
 import { Database } from "../database/database";
 
-/** 当前请求的操作者上下文（包含会话用户信息、工作空间及所选权限组） */
+/** 当前请求的操作者上下文，只承载已认证身份与工作空间。 */
 export interface Actor extends SessionUser {
   workspaceId: string;
-  accessGroups?: Record<string, string>;
 }
 
 /** 已通过身份认证的 HTTP 请求对象 */
@@ -78,28 +76,6 @@ export class AuthService {
   private dummyHash = passwordHash(randomBytes(32).toString("hex"));
 
   constructor(private readonly db: Database) {}
-
-  /** 初始化本地预置账号（admin / editor / reviewer） */
-  async seed() {
-    const accounts = [
-      ["admin", "平台管理员", "admin", process.env.PLATFORM_ADMIN_PASSWORD],
-      ["editor", "录入成员", "member", process.env.PLATFORM_EDITOR_PASSWORD],
-      ["reviewer", "核对成员", "member", process.env.PLATFORM_REVIEWER_PASSWORD],
-    ] as const;
-
-    for (const [username, name, role, password] of accounts) {
-      if (!password || password.length < 16) {
-        throw new Error("Local account passwords of at least 16 characters are required.");
-      }
-
-      const sql = `
-        INSERT INTO users (id, workspace_id, username, name, role, password_hash)
-        VALUES ($1, 'local', $2, $3, $4, $5)
-        ON CONFLICT (username) DO NOTHING
-      `;
-      await this.db.query(sql, [randomUUID(), username, name, role, passwordHash(password)]);
-    }
-  }
 
   /** 校验账号密码并创建有效期 8 小时的登录会话 */
   async login(username: unknown, password: unknown, ip: string) {
@@ -183,7 +159,7 @@ export class AuthService {
 // 3. 路由守卫与管理员断言
 // ============================================================================
 
-/** 登录态守卫：验证会话 Cookie 并解析请求头中的权限组选择（`x-platform-access-groups`） */
+/** 登录态守卫：只验证服务端会话并填充当前身份。 */
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(private readonly auth: AuthService) {}
@@ -192,33 +168,6 @@ export class AuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     request.actor = await this.auth.actor(request.headers.cookie);
 
-    const header = request.headers["x-platform-access-groups"];
-    if (header !== undefined) {
-      try {
-        if (typeof header !== "string" || header.length > 12000) {
-          throw new Error();
-        }
-        const choices = JSON.parse(header);
-        if (
-          !choices ||
-          typeof choices !== "object" ||
-          Array.isArray(choices) ||
-          Object.keys(choices).length > 50
-        ) {
-          throw new Error();
-        }
-        for (const [key, value] of Object.entries(choices)) {
-          const isValidKey = /^[0-9a-f-]{36}$/i.test(key);
-          const isValidVal = typeof value === "string" && value.length > 0 && value.length <= 200;
-          if (!isValidKey || !isValidVal) {
-            throw new Error();
-          }
-        }
-        request.actor.accessGroups = choices;
-      } catch {
-        throw new BadRequestException("权限组选择格式不合法");
-      }
-    }
     return true;
   }
 }

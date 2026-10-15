@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -20,7 +21,7 @@ import {
 } from "../src/domain/serial";
 import { validateFieldConfiguration } from "../src/domain/fieldValidation";
 
-import { seedWorkspace } from "../src/domain/workspace";
+
 
 afterEach(() => {
   vi.useRealTimers();

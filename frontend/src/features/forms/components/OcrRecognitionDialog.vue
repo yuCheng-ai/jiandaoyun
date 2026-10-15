@@ -173,7 +173,9 @@ async function recognize() {
         <span v-if="images[side]" class="hint">{{ images[side]!.name }}</span>
       </label>
     </div>
-    <p v-if="busy" role="status">正在识别，请稍候…</p>
+    <p v-if="busy" class="dialog-pending" role="status">
+      <span class="visually-hidden">正在识别，请稍候…</span>
+    </p>
     <p v-if="error" class="field-error" role="alert">{{ error }}</p>
     <template #footer
       ><button type="button" class="button" @click="close">取消</button

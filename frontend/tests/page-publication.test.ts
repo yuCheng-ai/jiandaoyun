@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
-import { separateFormSchema, type PageEditorData, type PagePublishImpact } from "@platform/contracts";
+import { separateFormSchema, type PageEditorData } from "@platform/contracts";
 import { createField, emptySchema } from "../src/domain/form";
 import { usePageDesignerStore } from "../src/stores/pageDesigner";
 import { platformApi, PlatformError } from "../src/repositories/platformApi";
@@ -18,26 +18,13 @@ beforeEach(() => {
     throw new Error(`Unexpected ${path}`);
   });
 });
-it("preparing review saves the draft only; explicit confirmation sends the reviewed token", async () => {
-  const store = usePageDesignerStore(); await store.load("page"); store.state.title = "更新后的页面";
-  const impact = await store.preparePublication(); expect(impact?.revision).toBe(2); expect(store.dirty).toBe(false);
-  expect(vi.mocked(platformApi).mock.calls.some(call => call[0].endsWith("/publish"))).toBe(false);
-  expect(await store.publish(impact!)).toBe(true);
-  expect(vi.mocked(platformApi).mock.calls.find(call => call[0].endsWith("/publish"))?.[2]).toEqual({ expectedRevision: 2, impactToken: "reviewed" });
-});
-it("editing after review cannot publish an unreviewed schema", async () => {
-  const store = usePageDesignerStore(); await store.load("page"); const impact = await store.preparePublication();
-  store.state.schema.fields[0]!.label = "尚未检查的修改";
-  expect(await store.publish(impact!)).toBe(false); expect(store.error).toContain("重新检查");
-  expect(vi.mocked(platformApi).mock.calls.some(call => call[0].endsWith("/publish"))).toBe(false);
-});
 it("name conflicts and server review failures retain local edits and never publish", async () => {
   const store = usePageDesignerStore(); await store.load("page"); store.state.schema.fields.push(createField("text", { id: "duplicate", label: "名称" }));
-  expect(await store.preparePublication()).toBeUndefined(); expect(store.error).toContain("同名"); expect(store.state.schema.fields).toHaveLength(2);
+  expect(await store.publish()).toBe(false); expect(store.error).toContain("同名"); expect(store.state.schema.fields).toHaveLength(2);
   expect(vi.mocked(platformApi).mock.calls).toHaveLength(1);
   store.state.schema.fields.pop();
   vi.mocked(platformApi).mockRejectedValueOnce(new PlatformError("数据模型已更新", 409));
-  expect(await store.preparePublication()).toBeUndefined(); expect(store.error).toBe("数据模型已更新");
+  expect(await store.publish()).toBe(false); expect(store.error).toBe("数据模型已更新");
   expect(saved.draft.latestVersion).toBe(1);
 });
 it("discarding a saved page draft replaces state and resets editing history without saving current input", async () => {

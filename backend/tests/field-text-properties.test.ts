@@ -5,7 +5,7 @@ import {
   separateFormSchema,
   type FormSchema,
 } from "@platform/contracts";
-import { parseSchema } from "../src/core/database/schema";
+import { parseSchema } from "../src/modules/records/record-schema";
 import { parseModel, parsePage } from "../src/modules/pages/page-schema";
 import { field, schema } from "./helpers";
 

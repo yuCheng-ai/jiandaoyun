@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 import { describe, expect, it } from "vitest";
 import {
   createField,
@@ -7,7 +8,6 @@ import {
 } from "../src/domain/form";
 import {
   newForm,
-  seedWorkspace,
   type FormEntry,
 } from "../src/domain/workspace";
 import {

@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-} from "@nestjs/common";
-import { randomUUID } from "node:crypto";
+import { BadRequestException, ConflictException, Injectable } from "@nestjs/common";
 import {
   directoryCanonical,
   mergeDirectory,
@@ -13,11 +8,13 @@ import {
   type DirectorySpec,
   type OrganizationSpec,
 } from "@platform/contracts";
-import { type Actor, requireAdmin } from "../../core/auth/auth.service";
+import { randomUUID } from "node:crypto";
+import { requireAdmin, type Actor } from "../../core/auth/auth.service";
+import { once } from "../../core/database/commands";
 import { Database, type Transaction } from "../../core/database/database";
+import { object, uuid } from "../../core/validation";
 import { OrganizationService } from "./organization.service";
-import { once } from "../processes/commands";
-import { object, uuid } from "../../core/database/schema";
+
 
 /** 将数据库行转换为通讯录快照 DTO */
 const dto = (row: any): DirectorySnapshot => ({

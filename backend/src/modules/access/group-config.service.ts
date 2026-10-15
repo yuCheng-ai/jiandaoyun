@@ -10,6 +10,8 @@ import {
   groupActionNames,
   groupScopeNames,
   groupFilterOperators,
+  eligibleRecordGroups,
+  emptyRecordGroupConfiguration,
   hasFieldValue,
   isNumericField,
   isOrganizationField,
@@ -25,8 +27,7 @@ import {
 import { Actor, requireAdmin } from "../../core/auth/auth.service";
 import { Database, Transaction } from "../../core/database/database";
 import { OrganizationService } from "../directory/organization.service";
-import { identifier, object, title, uuid } from "../../core/database/schema";
-import { directGroupConfiguration, eligibleRecordGroups } from "./access.service";
+import { identifier, object, title, uuid } from "../../core/validation";
 
 /** 校验配置对象是否仅包含受支持的属性键 */
 const assertAllowedKeys = (raw: Record<string, unknown>, allowed: string[]) => {
@@ -81,8 +82,8 @@ export class GroupConfigurationService {
     );
     const row = rows[0];
     return row
-      ? { ...row.config, mode: "groups", allowMerged: true, revision: row.revision }
-      : directGroupConfiguration();
+      ? { groups: row.config.groups, mode: "groups", allowMerged: true, revision: row.revision }
+      : emptyRecordGroupConfiguration();
   }
 
   /** 获取表单的权限组完整配置（仅管理员可访问） */
@@ -102,7 +103,7 @@ export class GroupConfigurationService {
 
       if (actor.role === "admin") {
         return {
-          mode: "direct",
+          administrator: true,
           revision: config.revision,
           allowMerged: true,
           groups: [],
@@ -116,7 +117,7 @@ export class GroupConfigurationService {
       }
 
       return {
-        mode: "groups",
+        administrator: false,
         revision: config.revision,
         allowMerged: true,
         groups: groups.map(({ id: groupId, name, actions }) => ({ id: groupId, name, actions })),
@@ -215,7 +216,7 @@ export class GroupConfigurationService {
         [actor.workspaceId],
       );
       for (const form of forms) {
-        const config = form.config || directGroupConfiguration();
+        const config = form.config || emptyRecordGroupConfiguration();
         let groups: RecordPermissionGroup[] = [];
         if (memberActor?.role === "member") {
           groups = eligibleRecordGroups(memberActor, organization, config);

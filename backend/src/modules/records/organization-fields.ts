@@ -7,6 +7,7 @@ import {
   isOrganizationField,
   organizationDepartments,
   organizationSubjectMembers,
+  type FieldValidationIssue,
   type FormField,
   type FormSchema,
   type FormValues,
@@ -301,8 +302,15 @@ export function validateOrganizationValues(
   organization: ServerOrganization,
   actorId: string,
   before?: FormValues,
+  visibleFieldIds?: ReadonlySet<string>,
 ) {
-  const check = (field: FormField, current: FormValues, previous?: FormValues) => {
+  const issues: FieldValidationIssue[] = [];
+  const check = (
+    field: FormField,
+    current: FormValues,
+    previous?: FormValues,
+    location: Omit<FieldValidationIssue, "fieldId" | "message"> = {},
+  ) => {
     if (!isOrganizationField(field.type)) return;
 
     const dependency =
@@ -322,9 +330,12 @@ export function validateOrganizationValues(
     );
 
     if (ids(current[field.id]).some((id) => !allowed.has(id) && !retained.has(id))) {
-      throw new BadRequestException(
-        `「${field.label}」包含已停用或不在当前选择范围内的成员／部门，请重新选择`,
-      );
+      const message = `「${field.label}」包含已停用或不在当前选择范围内的成员／部门，请重新选择`;
+      if (!visibleFieldIds) throw new BadRequestException(message);
+      if (!visibleFieldIds.has(field.id)) {
+        throw new BadRequestException("组织字段不符合当前选择范围，请联系表单管理员");
+      }
+      issues.push({ fieldId: field.id, ...location, message });
     }
   };
 
@@ -334,13 +345,20 @@ export function validateOrganizationValues(
     } else {
       const rows = (values[field.id] || []) as FormValues[];
       const oldRows = before?.[field.id] as FormValues[] | undefined;
-      for (const row of rows) {
+      for (const [rowIndex, row] of rows.entries()) {
         const old = oldRows?.find((item) => item._rowId === row._rowId);
         for (const child of field.children) {
-          check(child, { ...values, ...row }, old && { ...before, ...old });
+          check(child, { ...values, ...row }, old && { ...before, ...old }, {
+            subformId: field.id,
+            rowId: row._rowId as string,
+            rowIndex,
+          });
         }
       }
     }
+  }
+  if (issues.length) {
+    throw new BadRequestException({ message: issues[0]!.message, issues });
   }
 }
 

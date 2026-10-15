@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRouter } from "vue-router";
 import RecordEditorSurface from "./RecordEditorSurface.vue";
 import SubmissionReceipt from "../../components/shared/SubmissionReceipt.vue";
@@ -10,6 +10,7 @@ import type {
   RecordDetail,
   RemovedRecordRow,
   CollectionStatus,
+  FieldValidationIssue,
 } from "@platform/contracts";
 import {
   isDepartmentField,
@@ -173,7 +174,7 @@ async function runAfterLeave(action: () => void | Promise<void>) {
   }
   await action();
 }
-defineExpose({ runAfterLeave, save, dirty, busy: working });
+defineExpose({ runAfterLeave, save, dirty, busy: working, showValidation });
 const confirmRouteLeave = () => !working.value && confirmLeave();
 onBeforeRouteLeave(confirmRouteLeave);
 onBeforeRouteUpdate(confirmRouteLeave);
@@ -226,7 +227,7 @@ watch(
 );
 const defaultIssues = computed(() => {
   const schema = active.value.definition.schema,
-    issues: string[] = [];
+    issues: FieldValidationIssue[] = [];
   for (const field of schema.fields) {
     const check = (item: FormField, data: FormValues, parent?: FormField) => {
       if (
@@ -235,7 +236,12 @@ const defaultIssues = computed(() => {
         editable(item, parent, parent ? data : undefined) &&
         formulaValue(item, schema.fields, { ...values.value, ...data }).error
       )
-        issues.push(`「${item.label}」默认值未计算完成，请检查相关填写内容。`);
+        issues.push({
+          fieldId: item.id,
+          subformId: parent?.id,
+          rowId: parent ? String(data._rowId) : undefined,
+          message: "默认值未计算完成，请检查相关填写内容。",
+        });
     };
     if (field.type === "subform")
       rows(field.id).forEach((row) =>
@@ -243,7 +249,7 @@ const defaultIssues = computed(() => {
       );
     else check(field, values.value);
   }
-  return [...new Set(issues)];
+  return issues;
 });
 const canAddRow = (field: FormField) =>
   current.value
@@ -473,6 +479,139 @@ const formIssues = computed(() =>
 const warningIssues = computed(() =>
   formIssues.value.filter((issue) => issue.mode === "warn"),
 );
+const formBody = ref<HTMLElement>();
+const serverIssues = ref<
+  { issue: FieldValidationIssue; value: string | undefined }[]
+>([]);
+
+function issueValue(issue: FieldValidationIssue) {
+  if (!issue.subformId) return JSON.stringify(values.value[issue.fieldId]);
+  const detailRows = rows(issue.subformId);
+  if (issue.rowId) {
+    const row = detailRows.find((item) => item._rowId === issue.rowId);
+    return JSON.stringify(row?.[issue.fieldId]);
+  }
+  return JSON.stringify(detailRows.map((row) => row[issue.fieldId]));
+}
+
+function issueVisible(issue: FieldValidationIssue) {
+  const parent = active.value.definition.schema.fields.find(
+    (field) => field.id === (issue.subformId || issue.fieldId),
+  );
+  if (!parent || !visible(parent)) return false;
+  if (!issue.subformId) return true;
+  const field = parent.children.find((child) => child.id === issue.fieldId);
+  if (!field) return false;
+  if (!issue.rowId) return true;
+  const row = rows(parent.id).find((item) => item._rowId === issue.rowId);
+  return !!row && visible(field, row);
+}
+
+async function focusFirstError() {
+  await nextTick();
+  const target =
+    formBody.value?.querySelector<HTMLElement>(
+      '[data-validation-target][aria-invalid="true"]',
+    ) ||
+    formBody.value?.querySelector<HTMLElement>("[data-validation-summary]");
+  if (!target) return;
+  target.scrollIntoView({ block: "center", inline: "nearest" });
+  const input = target.querySelector<HTMLElement>(
+    'input:not(:disabled):not([type="hidden"]), textarea:not(:disabled), select:not(:disabled), [contenteditable="true"], button:not(:disabled)',
+  );
+  (input || target).focus({ preventScroll: true });
+}
+
+function showValidation(cause: unknown) {
+  if (!(cause instanceof PlatformError) || !cause.issues.length) return false;
+  const issues: FieldValidationIssue[] = [];
+  for (const item of cause.issues) {
+    const issue = { ...item };
+    if (issue.subformId) {
+      const detailRows = rows(issue.subformId);
+      const existingRow = detailRows.find((row) => row._rowId === issue.rowId);
+      // 新行尚未获得服务端行 ID，接收时绑定当前行，插入或删除后提示不会串行。
+      if (!existingRow && issue.rowIndex !== undefined) {
+        const row = detailRows[issue.rowIndex];
+        if (!row || !newRow(row)) continue;
+        issue.rowId = String(row._rowId);
+      }
+    }
+    if (issueVisible(issue)) issues.push(issue);
+  }
+  if (!issues.length) return false;
+  error.value = "";
+  serverIssues.value = issues.map((issue) => ({
+    issue,
+    value: issueValue(issue),
+  }));
+  void focusFirstError();
+  return true;
+}
+
+// 仅清除被修改字段的服务端错误，其他字段与其他明细行继续保留提示。
+watch(
+  values,
+  () => {
+    serverIssues.value = serverIssues.value.filter(
+      ({ issue, value }) => issueVisible(issue) && issueValue(issue) === value,
+    );
+  },
+  { deep: true },
+);
+
+function ruleTargets(ids: string[] = []) {
+  const fields = active.value.definition.schema.fields;
+  const targets = new Set<string>();
+  for (const id of ids) {
+    const field = fields.find(
+      (item) =>
+        item.id === id || item.children.some((child) => child.id === id),
+    );
+    if (field && visible(field)) targets.add(field.id);
+  }
+  return [...targets];
+}
+const globalFormIssues = computed(() =>
+  formIssues.value.filter((issue) => !ruleTargets(issue.fieldIds).length),
+);
+function fieldMessage(
+  field: FormField,
+  parent?: FormField,
+  row?: FormValues,
+  mode: "block" | "warn" = "block",
+) {
+  const matching = (issue: FieldValidationIssue) => {
+    if (parent) {
+      return (
+        issue.subformId === parent.id &&
+        issue.fieldId === field.id &&
+        issue.rowId === row?._rowId
+      );
+    }
+    return (
+      (!issue.subformId && issue.fieldId === field.id) ||
+      (issue.subformId === field.id && !issue.rowId)
+    );
+  };
+  const fieldIssues =
+    mode === "block"
+      ? serverIssues.value.map(({ issue }) => issue)
+      : defaultIssues.value;
+  const messages = fieldIssues.filter(matching).map((issue) => issue.message);
+  // 聚合规则不能定位到某一行，放在相关子表旁，不把整列标成错误。
+  if (!parent) {
+    for (const issue of formIssues.value) {
+      if (
+        issue.mode === mode &&
+        ruleTargets(issue.fieldIds).includes(field.id)
+      ) {
+        messages.push(issue.message);
+      }
+    }
+  }
+  return [...new Set(messages)].join("；");
+}
 watch(
   () => JSON.stringify(values.value),
   (after, before) => {
@@ -515,6 +654,7 @@ async function save(
     if (blocked) {
       error.value = "";
       warning.value = undefined;
+      void focusFirstError();
       return false;
     }
     const fingerprint = validationFingerprint(mode);
@@ -603,6 +743,7 @@ async function save(
       replaceValues(JSON.parse(JSON.stringify(result.record.values)));
       removedRows.value = [];
     }
+    serverIssues.value = [];
     markSaved();
     if ((props.embedded && !current.value && mode !== "draft") || submitting) {
       submission.value = { ...receipt, processId: result.processId };
@@ -610,7 +751,16 @@ async function save(
     emit("saved", result);
     return true;
   } catch (cause) {
+    if (showValidation(cause)) return false;
+    if (
+      cause instanceof PlatformError &&
+      (cause.status === 0 || cause.status >= 500)
+    ) {
+      notify(cause.message, "error");
+      return false;
+    }
     error.value = (cause as Error).message;
+    void focusFirstError();
     if (cause instanceof PlatformError && cause.collection)
       collection.value = cause.collection;
     conflict.value =
@@ -634,6 +784,7 @@ async function reload() {
     replaceValues(JSON.parse(JSON.stringify(fresh.record.values)));
     removedRows.value = [];
     markSaved();
+    serverIssues.value = [];
     checkedSubmission.value = false;
     touchedRules.value = [];
     warning.value = undefined;
@@ -652,6 +803,7 @@ function relationUpdated(result: RecordDetail) {
   replaceValues(JSON.parse(JSON.stringify(result.record.values)));
   removedRows.value = [];
   error.value = "";
+  serverIssues.value = [];
   conflict.value = false;
   markSaved();
   // 回填可能完成数据交接；失去查看权限时沿用普通保存的关闭和列表刷新。
@@ -674,7 +826,7 @@ function relationUpdated(result: RecordDetail) {
       @continue="emit('continue')"
       @view-process="viewProcess"
     />
-    <div v-else>
+    <div v-else ref="formBody">
       <p v-if="current?.task?.rowId" class="collab-notice">
         本次仅处理指定明细行。
       </p>
@@ -717,7 +869,13 @@ function relationUpdated(result: RecordDetail) {
       <p v-if="current?.creator" class="collab-help">
         创建人：{{ organizationIdentityLabel(current.creator) }}
       </p>
-      <div v-if="error" class="collab-error" role="alert">
+      <div
+        v-if="error"
+        class="collab-error"
+        role="alert"
+        data-validation-summary
+        tabindex="-1"
+      >
         {{ error
         }}<button
           v-if="conflict"
@@ -728,19 +886,10 @@ function relationUpdated(result: RecordDetail) {
         </button>
       </div>
       <p
-        v-for="issue in defaultIssues"
-        :key="issue"
-        class="collab-error"
-        role="alert"
-      >
-        {{ issue }}
-      </p>
-      <p v-if="uploading" class="collab-notice" role="status">
-        附件上传中，请稍候再保存。
-      </p>
-      <p
-        v-for="issue in formIssues"
+        v-for="issue in globalFormIssues"
         :key="issue.ruleId"
+        :data-validation-summary="issue.mode === 'block' ? '' : undefined"
+        tabindex="-1"
         :class="issue.mode === 'block' ? 'collab-error' : 'collab-notice'"
         :role="issue.mode === 'block' ? 'alert' : 'status'"
       >
@@ -789,6 +938,9 @@ function relationUpdated(result: RecordDetail) {
               ><small v-if="canWrite && !editable(field)"> 只读</small></label
             >
             <ServerFieldControl
+              data-validation-target
+              :error="fieldMessage(field)"
+              :warning="fieldMessage(field, undefined, undefined, 'warn')"
               :values="values"
               :field="field"
               :organization-request="organizationRequest(field)"
@@ -819,6 +971,23 @@ function relationUpdated(result: RecordDetail) {
                 添加明细
               </button>
             </div>
+            <p
+              v-if="
+                fieldMessage(field) ||
+                fieldMessage(field, undefined, undefined, 'warn')
+              "
+              data-validation-target
+              :aria-invalid="!!fieldMessage(field) || undefined"
+              tabindex="-1"
+              class="record-field-feedback"
+              :class="{ warning: !fieldMessage(field) }"
+              :role="fieldMessage(field) ? 'alert' : 'status'"
+            >
+              {{
+                fieldMessage(field) ||
+                fieldMessage(field, undefined, undefined, "warn")
+              }}
+            </p>
             <div class="collab-table-wrap">
               <table class="collab-table">
                 <thead>
@@ -844,6 +1013,9 @@ function relationUpdated(result: RecordDetail) {
                     <td v-for="child in field.children" :key="child.id">
                       <ServerFieldControl
                         v-if="visible(child, row)"
+                        data-validation-target
+                        :error="fieldMessage(child, field, row)"
+                        :warning="fieldMessage(child, field, row, 'warn')"
                         :values="{ ...values, ...row }"
                         :field="child"
                         :organization-request="
@@ -1036,3 +1208,16 @@ function relationUpdated(result: RecordDetail) {
     >
   </BaseDialog>
 </template>
+
+<style scoped>
+.record-field-feedback {
+  margin: 0;
+  color: #c13c36;
+  font-size: 12px;
+  line-height: 1.6;
+  outline: none;
+}
+.record-field-feedback.warning {
+  color: #a26b16;
+}
+</style>

@@ -1,20 +1,23 @@
 import { BadRequestException, ConflictException, Injectable } from "@nestjs/common";
-import { createHash, randomUUID } from "node:crypto";
 import {
   dataModelChanges,
-  separateFormSchema,
-  isOrganizationField,
   fieldValueLabel,
+  isOrganizationField,
+  separateFormSchema,
   type FormField,
   type FormSchema,
   type FormValues,
   type RecordUpgradePlan,
 } from "@platform/contracts";
+import { createHash, randomUUID } from "node:crypto";
 import { Actor, requireAdmin } from "../../core/auth/auth.service";
+import { once } from "../../core/database/commands";
 import { Database, Transaction } from "../../core/database/database";
-import { PlatformService } from "./platform.service";
-import { once } from "../processes/commands";
-import { cellKey, object, scalar } from "../../core/database/schema";
+import { object } from "../../core/validation";
+import { scalar } from "./field-values";
+import { cellKey } from "./record-schema";
+import { RecordValuesService } from "./record-values.service";
+import { RecordService } from "./records.service";
 
 /**
  * 计算存量记录向新版数据模型升级后的字段值与单元格版本号：
@@ -84,12 +87,13 @@ function valuesForUpgrade(
 export class RecordEvolutionService {
   constructor(
     private readonly db: Database,
-    private readonly platform: PlatformService,
+    private readonly values: RecordValuesService,
+    private readonly recordService: RecordService,
   ) {}
 
   /** 计算升级后的拟定记录值及用于确认默认值未发生漂移的摘要 Token */
   private async proposed(tx: Transaction, actor: Actor, source: any) {
-    const resolve = await this.platform.defaultResolver(
+    const resolve = await this.values.defaultResolver(
       tx,
       actor,
       source.target.schema,
@@ -100,7 +104,7 @@ export class RecordEvolutionService {
       true,
     );
     const updated = valuesForUpgrade(source.row, source.version.schema, source.target.schema, resolve);
-    await this.platform.validateRecordOrganizations(
+    await this.values.validateRecordOrganizations(
       tx,
       actor,
       source.target.schema,
@@ -140,13 +144,13 @@ export class RecordEvolutionService {
       throw new BadRequestException("请选择有效的数据版本");
     }
 
-    const meta = await this.platform.loadRecord(tx, actor, id);
+    const meta = await this.recordService.loadRecord(tx, actor, id);
     if (meta.row.state === "draft") {
       throw new ConflictException("请先按原版本补全并提交草稿，再检查数据版本更新");
     }
 
-    await this.platform.definition(tx, actor, meta.row.definition_id, "FOR SHARE");
-    const source = await this.platform.loadRecord(tx, actor, id, lock);
+    await this.recordService.definition(tx, actor, meta.row.definition_id, "FOR SHARE");
+    const source = await this.recordService.loadRecord(tx, actor, id, lock);
 
     if (definitionId && source.row.definition_id !== definitionId) {
       throw new BadRequestException("记录不属于此页面的数据对象");
@@ -204,7 +208,7 @@ export class RecordEvolutionService {
         const updated = await this.proposed(tx, actor, source);
         plan.defaultsToken = updated.token;
 
-        const labels = await this.platform.identityLabels(
+        const labels = await this.values.identityLabels(
           tx,
           actor,
           source.target.schema,
@@ -305,7 +309,7 @@ export class RecordEvolutionService {
         return id;
       });
 
-      return this.platform.detailIn(tx, actor, recordId);
+      return this.recordService.detailIn(tx, actor, recordId);
     };
 
     return transaction ? write(transaction) : this.db.transaction(write);

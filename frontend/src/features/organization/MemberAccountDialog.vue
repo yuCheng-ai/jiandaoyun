@@ -167,7 +167,6 @@ onBeforeRouteLeave(() => {
       </button>
       <button v-else class="button" @click="discard">放弃修改</button>
     </div>
-    <p v-if="busy" role="status">正在处理…</p>
     <button v-if="!loaded && !busy" class="button" @click="load">
       重新读取账号
     </button>

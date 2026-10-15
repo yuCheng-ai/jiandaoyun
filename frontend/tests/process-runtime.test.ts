@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createApp, defineComponent, h, nextTick } from "vue";
 import type { RecordDetail } from "@platform/contracts";
 import RecordEditor from "../src/features/collaboration/RecordEditor.vue";
@@ -11,6 +11,14 @@ vi.mock("../src/repositories/platformApi", async original => ({ ...await origina
 vi.mock("../src/components/BaseDialog.vue", () => ({ default: defineComponent({ props: ['open', 'title'], setup(props, { slots }) { return () => props.open ? h('section', { 'aria-label': props.title }, [slots.default?.(), slots.footer?.()]) : null; } }) }));
 const schema = emptySchema(); const name = createField('text'); name.id = 'name'; name.label = '名称'; schema.fields.push(name);
 const detail = { task: { processId: 'process', taskId: 'task', title: '办理任务', writable: true }, page: { id: 'page', version: 2, title: '填写页' }, definition: { id: 'object', title: '对象', version: 2, schema }, access: { read: true, create: false, edit: true, fields: { name: 'edit' } }, record: { id: 'record', revision: 1, values: { name: '原值' }, cellRevisions: { name: 1 } } } as unknown as RecordDetail;
+// jsdom 不实现滚动；保留真实的校验聚焦流程，只补浏览器的滚动能力。
+const originalScrollIntoView = Element.prototype.scrollIntoView;
+beforeEach(() => {
+  Element.prototype.scrollIntoView = vi.fn();
+});
+afterAll(() => {
+  Element.prototype.scrollIntoView = originalScrollIntoView;
+});
 let app: ReturnType<typeof createApp> | undefined;
 beforeEach(() => { vi.mocked(platformApi).mockReset(); document.body.innerHTML = '<div id="mount"></div>'; });
 afterEach(() => { app?.unmount(); document.body.innerHTML = ''; });

@@ -1,15 +1,17 @@
 import { BadRequestException } from "@nestjs/common";
 import {
   defaultPageSettings,
+  formulaSyntaxError,
+  formulaTypes,
   separateFormSchema,
   validateVisibilityRules,
-  formulaTypes,
-  formulaSyntaxError,
   type FormSchema,
   type RecycledField,
 } from "@platform/contracts";
-import { allFields, identifier, object } from "../../core/database/schema";
+import { identifier, object } from "../../core/validation";
+import { allFields } from "../records/record-schema";
 import { parseModel, parsePage } from "./page-schema";
+
 
 const ALLOWED_TRASH_KEYS = ["field", "parentId", "rules"];
 

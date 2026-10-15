@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import type { ProcessView, RecordDetail } from "@platform/contracts";
-import { platformApi } from "../../repositories/platformApi";
+import { platformApi, PlatformError } from "../../repositories/platformApi";
 import { useNotices } from "../../stores/notices";
 import BaseDialog from "../../components/BaseDialog.vue";
 import RecordEditor from "../collaboration/RecordEditor.vue";
@@ -132,6 +132,14 @@ async function complete() {
     notify("已提交办理");
     emit("updated");
   } catch (cause) {
+    if (editor.value?.showValidation(cause)) return;
+    if (
+      cause instanceof PlatformError &&
+      (cause.status === 0 || cause.status >= 500)
+    ) {
+      notify(cause.message, "error");
+      return;
+    }
     error.value = (cause as Error).message;
   } finally {
     submitting.value = false;

@@ -4,24 +4,25 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { randomUUID, scryptSync } from "node:crypto";
 import type {
   AccountUser,
-  MemberAccountSource,
   MemberAccountLink,
+  MemberAccountSource,
   MemberAccounts,
 } from "@platform/contracts";
+import { randomUUID, scryptSync } from "node:crypto";
 import {
   type Actor,
   passwordHash,
   requireAdmin,
   sessionTokenHash,
 } from "../../core/auth/auth.service";
+import { once } from "../../core/database/commands";
 import { Database, type Transaction } from "../../core/database/database";
-import { OrganizationService } from "./organization.service";
+import { object, title, uuid } from "../../core/validation";
 import { DirectoryService } from "./directory.service";
-import { once } from "../processes/commands";
-import { object, title, uuid } from "../../core/database/schema";
+import { OrganizationService } from "./organization.service";
+
 
 const USER_COLUMNS = "id, username, name, role, active, account_revision AS revision";
 
@@ -66,6 +67,16 @@ export class AccountService {
     private readonly organizations: OrganizationService,
     private readonly directory: DirectoryService,
   ) {}
+
+  /** 获取当前工作空间下的有效成员列表（仅管理员） */
+  async activeUsers(actor: Actor) {
+    requireAdmin(actor);
+    const { rows } = await this.db.query(
+      "SELECT id, name, username, role FROM users WHERE workspace_id = $1 AND active ORDER BY username",
+      [actor.workspaceId],
+    );
+    return rows;
+  }
 
   /** 查询指定命名空间下所有登录账号及通讯录成员绑定关系 */
   async memberAccounts(actor: Actor, namespace: string): Promise<MemberAccounts> {

@@ -74,6 +74,65 @@ const record = (id: string, name = "ready") =>
     secret: "内部内容",
     lines: [{ a: "A", b: "B" }],
   });
+test("record selection headers stay out of authentication and directory while every record entry validates them", async () => {
+  const malformed = { "X-Platform-Access-Groups": "[]" };
+  const identity = await h.request("/auth/me", "GET", undefined, "editor", 200, malformed);
+  assert.equal(identity.id, editor.id);
+  assert.equal(Object.hasOwn(identity, "accessGroups"), false);
+  await h.request("/organization", "GET", undefined, "admin", 200, malformed);
+
+  const id = randomUUID();
+  const paths = [
+    "/applications",
+    "/definitions",
+    `/definitions/${id}/permission-groups/options`,
+    `/definitions/${id}/collection-rules`,
+    `/records/${id}`,
+    "/relations",
+    "/processes",
+    "/process-templates",
+  ];
+  for (const path of paths) {
+    const error = await h.request(path, "GET", undefined, "editor", 400, malformed);
+    assert.equal(error.message, "权限组选择格式不合法");
+  }
+  await h.request(`/pages/${id}/records`, "POST", {}, "editor", 400, malformed);
+  await h.request("/definitions", "GET", undefined, "anonymous", 401, malformed);
+
+  const tooMany = Object.fromEntries(Array.from({ length: 51 }, () => [randomUUID(), "group"]));
+  for (const choices of [
+    { invalid: "group" },
+    { [id]: "" },
+    { [id]: "x".repeat(201) },
+    { [id]: "x".repeat(12000) },
+    tooMany,
+  ]) {
+    await h.request("/definitions", "GET", undefined, "editor", 400, {
+      "X-Platform-Access-Groups": JSON.stringify(choices),
+    });
+  }
+});
+
+test("group options describe administrator bypass without a second authorization mode", async () => {
+  const def = await create();
+  const adminOptions = await h.request(`/definitions/${def.id}/permission-groups/options`);
+  assert.equal(adminOptions.administrator, true);
+  assert.equal(Object.hasOwn(adminOptions, "mode"), false);
+  assert.deepEqual(adminOptions.groups, []);
+
+  await save(def.id, [group("member-view")]);
+  const memberOptions = await h.request(
+    `/definitions/${def.id}/permission-groups/options`,
+    "GET",
+    undefined,
+    "editor",
+  );
+  assert.equal(memberOptions.administrator, false);
+  assert.deepEqual(memberOptions.groups.map((item: any) => item.id), ["member-view"]);
+  const rec = await record(def.id);
+  const denied = await request(`/records/${rec.record.id}`, def.id, "forged", 403);
+  assert.equal(denied.statusCode, 403);
+});
 test("merged fields clamp each group operation and parent before union; forged or ineligible selections fail", async () => {
   const def = await create(),
     rec = await record(def.id),
@@ -94,6 +153,9 @@ test("merged fields clamp each group operation and parent before union; forged o
   const detail = await request(`/records/${rec.record.id}`, def.id, "*");
   assert.equal(detail.access.fields.a, "read");
   assert.equal(detail.access.fields.lines, "read");
+  const narrowed = await request(`/records/${rec.record.id}`, def.id, "edit-child");
+  assert.equal(narrowed.record.values.secret, undefined);
+  assert.equal(narrowed.access.groupSelection.selection, "edit-child");
   await request(`/records/${rec.record.id}`, def.id, "*", 403, "PATCH", {
     requestId: randomUUID(),
     changes: [

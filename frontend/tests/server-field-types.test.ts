@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createApp, defineComponent, h, nextTick, ref } from "vue";
 import { separateFormSchema } from "@platform/contracts";
 import { createField, emptySchema, type FormField } from "../src/domain/form";
@@ -17,10 +17,19 @@ vi.mock("../src/repositories/platformApi", async original => ({ ...await origina
 vi.mock("../src/features/data/RecordRelations.vue", () => ({ default: { render: () => null } }));
 vi.mock("../src/components/BaseDialog.vue", () => ({ default: defineComponent({ props: ['open'], setup(props, { slots }) { return () => props.open ? h('section', [slots.default?.(), slots.footer?.()]) : null; } }) }));
 const options = [{ id: "ok", label: "合格" }, { id: "review", label: "待复核" }];
+// jsdom 不实现滚动；保留真实的校验聚焦流程，只补浏览器的滚动能力。
+const originalScrollIntoView = Element.prototype.scrollIntoView;
+beforeEach(() => {
+  Element.prototype.scrollIntoView = vi.fn();
+});
+afterAll(() => {
+  Element.prototype.scrollIntoView = originalScrollIntoView;
+});
 let app: ReturnType<typeof createApp> | undefined;
 async function settle() { for (let i = 0; i < 12; i++) await nextTick(); }
 async function mount(component: Parameters<typeof createApp>[0]) { document.body.innerHTML = '<div id="app"></div>'; app = createApp(component); app.mount('#app'); await settle(); }
-const control = <T extends HTMLElement>(label: string) => document.querySelector<T>(`[aria-label="${label}"]`)!;
+// 字段容器也带无障碍名称；交互需定位内部控件，不能点击或修改外层分组。
+const control = <T extends HTMLElement>(label: string) => document.querySelector<T>(`[aria-label="${label}"]:not(.server-field-control)`)!;
 async function fill(label: string, value: string) { const input = control<HTMLInputElement>(label); input.value = value; input.dispatchEvent(new Event('input', { bubbles: true })); await settle(); }
 afterEach(() => { app?.unmount(); vi.clearAllMocks(); });
 

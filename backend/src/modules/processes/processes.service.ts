@@ -1,4 +1,3 @@
-import { requireActiveRecord } from "../records/record-state";
 import {
   BadRequestException,
   ConflictException,
@@ -8,13 +7,6 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from "@nestjs/common";
-import { scalar } from "../pages/field-values";
-import {
-  equalFieldValues,
-  validConditionValue,
-  choiceConditionValue,
-} from "@platform/contracts";
-import { randomUUID } from "node:crypto";
 import type {
   FormSchema,
   FormValues,
@@ -25,18 +17,18 @@ import type {
   RecordDetail,
   TaskSpec,
 } from "@platform/contracts";
+import { choiceConditionValue, equalFieldValues, validConditionValue } from "@platform/contracts";
+import { randomUUID } from "node:crypto";
 import { Actor, requireAdmin, tokenHash } from "../../core/auth/auth.service";
 import { Database, Transaction } from "../../core/database/database";
 import { safeFailure } from "../../core/logging/request-logging";
-import { PlatformService } from "../pages/platform.service";
+import { identifier, object, title, uuid } from "../../core/validation";
 import { PageService } from "../pages/pages.service";
+import { scalar } from "../records/field-values";
+import { requireActiveRecord } from "../records/record-state";
+import { RecordService } from "../records/records.service";
 import { TaskContextService } from "./task-context.service";
-import {
-  identifier,
-  object,
-  uuid,
-  title,
-} from "../../core/database/schema";
+
 
 /** 后台异常不经过 HTTP 过滤器，沿用相同的安全摘要记录，不能输出表单或异常原文。 */
 function logRefreshFailure(error: unknown, context?: { id: string; workspace_id: string }) {
@@ -91,7 +83,7 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     private readonly db: Database,
-    private readonly platform: PlatformService,
+    private readonly recordService: RecordService,
     private readonly context: TaskContextService,
     private readonly pages: PageService,
   ) {}
@@ -360,7 +352,7 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
       ...new Set(rows.map((row) => row.definition_id as string)),
     ].sort();
     for (const id of definitionIds) {
-      await this.platform.definition(tx, actor, id, "FOR SHARE");
+      await this.recordService.definition(tx, actor, id, "FOR SHARE");
     }
 
     const lockMode = write ? "UPDATE" : "SHARE";
@@ -740,7 +732,7 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
               true,
             )
           : undefined;
-        const detail = await this.platform.detailIn(
+        const detail = await this.recordService.detailIn(
           tx,
           actor,
           process.submission_record_id,
@@ -852,7 +844,7 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
 
       const scope = await this.context.scope(actor, task.spec, tx);
       const record = records.get(task.record_id);
-      return this.platform.organizationOptions(
+      return this.recordService.organizationOptions(
         actor,
         record.definition_id,
         { ...body, recordId: task.record_id },
@@ -893,7 +885,7 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
         }
 
         const revision = records.get(task.record_id).revision;
-        await this.platform.patchRecord(
+        await this.recordService.patchRecord(
           actor,
           task.record_id,
           body,
@@ -909,7 +901,7 @@ export class ProcessService implements OnModuleInit, OnModuleDestroy {
         );
 
         const updated = (
-          await this.platform.loadRecord(tx, actor, task.record_id)
+          await this.recordService.loadRecord(tx, actor, task.record_id)
         ).row;
         if (updated.revision !== revision) {
           await this.event(

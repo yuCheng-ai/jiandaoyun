@@ -173,13 +173,7 @@ async function handlePublish() {
   publishing.value = true;
   error.value = "";
   try {
-    const impact = await designerStore.preparePublication();
-    if (!active) return;
-    if (!impact) {
-      error.value = designerStore.error || "发布校验未通过，请检查表单设计";
-      return;
-    }
-    const ok = await designerStore.publish(impact);
+    const ok = await designerStore.publish();
     if (!active) return;
     if (ok) {
       store.notify(`表单已发布 V${latestVersion.value}`);

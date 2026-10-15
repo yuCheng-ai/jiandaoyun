@@ -5,8 +5,8 @@ import {
   composeFormSchema,
   type FormField,
 } from "@platform/contracts";
-import { scalar } from "../src/modules/pages/field-values";
-import { parseSchema } from "../src/core/database/schema";
+import { scalar } from "../src/modules/records/field-values";
+import { parseSchema } from "../src/modules/records/record-schema";
 import { field, schema } from "./helpers";
 import { dataModelImpact } from "../src/modules/pages/model-impact";
 import type { Transaction } from "../src/core/database/database";

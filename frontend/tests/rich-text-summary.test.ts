@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 // @vitest-environment jsdom
 import { expect, it } from "vitest";
 import { copy, createField } from "../src/domain/form";
@@ -10,7 +11,6 @@ import {
 } from "../src/domain/records";
 import {
   newForm,
-  seedWorkspace,
   type FormEntry,
 } from "../src/domain/workspace";
 import { excelBytes, readExcel } from "../src/services/excel";

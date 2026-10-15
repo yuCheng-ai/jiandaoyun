@@ -1,3 +1,4 @@
+import { seedWorkspace } from "./fixtures/workspace";
 import { describe, expect, it } from "vitest";
 
 import { createField, emptySchema } from "../src/domain/form";
@@ -12,7 +13,7 @@ import {
   printTemplateReferences,
 } from "../src/domain/presentation";
 import { parseExtensions } from "../src/domain/extensions";
-import { seedWorkspace, newForm } from "../src/domain/workspace";
+import { newForm } from "../src/domain/workspace";
 function sample() {
   const schema = emptySchema();
   const tabs = createField("tabs", {
