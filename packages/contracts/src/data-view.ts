@@ -448,7 +448,6 @@ export function defaultPageSettings(): FormSchema["settings"] {
     allowDraft: true,
     draftLabel: "保存草稿",
     successMessage: "提交成功",
-    successMode: "inline",
     allowAnotherSubmission: true,
     rules: [],
     validations: [],

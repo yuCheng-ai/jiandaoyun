@@ -1018,10 +1018,10 @@ export class PlatformService {
   }
 
   /**
-   * 写入操作完成后的详情回读：
+   * 仅用于已通过写入鉴权的成功事务及其幂等回读，不可替代普通查询鉴权。
    * - 若写入后因自定义条件变更导致当前用户失去记录读取权限，在允许回执时返回 `accessLost: true` 空脱敏回执。
    */
-  private async writeDetailIn(
+  async writeDetailIn(
     tx: Transaction,
     actor: Actor,
     id: string,
@@ -1081,7 +1081,6 @@ export class PlatformService {
               submitLabel: "保存",
               allowDraft: false,
               successMessage: "",
-              successMode: "inline",
               allowAnotherSubmission: false,
               rules: [],
             },

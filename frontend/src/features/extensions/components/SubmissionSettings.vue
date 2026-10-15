@@ -25,22 +25,6 @@ const emit = defineEmits<{ save: [] }>();
         >{{ schema.settings.successMessage.length }} / 100 ·
         发布新版本后生效</span
       >
-      <fieldset class="receipt-mode">
-        <legend>展示方式</legend>
-        <label
-          ><input
-            type="radio"
-            value="inline"
-            v-model="schema.settings.successMode"
-          />表单下方提示</label
-        ><label
-          ><input
-            type="radio"
-            value="page"
-            v-model="schema.settings.successMode"
-          />显示提交结果页</label
-        >
-      </fieldset>
       <label class="receipt-repeat"
         ><input
           type="checkbox"
@@ -67,7 +51,6 @@ const emit = defineEmits<{ save: [] }>();
       ><SubmissionReceipt
         :message="schema.settings.successMessage"
         :can-continue="schema.settings.allowAnotherSubmission"
-        :mode="schema.settings.successMode"
         preview
       />
       <p class="field-hint">

@@ -419,7 +419,6 @@ export function emptySchema(): FormSchema {
       allowDraft: true,
       draftLabel: "保存草稿",
       successMessage: "提交成功",
-      successMode: "inline",
       allowAnotherSubmission: true,
       rules: [],
       validations: [],
@@ -1442,7 +1441,6 @@ export function parseSchema(raw: unknown): FormSchema {
       throw Error("特殊字段赋值规则不合法，请保留原配置并检查字段");
     settings.hiddenValueRules = copy(hiddenRules);
   }
-  settings.successMode = settings.successMode === "page" ? "page" : "inline";
   settings.successMessage = settings.successMessage.slice(0, 100);
   settings.submitLabel = settings.submitLabel.slice(0, 12);
   settings.draftLabel = (settings.draftLabel ?? "保存草稿").slice(0, 12);

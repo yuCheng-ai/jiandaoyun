@@ -1249,23 +1249,12 @@
   color: #83909e;
   line-height: 1.8;
 }
-.receipt-mode {
-  border: 0;
-  padding: 0;
-  margin: 26px 0;
-  display: grid;
-  gap: 12px;
-  font-size: 13px;
-}
-.receipt-mode legend {
-  margin-bottom: 14px;
-}
-.receipt-mode label,
 .receipt-repeat {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 13px;
+  margin-top: 24px;
 }
 .submission-preview {
   background: #f7f9fb;

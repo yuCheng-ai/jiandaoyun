@@ -74,9 +74,14 @@ const pendingPages = ref(0);
 const versionHistory = ref<ProcessTemplateVersionSummary[]>([]);
 const selectedVersion = ref(0);
 const creatingVersion = ref<number>();
+const ready = computed(() => !!page.value?.draft.latestVersion);
 const operationBusy = computed(() => busy.value || pendingPages.value > 0);
 const editingLocked = computed(
-  () => operationBusy.value || selectedVersion.value > 0,
+  () =>
+    loading.value ||
+    !ready.value ||
+    operationBusy.value ||
+    selectedVersion.value > 0,
 );
 const error = ref("");
 const helpOpen = ref(false);
@@ -85,7 +90,6 @@ const pageTitle = computed(() => page.value?.draft.title || "表单");
 const formLinked = computed(
   () => !!saved.value?.startPageId || !route.query.templateId,
 );
-const ready = computed(() => !!page.value?.draft.latestVersion);
 const selected = computed(() =>
   spec.value.tasks.find((task) => task.id === selectedId.value),
 );
@@ -417,7 +421,7 @@ function openNodeMenu({ node, event }: NodeMouseEvent) {
   };
 }
 function resetView() {
-  // 首次载入由画布的 init 事件定位，读取数据时画布还未挂载。
+  // 画布先挂载保留布局，读取完成或切换版本后再按当前宽度定位。
   if (!canvas.value) return;
   setViewport(
     { x: canvas.value.clientWidth / 2 - 80, y: 0, zoom: 1 },
@@ -1038,9 +1042,8 @@ async function removeVersion(version: number) {
       readonly-title
       @help="helpOpen = true"
     />
-    <main class="designer-shell">
-      <p v-if="loading" class="flow-message" role="status">正在读取流程…</p>
-      <div v-if="error" class="flow-message error" role="alert">
+    <main class="designer-shell" :aria-busy="loading || operationBusy">
+      <div v-if="error && page" class="flow-message error" role="alert">
         {{ error
         }}<button class="text-button" :disabled="operationBusy" @click="reload">
           重新读取
@@ -1065,8 +1068,13 @@ async function removeVersion(version: number) {
           去发布表单
         </button>
       </div>
-      <template v-if="!loading && ready">
-        <div class="toolbar" role="toolbar" aria-label="流程设计工具">
+      <template v-if="loading || !page || ready">
+        <div
+          class="toolbar"
+          role="toolbar"
+          aria-label="流程设计工具"
+          :inert="loading || !ready || undefined"
+        >
           <div class="toolbar-tools" :inert="editingLocked || undefined">
             <div class="tool-group history-tools">
               <button
@@ -1202,10 +1210,10 @@ async function removeVersion(version: number) {
             </button>
           </div>
         </div>
-        <div v-if="pendingPages" class="flow-message" role="status">
-          正在读取办理表单…
-        </div>
-        <div class="designer-body" :inert="operationBusy || undefined">
+        <div
+          class="designer-body"
+          :inert="loading || !ready || operationBusy || undefined"
+        >
           <section
             ref="canvas"
             class="canvas-area"
@@ -1217,8 +1225,8 @@ async function removeVersion(version: number) {
           >
             <VueFlow
               id="designer"
-              :nodes="nodes"
-              :edges="edges"
+              :nodes="ready ? nodes : []"
+              :edges="ready ? edges : []"
               :min-zoom="0.25"
               :max-zoom="2"
               :delete-key-code="null"
@@ -1345,7 +1353,7 @@ async function removeVersion(version: number) {
           </section>
           <PropertyPanel
             v-if="showInspector"
-            :readonly="selectedVersion > 0"
+            :readonly="editingLocked"
             v-model:tab="panelTab"
             :task="selected"
             :selected-id="selectedId"
@@ -1366,6 +1374,14 @@ async function removeVersion(version: number) {
           />
         </div>
       </template>
+      <div v-if="loading || !page || pendingPages" class="flow-loading-status">
+        <p v-if="loading || operationBusy" role="status">
+          {{ page ? "正在读取办理表单…" : "正在读取流程…" }}
+        </p>
+        <p v-else-if="error" role="alert" class="field-error">
+          {{ error }} <button class="button" @click="reload">重试</button>
+        </p>
+      </div>
     </main>
     <div
       v-if="nodeMenu"
@@ -1480,3 +1496,27 @@ async function removeVersion(version: number) {
     >
   </div>
 </template>
+<style scoped>
+.designer-shell {
+  position: relative;
+}
+.flow-loading-status {
+  position: absolute;
+  inset: 49px 0 0;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: var(--muted);
+  pointer-events: none;
+}
+.flow-loading-status > p {
+  padding: 12px 16px;
+  border-radius: 5px;
+  background: var(--canvas);
+}
+.flow-loading-status button {
+  pointer-events: auto;
+}
+</style>

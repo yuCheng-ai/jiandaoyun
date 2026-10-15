@@ -33,7 +33,11 @@ import {
   requireRelationFields,
 } from "./relation-rules";
 import { assertPageActive } from "../pages/page-lifecycle";
-import { pageAccess, type RecordPageScope } from "../pages/page-runtime";
+import {
+  pageAccess,
+  validatePageSubmission,
+  type RecordPageScope,
+} from "../pages/page-runtime";
 
 // ============================================================================
 // 1. 基础辅助函数
@@ -241,14 +245,11 @@ export class RelationService {
     });
   }
 
-  /** 加载并校验关联关系的来源记录、页面权限掩码、明细行权限与作用域数据 */
-  private async source(
+  /** 关联展示与写入沿用同一记录权限；审批中的普通成员只能从待办修改。 */
+  private async recordContext(
     tx: Transaction,
     actor: Actor,
     recordId: string,
-    relation: any,
-    rowId?: string,
-    write = false,
     page?: RecordPageScope,
   ) {
     if (page && !page.taskId) {
@@ -264,6 +265,30 @@ export class RelationService {
       source.access,
       source.version.schema,
     );
+
+    if (actor.role !== "admin" && !page?.taskId) {
+      const running = await tx.query(
+        "SELECT 1 FROM processes WHERE submission_record_id = $1 AND status = 'running'",
+        [recordId],
+      );
+      if (running.rowCount) {
+        source.access.edit = false;
+      }
+    }
+    return source;
+  }
+
+  /** 校验关联关系的来源记录、明细行权限与作用域数据。 */
+  private async source(
+    tx: Transaction,
+    actor: Actor,
+    recordId: string,
+    relation: any,
+    rowId?: string,
+    write = false,
+    page?: RecordPageScope,
+  ) {
+    const source = await this.recordContext(tx, actor, recordId, page);
 
     const spec = relation.spec as RelationSpec;
     if (source.row.definition_id !== spec.sourceDefinitionId) {
@@ -652,6 +677,10 @@ export class RelationService {
           source.row.values,
           beforeValues,
         );
+        if (spec.mappings.length) {
+          // 回填与手动改值执行相同页面校验；失败时关联、字段和审计一起回滚。
+          validatePageSubmission(page, source.row.values, source.access);
+        }
 
         const id = randomUUID();
         const snapshot = Object.fromEntries(
@@ -709,11 +738,22 @@ export class RelationService {
       });
 
       // 每次响应（包括策略变更后的幂等重试）均重新执行实时权限校验与数据脱敏
+      const record = await this.platform.writeDetailIn(
+        tx,
+        actor,
+        recordId,
+        page,
+        !page?.taskId,
+      );
+      if (record.accessLost) {
+        return { record, groups: [], link: null };
+      }
       const groups = await this.forRecordIn(tx, actor, recordId, page);
       const link = groups.flatMap((group) => group.links).find((item) => item.id === linkId) || null;
       return {
         link,
-        record: await this.platform.detailIn(tx, actor, recordId, page),
+        groups,
+        record,
       };
     });
   }
@@ -792,8 +832,18 @@ export class RelationService {
         return recordId;
       });
 
+      const record = await this.platform.writeDetailIn(
+        tx,
+        actor,
+        recordId,
+        page,
+        !page?.taskId,
+      );
+      if (record.accessLost) {
+        return { record, groups: [] };
+      }
       return {
-        record: await this.platform.detailIn(tx, actor, recordId, page),
+        record,
         groups: await this.forRecordIn(tx, actor, recordId, page),
       };
     });
@@ -815,19 +865,7 @@ export class RelationService {
     recordId: string,
     page?: RecordPageScope,
   ): Promise<RecordRelationGroup[]> {
-    if (page && !page.taskId) {
-      await assertPageActive(tx, actor, page.id);
-    }
-
-    const source = await this.platform.loadRecord(tx, actor, recordId);
-    requireActiveRecord(source.row);
-    source.access = pageAccess(
-      page,
-      source.row.definition_id,
-      source.row.definition_version,
-      source.access,
-      source.version.schema,
-    );
+    const source = await this.recordContext(tx, actor, recordId, page);
 
     const defSql = `
       SELECT d.*, v.spec

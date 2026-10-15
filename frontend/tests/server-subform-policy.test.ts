@@ -4,7 +4,11 @@ import { createApp, h, nextTick } from 'vue';
 import RecordEditor from '../src/features/collaboration/RecordEditor.vue';
 import { createField, emptySchema } from '../src/domain/form';
 import { platformApi } from '../src/repositories/platformApi';
-vi.mock('vue-router', () => ({ onBeforeRouteLeave: vi.fn() }));
+vi.mock('vue-router', () => ({
+  onBeforeRouteLeave: vi.fn(),
+  onBeforeRouteUpdate: vi.fn(),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+}));
 vi.mock('../src/repositories/platformApi', async original => ({ ...await original<typeof import('../src/repositories/platformApi')>(), platformApi: vi.fn() }));
 vi.mock('../src/features/data/RecordRelations.vue', () => ({ default: { template: '<div />' } }));
 let app: ReturnType<typeof createApp> | undefined;

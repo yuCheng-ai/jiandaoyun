@@ -14,26 +14,20 @@ import {
 } from "../src/domain/form";
 
 describe("form schema and runtime", () => {
-  it("migrates submission settings and rejects unknown display modes", () => {
+  it("migrates submission settings and preserves explicit choices", () => {
     const legacy = emptySchema() as any;
-    delete legacy.settings.successMode;
     delete legacy.settings.allowAnotherSubmission;
     delete legacy.settings.allowSubmit;
     delete legacy.settings.draftLabel;
     expect(parseSchema(legacy).settings).toMatchObject({
-      successMode: "inline",
       allowAnotherSubmission: true,
       allowSubmit: true,
       draftLabel: "保存草稿",
     });
-    legacy.settings.successMode = "redirect-script";
-    expect(parseSchema(legacy).settings.successMode).toBe("inline");
-    legacy.settings.successMode = "page";
     legacy.settings.allowAnotherSubmission = false;
     legacy.settings.allowSubmit = false;
     legacy.settings.draftLabel = "暂存";
     expect(parseSchema(legacy).settings).toMatchObject({
-      successMode: "page",
       allowAnotherSubmission: false,
       allowSubmit: false,
       draftLabel: "暂存",

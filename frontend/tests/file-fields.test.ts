@@ -182,6 +182,9 @@ it("invalid single replacement preserves the original file and shows the reason"
   expect(value.value).toHaveLength(1);
 });
 it("storage errors preserve existing values and leave upload available for retry", async () => {
+  vi.spyOn(fileRepository, "saveFiles").mockRejectedValueOnce(
+    new Error("文件保存失败，请重试"),
+  );
   const field = createField("file");
   const value = ref<FileValue[]>([file()]);
   await mount({
@@ -200,6 +203,17 @@ it("storage errors preserve existing values and leave upload available for retry
   expect(document.querySelector('[aria-busy="true"]')).toBeNull();
 });
 it("saved files can be reordered/removed without changing identities; readonly files remain viewable", async () => {
+  vi.spyOn(fileRepository, "saveFiles").mockImplementation(async (files) =>
+    files.map((f, i) => ({
+      id: `saved-${f.name}-${i}`,
+      name: f.name,
+      size: f.size,
+      type: f.type,
+    })),
+  );
+  vi.spyOn(fileRepository, "readFile").mockResolvedValue(
+    new Blob(["content"], { type: "text/plain" }),
+  );
   vi.stubGlobal(
     "URL",
     class extends URL {

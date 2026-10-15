@@ -4,7 +4,11 @@ import { createApp, defineComponent, h, nextTick } from "vue";
 import { createField, emptySchema } from "../src/domain/form";
 import RecordEditor from "../src/features/collaboration/RecordEditor.vue";
 import { platformApi, PlatformError } from "../src/repositories/platformApi";
-vi.mock("vue-router", () => ({ onBeforeRouteLeave: vi.fn() }));
+vi.mock("vue-router", () => ({
+  onBeforeRouteLeave: vi.fn(),
+  onBeforeRouteUpdate: vi.fn(),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+}));
 vi.mock("../src/repositories/platformApi", async original => ({ ...await original<typeof import('../src/repositories/platformApi')>(), platformApi: vi.fn() }));
 vi.mock("../src/features/data/RecordRelations.vue", () => ({ default: { render: () => h('div', '业务关联入口') } }));
 vi.mock("../src/components/BaseDialog.vue", () => ({ default: defineComponent({ props: ['open'], setup(props, { slots }) { return () => props.open ? h('section', [slots.default?.(), slots.footer?.()]) : null; } }) }));

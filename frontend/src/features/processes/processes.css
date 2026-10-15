@@ -14,6 +14,7 @@
 }
 .process-status {
   display: inline-block;
+  white-space: nowrap;
   padding: 3px 8px;
   border-radius: 4px;
   background: #f0f3f7;
@@ -97,6 +98,15 @@
   background: #f7faff;
   margin-top: 16px;
   border-radius: 4px;
+}
+/* 按正文可用宽度收起辅助列，人员与时间仍可在申请详情中查看。 */
+@container (max-width: 620px) {
+  .process-instance-table .process-context {
+    display: none;
+  }
+  .process-instance-table td:last-child {
+    white-space: nowrap;
+  }
 }
 @media (max-width: 650px) {
   .process-config-grid {

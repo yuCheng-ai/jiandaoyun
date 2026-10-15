@@ -27,16 +27,16 @@ it('archive reviews current page revision, dependencies and retained tasks befor
   await mount(); expect(document.body.textContent).toContain('2 个未完成任务'); expect(document.body.textContent).toContain('办理流程');
   expect(vi.mocked(platformApi).mock.calls).toEqual([['/pages/page/draft'], ['/pages/page/lifecycle-preview', 'POST', { action: 'archive', expectedRevision: 3 }]]);
   await click('取消'); expect(close).toHaveBeenCalledOnce(); expect(saved).not.toHaveBeenCalled();
-  await click('确认归档页面'); expect(vi.mocked(platformApi).mock.calls.at(-1)).toEqual(['/pages/page/archive', 'POST', { expectedRevision: 3, impactToken: 'reviewed' }]); expect(saved).toHaveBeenCalledOnce();
+  await click('确认归档'); expect(vi.mocked(platformApi).mock.calls.at(-1)).toEqual(['/pages/page/archive', 'POST', { expectedRevision: 3, impactToken: 'reviewed' }]); expect(saved).toHaveBeenCalledOnce();
 });
 it('stale lifecycle review disables confirmation and requires a new preview, without reporting success', async () => {
   await mount(); vi.mocked(platformApi).mockRejectedValueOnce(new PlatformError('使用情况已变化', 409));
-  await click('确认归档页面'); expect(button('确认归档页面').disabled).toBe(true); expect(saved).not.toHaveBeenCalled(); expect(document.body.textContent).toContain('使用情况已变化');
-  impact.token = 'fresh'; await click('重新检查'); await click('确认归档页面'); expect(vi.mocked(platformApi).mock.calls.at(-1)?.[2]).toEqual({ expectedRevision: 3, impactToken: 'fresh' });
+  await click('确认归档'); expect(button('确认归档').disabled).toBe(true); expect(saved).not.toHaveBeenCalled(); expect(document.body.textContent).toContain('使用情况已变化');
+  impact.token = 'fresh'; await click('重新检查'); await click('确认归档'); expect(vi.mocked(platformApi).mock.calls.at(-1)?.[2]).toEqual({ expectedRevision: 3, impactToken: 'fresh' });
 });
 it('restore surfaces model changes and preserves the original page version instead of publishing', async () => {
   impact.warnings = ['数据字段已调整，恢复后仍使用 V1']; await mount('restore');
-  expect(document.body.textContent).toContain('数据字段已调整'); expect(document.body.textContent).toContain('原页面入口重新可用');
-  await click('确认恢复页面'); expect(vi.mocked(platformApi).mock.calls.at(-1)?.[0]).toBe('/pages/page/restore');
+  expect(document.body.textContent).toContain('数据字段已调整'); expect(document.body.textContent).toContain('原表单与数据将重新可用');
+  await click('确认恢复'); expect(vi.mocked(platformApi).mock.calls.at(-1)?.[0]).toBe('/pages/page/restore');
   expect(vi.mocked(platformApi).mock.calls.some(call => call[0].endsWith('/publish'))).toBe(false); expect(saved.mock.calls[0]?.[0].archivedAt).toBeNull();
 });

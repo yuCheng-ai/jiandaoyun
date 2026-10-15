@@ -54,11 +54,11 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: [];
   saved: [record: RecordDetail];
+  updated: [record: RecordDetail];
   continue: [];
 }>();
 const submission = ref<{
   message: string;
-  mode: "inline" | "page";
   canContinue: boolean;
   processId?: string;
 }>();
@@ -88,6 +88,12 @@ async function checkCollection() {
   }
 }
 const active = computed(() => current.value || props.published);
+const title = computed(() => {
+  const formTitle = active.value.page?.title || active.value.definition.title;
+  if (submission.value) return `提交结果 · ${formTitle}`;
+  if (current.value?.task) return current.value.task.title;
+  return `${current.value ? "记录详情" : "新增记录"} · ${formTitle}`;
+});
 const settings = computed(() => active.value.definition.schema.settings ?? {});
 const canWrite = computed(() =>
   current.value ? active.value.access.edit : active.value.access.create,
@@ -573,7 +579,6 @@ async function save(
     const settings = active.value.definition.schema.settings;
     const receipt = {
       message: settings.successMessage,
-      mode: settings.successMode,
       canContinue: settings.allowAnotherSubmission,
     };
     const result = await platformApi<RecordDetail>(
@@ -599,10 +604,7 @@ async function save(
       removedRows.value = [];
     }
     markSaved();
-    if (
-      (props.embedded && !current.value && mode !== "draft") ||
-      submitting
-    ) {
+    if ((props.embedded && !current.value && mode !== "draft") || submitting) {
       submission.value = { ...receipt, processId: result.processId };
     }
     emit("saved", result);
@@ -652,29 +654,27 @@ function relationUpdated(result: RecordDetail) {
   error.value = "";
   conflict.value = false;
   markSaved();
+  // 回填可能完成数据交接；失去查看权限时沿用普通保存的关闭和列表刷新。
+  if (result.accessLost) emit("saved", result);
+  else emit("updated", result);
 }
 </script>
 <template>
   <RecordEditorSurface
     :embedded="embedded"
-    :title="
-      current?.task
-        ? current.task.title
-        : `${current ? '记录详情' : '新增记录'} · ${active.page?.title || active.definition.title}`
-    "
+    :title="title"
     :busy="working"
     @close="requestClose"
   >
     <SubmissionReceipt
-      v-if="submission?.mode === 'page'"
+      v-if="submission"
       :message="submission.message"
       :can-continue="submission.canContinue"
       :process-id="submission.processId"
-      mode="page"
       @continue="emit('continue')"
       @view-process="viewProcess"
     />
-    <div v-else :inert="!!submission || undefined">
+    <div v-else>
       <p v-if="current?.task?.rowId" class="collab-notice">
         本次仅处理指定明细行。
       </p>
@@ -903,37 +903,25 @@ function relationUpdated(result: RecordDetail) {
         @busy="busy = $event"
       />
     </div>
-    <template #footer>
-      <SubmissionReceipt
-        v-if="submission?.mode === 'inline'"
-        :message="submission.message"
-        :can-continue="submission.canContinue"
-        :process-id="submission.processId"
-        mode="inline"
-        @continue="emit('continue')"
-        @view-process="viewProcess"
-      />
-      <template v-else-if="!submission">
-        <button v-if="!embedded" class="button" @click="requestClose">
-          关闭</button
-        ><button
-          v-if="canSaveDraft"
-          class="button"
-          :disabled="busy || uploading"
-          @click="save('draft')"
-        >
-          {{ settings.draftLabel?.trim() || "保存草稿" }}</button
-        ><button
-          v-if="canSaveRecord"
-          class="button"
-          :class="{ primary: !$slots['footer-actions'] }"
-          :disabled="busy || uploading"
-          @click="save(current?.record.state === 'draft' ? 'submit' : 'active')"
-        >
-          {{ saveLabel }}
-        </button>
-        <slot name="footer-actions" />
-      </template>
+    <template v-if="!submission" #footer>
+      <button v-if="!embedded" class="button" @click="requestClose">关闭</button
+      ><button
+        v-if="canSaveDraft"
+        class="button"
+        :disabled="busy || uploading"
+        @click="save('draft')"
+      >
+        {{ settings.draftLabel?.trim() || "保存草稿" }}</button
+      ><button
+        v-if="canSaveRecord"
+        class="button"
+        :class="{ primary: !$slots['footer-actions'] }"
+        :disabled="busy || uploading"
+        @click="save(current?.record.state === 'draft' ? 'submit' : 'active')"
+      >
+        {{ saveLabel }}
+      </button>
+      <slot name="footer-actions" />
     </template>
   </RecordEditorSurface>
   <BaseDialog

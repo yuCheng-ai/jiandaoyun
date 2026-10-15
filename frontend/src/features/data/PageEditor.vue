@@ -324,8 +324,8 @@ function reuse(
   editor.select(field.id);
   editor.activeParent.value = parentId;
   inspector.value = "field";
-  interactionHint.value = "";
-  notify(`已添加「${existing.field.name}」`);
+  interactionHint.value = `已将「${existing.field.name}」放入本页，仍使用原数据字段。`;
+  notify(`已将「${existing.field.name}」放入本页`);
   inspectField();
 }
 function drag(event: DragEvent, payload: object) {
@@ -390,7 +390,8 @@ function guard(to: { fullPath: string }) {
   return true;
 }
 onBeforeRouteLeave(guard);
-onBeforeRouteUpdate(guard);
+// 同一张表单内定位字段不会丢弃编辑，只在切换表单时执行离页保护。
+onBeforeRouteUpdate((to, from) => to.path === from.path || guard(to));
 function leave() {
   leaveApproved.value = true;
   router.push(leaveTo.value);

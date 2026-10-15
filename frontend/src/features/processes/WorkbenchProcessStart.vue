@@ -9,14 +9,14 @@ import { usePlatformSession } from "../../stores/platformSession";
 import { platformApi } from "../../repositories/platformApi";
 import ProcessStartDialog from "./ProcessStartDialog.vue";
 const props = defineProps<{ applications: ApplicationSummary[] }>();
-const session = usePlatformSession(),
-  router = useRouter();
+const session = usePlatformSession();
+const router = useRouter();
 const templates = ref<(ProcessTemplateDraft & { applicationTitle: string })[]>(
   [],
 );
-const busy = ref(false),
-  error = ref(""),
-  starting = ref<ProcessTemplateDraft>();
+const busy = ref(false);
+const error = ref("");
+const starting = ref<ProcessTemplateDraft>();
 async function load() {
   if (busy.value) return;
   busy.value = true;
@@ -63,16 +63,20 @@ function start(template: ProcessTemplateDraft) {
 onMounted(load);
 </script>
 <template>
-  <section class="panel-card apps-panel">
+  <section class="panel-card apps-panel workbench-panel">
     <header class="section-heading">
       <h2>发起流程</h2>
-      <button class="button" :disabled="busy" @click="load">刷新</button>
+      <div class="section-actions">
+        <button class="button" :disabled="busy" @click="load">
+          {{ busy ? "刷新中…" : "刷新" }}
+        </button>
+      </div>
     </header>
     <p v-if="error" class="collab-error" role="alert">
       {{ error }}
       <button class="text-button" :disabled="busy" @click="load">重试</button>
     </p>
-    <p v-if="busy" role="status">正在读取…</p>
+    <p v-if="busy && !templates.length" role="status">正在读取…</p>
     <div class="process-start-list">
       <button
         v-for="template in templates"

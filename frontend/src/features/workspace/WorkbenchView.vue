@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import type { ApplicationSummary } from "@platform/contracts";
 import { usePlatformSession } from "../../stores/platformSession";
@@ -45,7 +45,7 @@ const applications = ref<ApplicationSummary[]>([]),
   busy = ref(false),
   error = ref("");
 const ready = ref(false),
-  loadedActor = ref("");
+  loadedActor = ref(session.user?.id || "");
 const dialog = ref(false),
   appName = ref(""),
   saving = ref(false),
@@ -69,18 +69,7 @@ async function load() {
   busy.value = true;
   error.value = "";
   try {
-    try {
-      await session.restore();
-    } catch (cause) {
-      // 保留已读内容，并使用页面现有的重试入口恢复首次加载失败。
-      if (!disposed) {
-        error.value =
-          cause instanceof Error
-            ? cause.message
-            : "暂时无法连接服务，请稍后重试。";
-      }
-      return;
-    }
+    // 进入页面前路由守卫已核对会话，栏目切换不再重复恢复身份。
     if (disposed) return;
     if (!session.user || loadedActor.value !== session.user.id) {
       applications.value = [];
@@ -95,8 +84,8 @@ async function load() {
     const result = await platformApi<ApplicationSummary[]>("/applications");
     if (!disposed && actor === session.user?.id) applications.value = result;
   } catch (cause) {
-    applications.value = [];
     if (cause instanceof PlatformError && cause.status === 401) {
+      applications.value = [];
       try {
         await router.replace("/login");
       } catch (failure) {
@@ -151,9 +140,18 @@ async function createApp() {
   }
 }
 // 切回应用列表时重新核对登录身份和有权访问的应用。
-function focused() {
-  if (!dialog.value && tab.value === "apps") void load();
+async function focused() {
+  if (dialog.value || tab.value !== "apps" || busy.value) return;
+  try {
+    await session.restore();
+    if (!disposed) await load();
+  } catch (cause) {
+    if (!disposed) error.value = (cause as Error).message;
+  }
 }
+watch(tab, (selected) => {
+  if (selected === "apps" || selected === "launch") void load();
+});
 onMounted(() => {
   void load();
   window.addEventListener("focus", focused);
@@ -164,9 +162,12 @@ onBeforeUnmount(() => {
 });
 </script>
 <template>
-  <div class="workspace-page">
+  <div
+    class="workspace-page"
+    :class="{ 'workbench-secondary': tab !== 'apps' }"
+  >
     <WorkspaceHeader
-      v-if="session.user && ready"
+      v-if="tab === 'apps' && session.user"
       :account="session.user"
       :busy="busy"
       @home="selectTab('apps')"
@@ -175,30 +176,40 @@ onBeforeUnmount(() => {
     />
     <main class="workbench-scroll">
       <div class="workbench-content">
-        <p v-if="error" class="collab-error workbench-message" role="alert">
-          {{ error }}
-          <button class="button" :disabled="busy" @click="load">重试</button>
-        </p>
-        <p v-if="busy" class="workbench-message" role="status">正在读取…</p>
         <div
-          v-if="ready && session.user && loadedActor === session.user.id"
+          v-if="session.user && loadedActor === session.user.id"
           class="workbench-columns"
         >
           <aside class="workbench-menu panel-card" aria-label="工作台导航">
             <button
-              v-for="item in workMenu"
-              :key="item.id"
-              :class="{
-                active: tab === item.id,
-                'menu-separator': item.id === 'launch',
-              }"
-              :aria-current="tab === item.id ? 'page' : undefined"
-              @click="selectTab(item.id)"
+              v-if="tab !== 'apps'"
+              class="workbench-home"
+              @click="selectTab('apps')"
             >
-              <AppIcon :name="item.icon" :size="18" />{{ item.title }}
+              <AppIcon name="back" :size="18" />我的应用
             </button>
+            <nav class="workbench-nav" aria-label="流程栏目">
+              <button
+                v-for="item in workMenu"
+                :key="item.id"
+                :class="{
+                  active: tab === item.id,
+                  'menu-separator': item.id === 'launch',
+                }"
+                :aria-current="tab === item.id ? 'page' : undefined"
+                @click="selectTab(item.id)"
+              >
+                <AppIcon :name="item.icon" :size="18" />{{ item.title }}
+              </button>
+            </nav>
           </aside>
           <div class="workbench-main">
+            <p v-if="error" class="collab-error" role="alert">
+              {{ error }}
+              <button class="button" :disabled="busy" @click="load">
+                重试
+              </button>
+            </p>
             <p
               v-if="route.query.notice === 'access-denied'"
               class="collab-error"
@@ -206,22 +217,26 @@ onBeforeUnmount(() => {
             >
               当前账号没有访问此页面的权限。
             </p>
-            <button
-              v-if="tab !== 'apps'"
-              class="text-button workbench-back"
-              @click="selectTab('apps')"
-            >
-              返回我的应用
-            </button>
             <ProcessWorkspace
               v-if="processScope"
               :key="`${session.user.id}-${processScope}`"
               :scope="processScope"
             />
-            <WorkbenchProcessStart
-              v-else-if="tab === 'launch'"
-              :applications="applications"
-            />
+            <template v-else-if="tab === 'launch'">
+              <!-- 应用读取成功后再加载可发起流程，重试时不把旧空列表当成无权限。 -->
+              <section
+                v-if="busy || !ready"
+                class="panel-card workbench-panel"
+                aria-busy="true"
+              >
+                <header class="section-heading"><h2>发起流程</h2></header>
+                <p class="workspace-empty" role="status">正在读取流程…</p>
+              </section>
+              <WorkbenchProcessStart
+                v-if="ready && !busy && !error"
+                :applications="applications"
+              />
+            </template>
             <section v-else class="panel-card apps-panel">
               <header class="section-heading">
                 <h2>我的应用</h2>
@@ -234,7 +249,7 @@ onBeforeUnmount(() => {
                     />
                   </div>
                   <button class="button" :disabled="busy" @click="load">
-                    刷新
+                    {{ busy ? "刷新中…" : "刷新" }}
                   </button>
                   <button
                     v-if="session.user.role === 'admin'"
@@ -245,6 +260,9 @@ onBeforeUnmount(() => {
                   </button>
                 </div>
               </header>
+              <p v-if="!ready && !error" class="workspace-empty" role="status">
+                正在读取应用…
+              </p>
               <div class="app-grid">
                 <button
                   v-for="app in apps"
@@ -259,7 +277,10 @@ onBeforeUnmount(() => {
                   ><span>{{ app.title }}</span>
                 </button>
               </div>
-              <p v-if="!busy && !error && !apps.length" class="workspace-empty">
+              <p
+                v-if="ready && !busy && !error && !apps.length"
+                class="workspace-empty"
+              >
                 {{
                   query
                     ? "没有找到匹配的应用"
@@ -308,12 +329,6 @@ onBeforeUnmount(() => {
   </div>
 </template>
 <style scoped>
-.workbench-back {
-  align-self: flex-start;
-}
-.workbench-message {
-  margin: 0 0 20px;
-}
 @media (max-width: 650px) {
   .section-heading {
     align-items: flex-start;

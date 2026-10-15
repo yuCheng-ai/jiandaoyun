@@ -4,6 +4,7 @@ import { createApp, defineComponent, h, nextTick } from "vue";
 import { createPinia } from "pinia";
 import { createMemoryHistory, createRouter, RouterView } from "vue-router";
 import ServerApplicationHome from "../src/features/workspace/ServerApplicationHome.vue";
+import AppFeedback from "../src/components/shared/AppFeedback.vue";
 import { platformApi } from "../src/repositories/platformApi";
 import { accessGroupActor } from "../src/repositories/accessGroupState";
 vi.mock("../src/stores/platformSession", () => ({
@@ -50,7 +51,9 @@ vi.mock("../src/features/collaboration/RecordEditor.vue", () => ({
 let app: ReturnType<typeof createApp>;
 const callPaths = () => vi.mocked(platformApi).mock.calls.map((c) => c[0]);
 async function settle() {
-  for (let i = 0; i < 25; i++) await nextTick();
+  for (let i = 0; i < 20; i++) await nextTick();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  for (let i = 0; i < 10; i++) await nextTick();
 }
 afterEach(() => {
   app?.unmount();
@@ -97,7 +100,7 @@ it("using a create-only page stays on own drafts before and after a successful s
   });
   await router.push("/applications/app");
   await router.isReady();
-  app = createApp({ render: () => h(RouterView) });
+  app = createApp({ render: () => h("div", [h(RouterView), h(AppFeedback)]) });
   app.use(router);
   app.use(createPinia());
   app.mount("#mount");
@@ -121,7 +124,6 @@ it("using a create-only page stays on own drafts before and after a successful s
     "已保存，当前权限不能查看这条记录",
   );
   expect(callPaths().filter((path) => path.includes("/record-list?"))).toEqual([
-    "/pages/page/record-list?version=1&state=draft&page=1",
     "/pages/page/record-list?version=1&state=draft&page=1",
   ]);
 });

@@ -283,7 +283,6 @@ export interface FormSchema {
     allowDraft: boolean;
     draftLabel?: string;
     successMessage: string;
-    successMode: "inline" | "page";
     allowAnotherSubmission: boolean;
     rules: VisibilityRule[];
     validations?: FormValidationRule[];

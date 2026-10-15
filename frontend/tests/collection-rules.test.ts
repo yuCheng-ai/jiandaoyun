@@ -12,7 +12,10 @@ import {
   mergeCollectionRules,
 } from "../src/domain/collectionRules";
 import { platformApi, PlatformError } from "../src/repositories/platformApi";
-vi.mock("vue-router", () => ({ onBeforeRouteLeave: vi.fn() }));
+vi.mock("vue-router", () => ({
+  onBeforeRouteLeave: vi.fn(),
+  onBeforeRouteUpdate: vi.fn(),
+}));
 vi.mock("../src/repositories/platformApi", async (original) => ({
   ...(await original<typeof import("../src/repositories/platformApi")>()),
   platformApi: vi.fn(),

@@ -19,14 +19,14 @@ const props = defineProps<{
   pages?: PageSummary[];
   scope?: "todo" | "started" | "handled" | "copied" | "delegation";
 }>();
-const session = usePlatformSession(),
-  templates = ref<ProcessTemplateDraft[]>([]),
-  processes = ref<ProcessSummary[]>([]);
-const busy = ref(false),
-  error = ref(""),
-  editing = ref(false),
-  selectedPage = ref(""),
-  starting = ref<ProcessTemplateDraft>();
+const session = usePlatformSession();
+const templates = ref<ProcessTemplateDraft[]>([]);
+const processes = ref<ProcessSummary[]>([]);
+const busy = ref(false);
+const error = ref("");
+const editing = ref(false);
+const selectedPage = ref("");
+const starting = ref<ProcessTemplateDraft>();
 const heading = computed(() =>
   props.scope
     ? {
@@ -37,6 +37,17 @@ const heading = computed(() =>
         delegation: "待办委托",
       }[props.scope]
     : "流程",
+);
+const emptyMessage = computed(() =>
+  props.scope
+    ? {
+        todo: "暂无待办",
+        started: "暂无已发起申请",
+        handled: "暂无已处理申请",
+        copied: "暂无抄送申请",
+        delegation: "暂无可委托的待办或委托记录",
+      }[props.scope]
+    : "暂无可查看的流程",
 );
 const router = useRouter();
 const route = useRoute();
@@ -96,10 +107,11 @@ async function load() {
   busy.value = true;
   error.value = "";
   try {
+    const query = new URLSearchParams();
+    if (props.applicationId) query.set("applicationId", props.applicationId);
+    if (props.scope) query.set("scope", props.scope);
     const result = await Promise.all([
-      platformApi<typeof processes.value>(
-        `/processes?${new URLSearchParams({ ...(props.applicationId ? { applicationId: props.applicationId } : {}), ...(props.scope ? { scope: props.scope } : {}) })}`,
-      ),
+      platformApi<ProcessSummary[]>(`/processes?${query}`),
       session.user?.role === "admin" && props.applicationId
         ? platformApi<ProcessTemplateDraft[]>(
             `/process-templates?applicationId=${props.applicationId}`,
@@ -116,33 +128,33 @@ async function load() {
 onMounted(load);
 </script>
 <template>
-  <section class="panel-card collab-section">
-    <div class="collab-toolbar">
-      <div>
-        <h2>{{ heading }}</h2>
-        <p class="collab-help">
-          {{
-            scope === "delegation"
-              ? "打开待办，选择有权限的同事接手；已委托的任务可继续查看进度。"
-              : "打开申请，查看内容与处理进度。"
-          }}
-        </p>
+  <section class="panel-card collab-section workbench-panel">
+    <header class="section-heading">
+      <h2>{{ heading }}</h2>
+      <div class="section-actions">
+        <button class="button" :disabled="busy" @click="load">
+          {{ busy ? "刷新中…" : "刷新" }}
+        </button>
+        <button
+          v-if="applicationId && session.user?.role === 'admin'"
+          class="button primary"
+          :disabled="busy"
+          @click="
+            selectedPage = availablePages[0]?.id || '';
+            editing = true;
+          "
+        >
+          新建流程
+        </button>
       </div>
-      <button class="button" :disabled="busy" @click="load">刷新列表</button
-      ><button
-        v-if="applicationId && session.user?.role === 'admin'"
-        class="button primary"
-        :disabled="busy"
-        @click="
-          selectedPage = availablePages[0]?.id || '';
-          editing = true;
-        "
-      >
-        新建流程
-      </button>
-    </div>
+    </header>
+    <p v-if="scope === 'delegation'" class="collab-help">
+      打开待办可委托同事接手，也可查看已委托任务的进度。
+    </p>
     <p v-if="error" class="collab-error" role="alert">{{ error }}</p>
-    <p v-if="busy" class="collab-help" role="status">正在读取流程…</p>
+    <p v-if="busy && !processes.length" class="collab-help" role="status">
+      正在读取流程…
+    </p>
     <template v-if="applicationId && session.user?.role === 'admin'"
       ><h3>流程模板</h3>
       <div class="collab-table-wrap">
@@ -182,7 +194,7 @@ onMounted(load);
           </tbody>
         </table>
       </div>
-      <p v-if="!busy && !templates.length" class="collab-help">
+      <p v-if="!busy && !error && !templates.length" class="collab-help">
         暂无流程模板。先发布表单，再配置流程。
       </p></template
     >
@@ -190,13 +202,16 @@ onMounted(load);
       {{ session.user?.role === "admin" ? "已发起流程" : "我参与的流程" }}
     </h3>
     <div class="collab-table-wrap">
-      <table v-if="processes.length" class="collab-table">
+      <table
+        v-if="processes.length"
+        class="collab-table process-instance-table"
+      >
         <thead>
           <tr>
             <th>流程名称</th>
-            <th>发起人</th>
-            <th>发起时间</th>
-            <th>当前办理人</th>
+            <th class="process-context">发起人</th>
+            <th class="process-context">发起时间</th>
+            <th class="process-context">当前办理人</th>
             <th>状态</th>
             <th>操作</th>
           </tr>
@@ -208,15 +223,17 @@ onMounted(load);
                 {{ process.title }}
               </button>
             </td>
-            <td>{{ process.createdByName || "—" }}</td>
-            <td>
+            <td class="process-context">{{ process.createdByName || "—" }}</td>
+            <td class="process-context">
               {{
                 new Date(process.createdAt).toLocaleString("zh-CN", {
                   hour12: false,
                 })
               }}
             </td>
-            <td>{{ process.currentAssigneeNames.join("、") || "—" }}</td>
+            <td class="process-context">
+              {{ process.currentAssigneeNames.join("、") || "—" }}
+            </td>
             <td>
               <span
                 :class="[
@@ -237,8 +254,8 @@ onMounted(load);
         </tbody>
       </table>
     </div>
-    <p v-if="!busy && !processes.length" class="collab-help">
-      暂无可查看的流程。
+    <p v-if="!busy && !error && !processes.length" class="workspace-empty">
+      {{ emptyMessage }}
     </p>
   </section>
   <BaseDialog

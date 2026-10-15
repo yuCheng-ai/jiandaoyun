@@ -294,9 +294,6 @@ export function parsePage(raw: unknown, model: DataModel, incomplete = false): F
       throw new BadRequestException("页面提交设置不合法");
     }
   }
-  if (!["inline", "page"].includes(settings.successMode)) {
-    throw new BadRequestException("提交结果展示方式不合法");
-  }
   if (
     ![1, 2, 3, 4].includes(settings.layout) ||
     !["top", "left"].includes(settings.labelPosition) ||

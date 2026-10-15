@@ -48,6 +48,9 @@
   height: calc(100% - 52px);
   overflow: auto;
 }
+.workbench-secondary .workbench-scroll {
+  height: 100%;
+}
 .workbench-content {
   max-width: 1540px;
   margin: auto;
@@ -67,8 +70,11 @@
 }
 .workbench-menu {
   padding: 12px 16px;
+  position: sticky;
+  top: 0;
 }
-.workbench-menu > button {
+.workbench-nav > button,
+.workbench-home {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -79,10 +85,23 @@
   font-size: 14px;
   border-radius: 4px;
 }
-.workbench-menu > button:hover,
-.workbench-menu > button.active {
+.workbench-nav > button:hover,
+.workbench-nav > button.active,
+.workbench-home:hover {
   color: #202938;
   background: #f6f7f9;
+}
+.workbench-menu .workbench-home {
+  margin-bottom: 8px;
+  border-bottom: 1px solid #e3e6eb;
+  border-radius: 0;
+  font-weight: 500;
+}
+.workbench-secondary .workbench-content {
+  padding-top: 16px;
+}
+.workbench-secondary .workbench-menu {
+  top: 16px;
 }
 .workbench-menu .menu-separator {
   border-top: 1px solid #e3e6eb;
@@ -96,6 +115,27 @@
   flex-direction: column;
   gap: 15px;
   min-width: 0;
+}
+/* 栏目共用同一内容边界，避免流程列表的旧外边距把正文向下挤。 */
+.workbench-panel {
+  container-type: inline-size;
+}
+.workbench-main > .workbench-panel {
+  margin: 0;
+  padding: 20px;
+  min-height: 340px;
+}
+.workbench-panel .section-heading h2 {
+  font-size: 16px;
+}
+.workbench-panel .collab-table {
+  margin-top: 0;
+}
+.workbench-panel .section-actions {
+  flex-shrink: 0;
+}
+.workbench-panel .workspace-empty {
+  min-height: 180px;
 }
 .section-heading {
   display: flex;
@@ -588,16 +628,26 @@
     gap: 12px;
   }
   .workbench-menu {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    position: static;
     width: 100%;
     padding: 8px;
   }
-  .workbench-menu > button {
+  .workbench-nav {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .workbench-nav > button {
     font-size: 11px;
     gap: 5px;
     justify-content: center;
     min-height: 38px;
+  }
+  .workbench-menu .workbench-home {
+    min-height: 40px;
+    margin-bottom: 4px;
+  }
+  .workbench-secondary .workbench-content {
+    padding-top: 12px;
   }
   .workbench-menu .menu-separator {
     border: 0;
@@ -626,6 +676,14 @@
   }
   .apps-panel {
     padding: 15px;
+  }
+  .workbench-main > .workbench-panel {
+    padding: 16px;
+  }
+  .workbench-panel .section-actions {
+    width: auto;
+    margin-top: 0;
+    gap: 8px;
   }
   .app-grid {
     gap: 15px 5px;

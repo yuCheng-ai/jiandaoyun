@@ -968,6 +968,10 @@ export class ProcessTemplateService {
           { pageId, pageVersion: body.pageVersion },
         ],
       );
+      // 仅新增权限的填写人沿用空收据，发起成功不要求额外取得记录查看权限。
+      if (result.accessLost) {
+        return { ...result, processId: process.id };
+      }
       // 流程启动后，普通成员只能在待办中修改记录；首次提交也返回最终权限。
       const scope = await this.pages.recordScope(
         actor,

@@ -86,12 +86,11 @@ beforeEach(() => {
   vi.stubEnv("VITE_AMAP_JS_KEY", "");
   vi.stubEnv("VITE_AMAP_SERVICE_HOST", "");
   getCurrentPosition.mockClear();
-  vi.stubGlobal(
-    "navigator",
-    Object.assign(Object.create(navigator), {
-      geolocation: { getCurrentPosition },
-    }),
-  );
+  Object.defineProperty(window.navigator, "geolocation", {
+    value: { getCurrentPosition },
+    configurable: true,
+    writable: true,
+  });
 });
 afterEach(() => {
   app?.unmount();
@@ -459,8 +458,17 @@ it("reports unsupported devices and timeout without inventing a usable address",
   const promise = deviceLocation();
   failure!({ code: 3 } as GeolocationPositionError);
   await expect(promise).rejects.toThrow("定位超时");
-  vi.stubGlobal("navigator", { userAgent: "desktop", maxTouchPoints: 0 });
-  await expect(deviceLocation()).rejects.toThrow("不支持定位");
+  const orig = (window.navigator as any).geolocation;
+  delete (window.navigator as any).geolocation;
+  try {
+    await expect(deviceLocation()).rejects.toThrow("不支持定位");
+  } finally {
+    Object.defineProperty(window.navigator, "geolocation", {
+      value: orig,
+      configurable: true,
+      writable: true,
+    });
+  }
 });
 
 it("keeps cancel available when the map is not enabled and cannot confirm an invented selection", async () => {

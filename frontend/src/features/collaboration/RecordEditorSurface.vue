@@ -7,7 +7,11 @@ defineEmits<{ close: [] }>();
   <section v-if="embedded" class="record-editor-inline" :aria-busy="busy">
     <p v-if="busy" class="dialog-pending" role="status">正在处理，请稍候…</p>
     <div class="record-editor-content" :inert="busy || undefined"><slot /></div>
-    <footer class="runtime-footer" :inert="busy || undefined">
+    <footer
+      v-if="$slots.footer"
+      class="runtime-footer"
+      :inert="busy || undefined"
+    >
       <slot name="footer" />
     </footer>
   </section>
@@ -19,7 +23,8 @@ defineEmits<{ close: [] }>();
     :busy="busy"
     pending-text="正在处理，请稍候…"
     @close="$emit('close')"
-    ><slot /><template #footer><slot name="footer" /></template
+    ><slot /><template v-if="$slots.footer" #footer
+      ><slot name="footer" /></template
   ></BaseDialog>
 </template>
 <style scoped>

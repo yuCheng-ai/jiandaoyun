@@ -33,10 +33,10 @@ export async function assertPageActive(tx: Pick<Database, "query">, actor: Actor
   );
   const page = rows[0];
   if (!page) {
-    throw new NotFoundException("页面不存在或不可访问");
+    throw new NotFoundException("表单不存在或不可访问");
   }
   if (page.archived_at) {
-    throw new ConflictException(`「${page.title}」已归档，请选择其他页面或由管理员恢复；已发任务可从待办继续处理`);
+    throw new ConflictException(`「${page.title}」已归档，请打开其他表单或由管理员恢复；已发任务可从待办继续处理`);
   }
 }
 
@@ -106,7 +106,7 @@ export async function pageLifecycleImpact(
   // 3. 汇总归档或恢复的风险提示
   const warnings: string[] = [];
   if (action === "archive" && references.some((item) => item.state === "published")) {
-    warnings.push("引用此页面的流程版本将不能再发起；已发出的任务仍可处理。");
+    warnings.push("使用此表单的流程将不能再发起；已发出的任务仍可处理。");
   }
 
   if (action === "restore") {
@@ -132,17 +132,17 @@ export async function pageLifecycleImpact(
       if (affected.length) {
         const fieldNames = affected.map((item) => item.field.name).join("、");
         warnings.push(
-          `当前模型已调整本页使用的字段：${fieldNames}。恢复后仍按原数据 V${saved.definition_version} 使用，采用新版需另行检查。`,
+          `以下字段的已发布设置已有变化：${fieldNames}。恢复后保留归档前的表单内容；如需采用新设置，请检查并重新发布表单。`,
         );
       } else if (saved.definition_version !== definition.latest_version) {
         warnings.push(
-          `本页仍使用数据 V${saved.definition_version}，当前数据为 V${definition.latest_version}；恢复不会自动升级页面或记录。`,
+          "恢复后仍使用归档前的已发布内容，已有记录保持原样；如需采用最新字段设置，请检查并重新发布表单。",
         );
       }
     }
 
     if (page.additions.length && page.base_definition_revision !== definition.revision) {
-      warnings.push("保留的新字段草稿需要重新检查数据基线后才能发布。");
+      warnings.push("表单内容已有更新，请检查草稿中的新字段后再发布。");
     }
   }
 

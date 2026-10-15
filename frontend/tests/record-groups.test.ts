@@ -231,7 +231,7 @@ it("opening a form uses allowed merged groups without an extra permission select
     vi
       .mocked(platformApi)
       .mock.calls.some(
-        (c) => c[0] === "/pages/page/record-list?version=1&state=active&page=1&keyword=",
+        (c) => c[0] === "/pages/page/record-list?version=1&state=active&page=1",
       ),
   ).toBe(true);
   expect(accessGroupSelections.value.object).toBe("a");
@@ -375,14 +375,14 @@ it("a create-only form opens its own drafts without requesting submitted records
       .mocked(platformApi)
       .mock.calls.filter((c) => c[0].includes("/record-list?"))
       .map((c) => c[0]),
-  ).toEqual(["/pages/page/record-list?version=1&state=draft&page=1&keyword="]);
+  ).toEqual(["/pages/page/record-list?version=1&state=draft&page=1"]);
   expect(button("正式记录")).toBeUndefined();
   expect(
     document.querySelector(".record-state-tab.active")?.textContent?.trim(),
   ).toBe("草稿箱");
   await input(".record-group-choice select", "review");
   expect(vi.mocked(platformApi).mock.calls.at(-1)![0]).toBe(
-    "/pages/page/record-list?version=1&state=active&page=1&keyword=",
+    "/pages/page/record-list?version=1&state=active&page=1",
   );
 });
 

@@ -8,7 +8,11 @@ import ServerFieldControl from "../src/features/collaboration/ServerFieldControl
 import FieldValueRules from "../src/features/data/FieldValueRules.vue";
 import RecordEditor from "../src/features/collaboration/RecordEditor.vue";
 import { platformApi } from "../src/repositories/platformApi";
-vi.mock("vue-router", () => ({ onBeforeRouteLeave: vi.fn() }));
+vi.mock("vue-router", () => ({
+  onBeforeRouteLeave: vi.fn(),
+  onBeforeRouteUpdate: vi.fn(),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+}));
 vi.mock("../src/repositories/platformApi", async original => ({ ...await original<typeof import('../src/repositories/platformApi')>(), platformApi: vi.fn() }));
 vi.mock("../src/features/data/RecordRelations.vue", () => ({ default: { render: () => null } }));
 vi.mock("../src/components/BaseDialog.vue", () => ({ default: defineComponent({ props: ['open'], setup(props, { slots }) { return () => props.open ? h('section', [slots.default?.(), slots.footer?.()]) : null; } }) }));

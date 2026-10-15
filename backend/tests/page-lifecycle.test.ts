@@ -116,7 +116,8 @@ test('archived page dependencies do not block model changes; restore reviews dif
   const impact = await h.request(`/data-objects/${f.object.id}/publish-preview`, 'POST', { expectedRevision: saved.revision }, 'admin', 201);
   assert.deepEqual(impact.blockers, []); assert.match(impact.references[0].detail, /已归档/);
   await h.request(`/data-objects/${f.object.id}/publish`, 'POST', { expectedRevision: saved.revision, impactToken: impact.token }, 'admin', 201);
-  const restore = await review(archived, 'restore'); assert.ok(restore.warnings.some((s: string) => s.includes('note') && s.includes('V1')));
+  const restore = await review(archived, 'restore');
+  assert.ok(restore.warnings.some((s: string) => s.includes('note') && s.includes('恢复后保留')));
   await apply(restore);
   const form = await h.request(`/pages/${f.page.id}/form?version=1`); assert.equal(form.definition.version, 1); assert.ok(form.definition.schema.fields.some((field: any) => field.id === 'note'));
   const current = await h.request(`/data-objects/${f.object.id}/draft`); assert.equal(current.latestVersion, 2); assert.equal(current.model.fields.length, 1);
